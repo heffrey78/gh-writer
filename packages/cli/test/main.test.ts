@@ -10,7 +10,9 @@ const main = join(repo, "packages/cli/src/main.ts");
 const sample = join(repo, "examples/sample-novel");
 
 const run = (file: string, ...args: string[]) => {
-  const r = spawnSync("node", [file, ...args], { encoding: "utf8", env: { ...process.env, NO_COLOR: "1" } });
+  // Plain output: FORCE_COLOR (set by some terminals and runners) would override NO_COLOR.
+  const { FORCE_COLOR: _, ...env } = process.env;
+  const r = spawnSync("node", [file, ...args], { encoding: "utf8", env: { ...env, NO_COLOR: "1" } });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
 
