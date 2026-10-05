@@ -3,6 +3,7 @@ import { join, relative, sep } from "node:path";
 import { loadNovel, type FileSource, type Novel } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
 import { watch, type FSWatcher } from "chokidar";
+import { Checkpoints } from "./checkpoints.ts";
 import { Committer, type CommitStatus, type CommitterOptions } from "./committer.ts";
 import { atomicWrite, hashText, isVisible, readText, writablePath, type TextFile, type WriteHooks } from "./files.ts";
 import type { Library } from "./library.ts";
@@ -37,6 +38,7 @@ export class NovelWorkspace {
   readonly committer: Committer | undefined;
   /** Syncs with the remote in the background, unless turned off. */
   readonly syncer: Syncer | undefined;
+  readonly checkpoints: Checkpoints;
   /** Resolves when the workspace stops: event streams end then. */
   readonly stopped: Promise<void>;
   #stop!: () => void;
@@ -56,6 +58,12 @@ export class NovelWorkspace {
     this.committer = commit === false ? undefined : new Committer(root, commit);
     this.syncer =
       sync === false ? undefined : new Syncer(root, sync, { ...(this.committer ? { committer: this.committer } : {}), exclusive: (fn) => this.exclusive(fn) });
+    this.checkpoints = new Checkpoints(root, {
+      // Checkpoints commit saved work even when background commits are off.
+      committer: this.committer ?? new Committer(root),
+      exclusive: (fn) => this.exclusive(fn),
+      onCreate: () => this.syncer?.tagsChanged(),
+    });
     this.stopped = new Promise((resolve) => (this.#stop = resolve));
     this.syncer?.start();
   }

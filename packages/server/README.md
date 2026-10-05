@@ -26,6 +26,9 @@ await server.close();
 | `GET /api/novels/:id/events` | yes | an event stream of changes made outside the app, and of the sync status (below) |
 | `GET /api/novels/:id/sync` | yes | the sync status: `{ state, remote, branch, ahead, behind, lastSync, conflict?, error?, commit }` |
 | `POST /api/novels/:id/sync` | yes | syncs now, then answers with the status |
+| `GET /api/novels/:id/checkpoints` | yes | `{ checkpoints }`, newest first |
+| `POST /api/novels/:id/checkpoints` | yes | `{ name }` → `201 { checkpoint }` |
+| `POST /api/novels/:id/checkpoints/:checkpoint/restore` | yes | `{ sceneId? }` → `{ undo, commit, files }` |
 
 Routes added to `server.app` (before its first request) or in `createApp` sit behind the same security middleware.
 
@@ -110,6 +113,8 @@ Each novel with a remote is kept in step with it: once when it's opened, every 5
 3. **Brings remote changes in.** Writes to the novel wait for this step, and saves made during the fetch are committed first. With no local commits to keep, it fast-forwards. Otherwise it rebases them onto the remote's, so a solo author's history stays linear. The merge is tried in memory first (`git merge-tree`). If the same lines changed on both sides, nothing in the work tree is touched: the state is `conflict`, with the files, for the resolver (#47). A rebase that conflicts commit by commit is aborted, with the same result. Local commits are always kept.
 4. **Pushes** to the branch's upstream, setting it up on the first push. If the remote moved during the sync, its changes are brought in and the push is tried again, up to three times.
 
+[Checkpoint](#checkpoints) tags are fetched with the branch every time. They're pushed with it on the first sync of a session and after a checkpoint is made, even when there are no commits to push.
+
 The work tree changes in step 3 reach the editor as `file` events, like any outside change. A save based on the old version gets a `409`, so unsaved text is never overwritten.
 
 | State | Means |
@@ -124,6 +129,17 @@ The work tree changes in step 3 reach the editor as `file` events, like any outs
 | `error` | anything else, in `error`: `DETACHED` (not on a branch), `BUSY` (a merge or rebase of the author's is in progress), or a [git code](#git-and-credentials) |
 
 `ahead` and `behind` are always counted, whatever the state. `lastSync` is when the last sync finished cleanly. `createServer({ sync: { intervalMs, retryMs } })` changes the timing. `intervalMs: 0` syncs only on demand (`gh-writer serve --sync-every 0`), and `sync: false` turns syncing off: the state is then `off`.
+
+## Checkpoints
+
+A checkpoint is a named point to come back to before a risky revision: an annotated tag `checkpoint/<time>-<slug>` with the name and the manuscript's word count (format spec v1, "Checkpoints").
+
+- **Making one** commits saved work first, so the checkpoint holds everything written up to it. It's refused (`409 BLOCKED`) when that commit can't be made: no git identity, or a merge in progress. The name is 1 to 200 characters (`400 BAD_NAME`).
+- **The list** is newest first: `{ id, name, date, words, auto, commit }`. `id` is the tag without `checkpoint/`, used in URLs. `auto` marks the ones taken before a restore.
+- **Restoring** brings back `manuscript/` and `bible/` as they were at the checkpoint. Files added since are removed, and everything else in the repository is left alone. With `sceneId`, only that scene comes back. It's found by its ID, so a scene that moved to another chapter since is restored where it is now, with the chapters' order files untouched. A scene deleted since comes back where it was. The restore is committed as `Restore the manuscript from checkpoint “…”` or `Restore scene “…” from checkpoint “…”`. Writes wait while it runs. The changed files reach the editor as `file` events.
+- **Undo.** Every restore first takes an automatic checkpoint, "Before restoring … from “…”", and returns it as `undo`. Restoring `undo` returns the manuscript to exactly where it was, including work saved but not yet committed. That restore takes its own checkpoint, so it can be undone too.
+
+`404 NOT_FOUND` is an unknown checkpoint, and `404 SCENE_NOT_FOUND` a scene the checkpoint doesn't have.
 
 ## Security model
 

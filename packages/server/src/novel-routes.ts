@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
+import { CheckpointError } from "./checkpoints.ts";
 import { FileError, MAX_FILE_BYTES } from "./files.ts";
 import type { Library } from "./library.ts";
 import type { NovelWorkspace, Workspaces } from "./workspace.ts";
@@ -17,6 +18,9 @@ type NovelEnv = { Variables: { ws: NovelWorkspace } };
  *                                   and a "sync" event (the status) whenever it changes
  * GET /api/novels/:id/sync          sync status: { state, remote, branch, ahead, behind, lastSync, conflict?, error?, commit }
  * POST /api/novels/:id/sync         sync now; the status once it's done
+ * GET /api/novels/:id/checkpoints   { checkpoints }, newest first
+ * POST /api/novels/:id/checkpoints  { name } → 201 { checkpoint }
+ * POST /api/novels/:id/checkpoints/:checkpoint/restore  { sceneId? } → { undo, commit, files }
  */
 export function novelRoutes(library: Library, workspaces: Workspaces): Hono<NovelEnv> {
   const routes = new Hono<NovelEnv>();
@@ -75,6 +79,28 @@ export function novelRoutes(library: Library, workspaces: Workspaces): Hono<Nove
     return c.json(await c.var.ws.syncStatus());
   });
 
+  routes.get("/:id/checkpoints", async (c) => c.json({ checkpoints: await c.var.ws.checkpoints.list() }));
+
+  routes.post("/:id/checkpoints", async (c) => {
+    const { name } = ((await c.req.json().catch(() => undefined)) ?? {}) as { name?: unknown };
+    if (typeof name !== "string") return c.json({ code: "BAD_REQUEST", error: "Send { name }: what to call the checkpoint." }, 400);
+    try {
+      return c.json({ checkpoint: await c.var.ws.checkpoints.create(name) }, 201);
+    } catch (e) {
+      return checkpointFailure(c, e);
+    }
+  });
+
+  routes.post("/:id/checkpoints/:checkpoint/restore", async (c) => {
+    const { sceneId } = ((await c.req.json().catch(() => undefined)) ?? {}) as { sceneId?: unknown };
+    if (sceneId !== undefined && typeof sceneId !== "string") return c.json({ code: "BAD_REQUEST", error: "sceneId must be a scene ID." }, 400);
+    try {
+      return c.json(await c.var.ws.checkpoints.restore(c.req.param("checkpoint"), sceneId === undefined ? {} : { sceneId }));
+    } catch (e) {
+      return checkpointFailure(c, e);
+    }
+  });
+
   routes.get("/:id/events", (c) =>
     streamSSE(c, async (stream) => {
       const ws = c.var.ws;
@@ -120,6 +146,13 @@ function filePath(c: Context): string {
 }
 
 const STATUS = { BAD_PATH: 400, NOT_FOUND: 404, NOT_TEXT: 415, TOO_LARGE: 413, NOT_WRITABLE: 400 } as const;
+
+const CHECKPOINT_STATUS = { BAD_NAME: 400, NOT_FOUND: 404, SCENE_NOT_FOUND: 404, BLOCKED: 409 } as const;
+
+function checkpointFailure(c: Context, e: unknown): Response {
+  if (!(e instanceof CheckpointError)) throw e;
+  return c.json({ code: e.code, error: e.message }, CHECKPOINT_STATUS[e.code]);
+}
 
 function fileFailure(c: Context, e: unknown): Response {
   if (!(e instanceof FileError)) throw e;

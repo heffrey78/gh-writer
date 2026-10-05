@@ -43,6 +43,24 @@ export interface SyncStatus {
   commit: CommitStatus;
 }
 
+export interface Checkpoint {
+  /** For URLs, e.g. "2026-10-05-183012-before-the-big-cut". */
+  id: string;
+  name: string;
+  date: string;
+  words: number;
+  /** Taken automatically before a restore. */
+  auto: boolean;
+  commit: string;
+}
+
+export interface RestoreResult {
+  /** Restore this checkpoint to undo the restore. */
+  undo: Checkpoint;
+  commit: string | null;
+  files: string[];
+}
+
 export type WriteResult = { ok: true; hash: string } | { ok: false; current: TextFile | null };
 
 /** A non-2xx answer other than a write conflict. `status` 0 means the server couldn't be reached. */
@@ -117,6 +135,19 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
       return status === 409 ? { ok: false, current: data.current } : { ok: true, hash: data.hash };
     },
     sync: async (id: string) => (await request<SyncStatus>("GET", `/api/novels/${encodeURIComponent(id)}/sync`)).data,
+    /** Newest first. */
+    checkpoints: async (id: string) => (await request<{ checkpoints: Checkpoint[] }>("GET", `/api/novels/${encodeURIComponent(id)}/checkpoints`)).data.checkpoints,
+    createCheckpoint: async (id: string, name: string) =>
+      (await request<{ checkpoint: Checkpoint }>("POST", `/api/novels/${encodeURIComponent(id)}/checkpoints`, { name })).data.checkpoint,
+    /** The whole manuscript, or one scene; `undo` in the result is the checkpoint that reverses it. */
+    restoreCheckpoint: async (id: string, checkpointId: string, sceneId?: string) =>
+      (
+        await request<RestoreResult>(
+          "POST",
+          `/api/novels/${encodeURIComponent(id)}/checkpoints/${encodeURIComponent(checkpointId)}/restore`,
+          sceneId === undefined ? {} : { sceneId },
+        )
+      ).data,
     /** Sync with the remote now; resolves with the status once it's done. */
     syncNow: async (id: string) => (await request<SyncStatus>("POST", `/api/novels/${encodeURIComponent(id)}/sync`)).data,
   };

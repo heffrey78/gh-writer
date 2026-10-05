@@ -1,3 +1,4 @@
+import { CHECKPOINT_PREFIX } from "./checkpoints.ts";
 import { operationInProgress, type Committer } from "./committer.ts";
 import { classifyGitError, git, GitFailure } from "./git.ts";
 
@@ -44,7 +45,14 @@ interface Target {
   tracking: string;
   /** Whether the branch already tracks it (otherwise the first push sets that up). */
   upstream: boolean;
+  /** The remote's configured fetch refspecs. */
+  fetch: string[];
 }
+
+// Checkpoint tags travel with every sync. A remote checkpoint replaces a local one of the same name (made
+// in the same second with the same name on two machines), rather than stopping every sync after it.
+const FETCH_CHECKPOINTS = `+${CHECKPOINT_PREFIX}*:${CHECKPOINT_PREFIX}*`;
+const PUSH_CHECKPOINTS = `${CHECKPOINT_PREFIX}*:${CHECKPOINT_PREFIX}*`;
 
 type Outcome =
   | { kind: "ok" }
@@ -100,6 +108,9 @@ export class Syncer {
   #failures = 0;
   #lastSync: string | null = null;
   #listeners = new Set<() => void>();
+  /** Checkpoints made, and how many of them the last push carried: the first sync pushes any from before. */
+  #tagsMade = 0;
+  #tagsPushed = -1;
 
   constructor(root: string, { intervalMs = 300_000, retryMs = 15_000, schedule = realSchedule }: SyncerOptions = {}, { committer, exclusive }: SyncerDeps = {}) {
     this.root = root;
@@ -124,6 +135,11 @@ export class Syncer {
       if (!this.#closed && this.#intervalMs > 0) this.#cancelNext = this.#schedule(() => void this.sync(), this.#nextDelay());
     });
     return this.#running;
+  }
+
+  /** A checkpoint was made: the next sync pushes it, even with no commits to push. */
+  tagsChanged(): void {
+    this.#tagsMade++;
   }
 
   /** Called when the status may have changed. Returns a function that removes it. */
@@ -193,14 +209,19 @@ export class Syncer {
     await this.#committer?.commit();
 
     for (let attempt = 1; ; attempt++) {
-      await remote.raw(["fetch", "--quiet", target.remote]);
+      // The configured refspecs are named because naming any refspec replaces them.
+      await remote.raw(["fetch", "--quiet", target.remote, ...target.fetch, FETCH_CHECKPOINTS]);
       const conflict = await this.#exclusive(() => this.#integrate(target));
       if (conflict) return { kind: "conflict", files: conflict };
       const { ahead } = await this.#counts(target);
-      if (!ahead) return { kind: "ok" };
+      const tags = this.#tagsMade;
+      const pushTags = this.#tagsPushed < tags;
+      if (!ahead && !pushTags) return { kind: "ok" };
       try {
-        await remote.raw(["push", "--quiet", ...(target.upstream ? [] : ["--set-upstream"]), target.remote, `HEAD:${target.mergeRef}`]);
+        const refs = [`HEAD:${target.mergeRef}`, ...(pushTags ? [PUSH_CHECKPOINTS] : [])];
+        await remote.raw(["push", "--quiet", ...(target.upstream ? [] : ["--set-upstream"]), target.remote, ...refs]);
         target.upstream = true;
+        this.#tagsPushed = tags;
         return { kind: "ok" };
       } catch (e) {
         const failure = classifyGitError(e);
@@ -251,7 +272,9 @@ export class Syncer {
     if (!remote) return null;
     const upstream = remote === configured && (await get("config", "--get", `branch.${branch}.merge`)) !== "";
     const mergeRef = (upstream && (await get("config", "--get", `branch.${branch}.merge`))) || `refs/heads/${branch}`;
-    return { remote, branch, mergeRef, tracking: `refs/remotes/${remote}/${mergeRef.replace(/^refs\/heads\//, "")}`, upstream };
+    const configuredFetch = (await get("config", "--get-all", `remote.${remote}.fetch`)).split("\n").filter(Boolean);
+    const fetch = configuredFetch.length ? configuredFetch : [`+refs/heads/*:refs/remotes/${remote}/*`];
+    return { remote, branch, mergeRef, tracking: `refs/remotes/${remote}/${mergeRef.replace(/^refs\/heads\//, "")}`, upstream, fetch };
   }
 
   async #counts(target: Target): Promise<{ ahead: number; behind: number }> {
