@@ -1,8 +1,8 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import fc from "fast-check";
-import type { Node } from "prosemirror-model";
-import { Transform } from "prosemirror-transform";
+import type { Mark, Node } from "@tiptap/pm/model";
+import { Transform } from "@tiptap/pm/transform";
 import { describe, expect, test } from "vitest";
 import { joinSceneFile, parseProse, proseSchema as schema, serializeProse, splitSceneFile } from "../src/index.ts";
 
@@ -265,7 +265,7 @@ describe("canonical serialization", () => {
    * mentions, with the whitespace Markdown can't keep (paragraph edges, around breaks) removed
    * and empty paragraphs and quotes dropped. Emphasis on whitespace is invisible and ignored.
    */
-  const visible = (marks: readonly import("prosemirror-model").Mark[]) =>
+  const visible = (marks: readonly Mark[]) =>
     marks.filter((m) => m.type.name === "link").map((m) => m.type.name + m.attrs.href).join(",");
 
   function meaning(node: Node): unknown {

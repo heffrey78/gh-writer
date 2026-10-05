@@ -10,12 +10,13 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p packages/editor/tsconfig.json",
     "test": "vitest run",
     "validate": "node packages/cli/src/main.ts validate",
     "build:validator": "node scripts/build-validator.ts",
     "check": "npm run typecheck && npm test",
-    "build:template": "node scripts/build-validator.ts templates/novel/.github/gh-writer/validate.mjs"
+    "build:template": "node scripts/build-validator.ts templates/novel/.github/gh-writer/validate.mjs",
+    "test:e2e": "npm run test:e2e -w @gh-writer/editor"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

@@ -1,0 +1,132 @@
+/* Scene editor typography. Override the custom properties to theme it. */
+
+:root {
+  --ghw-prose-font: "Iowan Old Style", "Palatino Linotype", Palatino, "Source Serif 4", Georgia, serif;
+  --ghw-prose-size: 1.1875rem;
+  --ghw-prose-measure: 36rem;
+  --ghw-ink: #1f1d1a;
+  --ghw-muted: #5f5a52;
+  --ghw-accent: #2c5d8f;
+  --ghw-accent-soft: rgb(44 93 143 / 0.1);
+  --ghw-raw-bg: rgb(31 29 26 / 0.05);
+  --ghw-selection: rgb(44 93 143 / 0.22);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ghw-ink: #e8e4dc;
+    --ghw-muted: #a9a399;
+    --ghw-accent: #8cb8e6;
+    --ghw-accent-soft: rgb(140 184 230 / 0.14);
+    --ghw-raw-bg: rgb(232 228 220 / 0.07);
+    --ghw-selection: rgb(140 184 230 / 0.3);
+  }
+}
+
+:root[data-theme="dark"] {
+  --ghw-ink: #e8e4dc;
+  --ghw-muted: #a9a399;
+  --ghw-accent: #8cb8e6;
+  --ghw-accent-soft: rgb(140 184 230 / 0.14);
+  --ghw-raw-bg: rgb(232 228 220 / 0.07);
+  --ghw-selection: rgb(140 184 230 / 0.3);
+}
+
+.ghw-prose {
+  max-width: var(--ghw-prose-measure);
+  margin: 0 auto;
+  padding: 2rem 0 40vh;
+  font-family: var(--ghw-prose-font);
+  font-size: var(--ghw-prose-size);
+  line-height: 1.65;
+  color: var(--ghw-ink);
+  caret-color: var(--ghw-accent);
+  font-variant-ligatures: common-ligatures;
+  hanging-punctuation: first;
+  text-rendering: optimizeLegibility;
+  outline: none;
+}
+
+.ghw-prose ::selection {
+  background: var(--ghw-selection);
+}
+
+.ghw-prose p {
+  margin: 0 0 0.9em;
+}
+
+.ghw-prose blockquote {
+  margin: 0 0 0.9em;
+  padding: 0 0 0 1.25em;
+  border-left: 2px solid var(--ghw-muted);
+  color: var(--ghw-muted);
+  font-style: italic;
+}
+
+.ghw-prose blockquote em {
+  font-style: normal;
+}
+
+/* Section break, shown as a centred asterism rather than a line. */
+.ghw-prose hr {
+  border: none;
+  margin: 1.5em 0;
+  height: auto;
+  text-align: center;
+  color: var(--ghw-muted);
+  overflow: visible;
+}
+
+.ghw-prose hr::after {
+  content: "*\2002*\2002*";
+  letter-spacing: 0.2em;
+}
+
+.ghw-prose hr.ProseMirror-selectednode {
+  outline: 2px solid var(--ghw-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.ghw-prose .ghw-mention {
+  color: var(--ghw-accent);
+  background: var(--ghw-accent-soft);
+  border-radius: 0.2em;
+  padding: 0 0.1em;
+  text-decoration: none;
+}
+
+.ghw-prose .ghw-mention.ProseMirror-selectednode {
+  outline: 2px solid var(--ghw-accent);
+}
+
+.ghw-prose a {
+  color: var(--ghw-accent);
+}
+
+.ghw-prose .ghw-raw,
+.ghw-prose .ghw-raw-inline {
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  font-size: 0.8em;
+  background: var(--ghw-raw-bg);
+  border-radius: 0.3em;
+}
+
+.ghw-prose .ghw-raw {
+  margin: 0 0 0.9em;
+  padding: 0.6em 0.8em;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.ghw-prose .ghw-raw-inline {
+  padding: 0.05em 0.25em;
+}
+
+.ghw-prose p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--ghw-muted);
+  pointer-events: none;
+}

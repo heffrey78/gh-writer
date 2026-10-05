@@ -4,7 +4,7 @@ import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmFromMarkdown, gfmToMarkdown } from "mdast-util-gfm";
 import { toMarkdown, type Handle, type Options } from "mdast-util-to-markdown";
 import { gfm } from "micromark-extension-gfm";
-import { Fragment, type Mark, type Node, type Schema } from "prosemirror-model";
+import { Fragment, type Mark, type Node, type Schema } from "@tiptap/pm/model";
 import { proseSchema } from "./schema.ts";
 
 /*
@@ -61,8 +61,12 @@ export function serializeProse(doc: Node): string {
     out += separator(prev, block.attrs.gap, reused, text, eol) + text;
     prev = { text, reused };
   });
+  // Keep the file's ending after an unedited last block (even no final newline); otherwise end
+  // with a newline, as a new scene or an edited last paragraph should.
   const trailing = doc.attrs.trailing;
-  return out + (typeof trailing === "string" && /^\s*$/.test(trailing) ? trailing : eol);
+  const valid = typeof trailing === "string" && /^\s*$/.test(trailing);
+  if (!prev) return valid ? trailing : "";
+  return out + (valid && ((prev as { reused: boolean }).reused || trailing.includes("\n")) ? trailing : eol);
 }
 
 // ---------------------------------------------------------------------------
