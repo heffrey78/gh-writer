@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/heffrey78/gh-writer/schemas/v1/scene.schema.json",
+  "title": "Scene front matter",
+  "type": "object",
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/id" },
+    "title": { "$ref": "common.schema.json#/$defs/nonEmptyText" },
+    "synopsis": { "$ref": "common.schema.json#/$defs/text" },
+    "status": { "enum": ["idea", "outlined", "drafted", "revised", "final"] },
+    "pov": { "$ref": "common.schema.json#/$defs/id" },
+    "characters": { "$ref": "common.schema.json#/$defs/idList" },
+    "locations": { "$ref": "common.schema.json#/$defs/idList" },
+    "plotlines": {
+      "type": "array",
+      "items": {
+        "if": { "type": "string" },
+        "then": { "$ref": "common.schema.json#/$defs/id" },
+        "else": {
+          "type": "object",
+          "properties": {
+            "id": { "$ref": "common.schema.json#/$defs/id" },
+            "weight": { "enum": ["major", "minor"] },
+            "beat": { "$ref": "common.schema.json#/$defs/text" }
+          },
+          "required": ["id"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "themes": {
+      "type": "array",
+      "items": {
+        "if": { "type": "string" },
+        "then": { "$ref": "common.schema.json#/$defs/id" },
+        "else": {
+          "type": "object",
+          "properties": {
+            "id": { "$ref": "common.schema.json#/$defs/id" },
+            "strength": { "type": "integer", "minimum": 1, "maximum": 3 },
+            "note": { "$ref": "common.schema.json#/$defs/text" }
+          },
+          "required": ["id"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "when": { "$ref": "common.schema.json#/$defs/storyTime" },
+    "duration": { "$ref": "common.schema.json#/$defs/duration" },
+    "tags": { "$ref": "common.schema.json#/$defs/tags" }
+  },
+  "required": ["id", "title"],
+  "additionalProperties": false
+}

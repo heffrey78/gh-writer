@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/heffrey78/gh-writer/schemas/v1/common.schema.json",
+  "title": "Shared definitions",
+  "$defs": {
+    "id": {
+      "description": "Record ID: type prefix, underscore, six lowercase Crockford base32 characters.",
+      "type": "string",
+      "pattern": "^[a-z]{2,8}_[0-9a-hjkmnp-tv-z]{6}$"
+    },
+    "idList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/id" },
+      "uniqueItems": true
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "dateTime": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(Z|[+-]\\d{2}:\\d{2})?)?$"
+    },
+    "duration": {
+      "description": "ISO 8601 duration, e.g. PT45M or P2D.",
+      "type": "string",
+      "pattern": "^P(?!$)(\\d+Y)?(\\d+M)?(\\d+W)?(\\d+D)?(T(?=\\d)(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$"
+    },
+    "storyTime": {
+      "description": "Either an absolute ISO date/date-time, or a relative day with optional HH:MM time.",
+      "type": "object",
+      "if": { "required": ["at"] },
+      "then": {
+        "properties": { "at": { "$ref": "#/$defs/dateTime" } },
+        "required": ["at"],
+        "additionalProperties": false
+      },
+      "else": {
+        "properties": {
+          "day": { "type": "integer" },
+          "time": { "type": "string", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$" }
+        },
+        "required": ["day"],
+        "additionalProperties": false
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "text": { "type": "string" },
+    "nonEmptyText": { "type": "string", "minLength": 1 }
+  }
+}

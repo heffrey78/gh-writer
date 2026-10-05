@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/heffrey78/gh-writer/schemas/v1/relationships.schema.json",
+  "title": "bible/relationships.yaml",
+  "type": "object",
+  "properties": {
+    "relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "$ref": "common.schema.json#/$defs/id" },
+          "from": { "$ref": "common.schema.json#/$defs/id" },
+          "to": { "$ref": "common.schema.json#/$defs/id" },
+          "type": { "type": "string", "minLength": 1 },
+          "since": { "$ref": "common.schema.json#/$defs/id" },
+          "until": { "$ref": "common.schema.json#/$defs/id" },
+          "note": { "$ref": "common.schema.json#/$defs/text" }
+        },
+        "required": ["id", "from", "to", "type"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["relationships"],
+  "additionalProperties": false
+}

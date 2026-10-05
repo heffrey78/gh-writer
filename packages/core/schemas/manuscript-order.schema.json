@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/heffrey78/gh-writer/schemas/v1/manuscript-order.schema.json",
+  "title": "manuscript/_order.yaml",
+  "description": "Top-level reading order: exactly one of parts or chapters.",
+  "type": "object",
+  "properties": {
+    "parts": { "$ref": "common.schema.json#/$defs/idList" },
+    "chapters": { "$ref": "common.schema.json#/$defs/idList" }
+  },
+  "minProperties": 1,
+  "maxProperties": 1,
+  "additionalProperties": false
+}

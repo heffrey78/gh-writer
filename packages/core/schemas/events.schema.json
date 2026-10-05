@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/heffrey78/gh-writer/schemas/v1/events.schema.json",
+  "title": "bible/events.yaml",
+  "type": "object",
+  "properties": {
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "$ref": "common.schema.json#/$defs/id" },
+          "title": { "$ref": "common.schema.json#/$defs/nonEmptyText" },
+          "when": { "$ref": "common.schema.json#/$defs/storyTime" },
+          "duration": { "$ref": "common.schema.json#/$defs/duration" },
+          "characters": { "$ref": "common.schema.json#/$defs/idList" },
+          "locations": { "$ref": "common.schema.json#/$defs/idList" },
+          "plotlines": { "$ref": "common.schema.json#/$defs/idList" },
+          "note": { "$ref": "common.schema.json#/$defs/text" }
+        },
+        "required": ["id", "title"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["events"],
+  "additionalProperties": false
+}

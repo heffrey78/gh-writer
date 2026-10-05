@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/heffrey78/gh-writer/schemas/v1/part.schema.json",
+  "title": "_part.yaml",
+  "type": "object",
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/id" },
+    "title": { "$ref": "common.schema.json#/$defs/nonEmptyText" },
+    "synopsis": { "$ref": "common.schema.json#/$defs/text" },
+    "chapters": { "$ref": "common.schema.json#/$defs/idList" }
+  },
+  "required": ["id", "title", "chapters"],
+  "additionalProperties": false
+}

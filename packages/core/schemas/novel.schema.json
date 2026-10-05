@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/heffrey78/gh-writer/schemas/v1/novel.schema.json",
+  "title": "novel.yaml",
+  "type": "object",
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "id": { "$ref": "common.schema.json#/$defs/id" },
+    "title": { "$ref": "common.schema.json#/$defs/nonEmptyText" },
+    "author": { "$ref": "common.schema.json#/$defs/text" },
+    "target": {
+      "type": "object",
+      "properties": {
+        "words": { "type": "integer", "minimum": 1 },
+        "date": { "$ref": "common.schema.json#/$defs/date" }
+      },
+      "additionalProperties": false
+    },
+    "entity_types": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+          "prefix": { "type": "string", "pattern": "^[a-z]{2,8}$" },
+          "folder": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$" },
+          "label": { "$ref": "common.schema.json#/$defs/nonEmptyText" },
+          "color": { "type": "string", "pattern": "^[0-9a-fA-F]{6}$" }
+        },
+        "required": ["key", "prefix", "folder"],
+        "additionalProperties": false
+      }
+    },
+    "relationship_types": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
+          "label": { "$ref": "common.schema.json#/$defs/nonEmptyText" },
+          "inverse_label": { "$ref": "common.schema.json#/$defs/nonEmptyText" },
+          "symmetric": { "type": "boolean" },
+          "from_types": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+          "to_types": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+        },
+        "required": ["key"],
+        "additionalProperties": false
+      }
+    },
+    "calendar": {
+      "type": "object",
+      "properties": {
+        "start": { "$ref": "common.schema.json#/$defs/date" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["schema_version", "id", "title"],
+  "additionalProperties": false
+}
