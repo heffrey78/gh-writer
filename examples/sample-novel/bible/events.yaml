@@ -1,0 +1,23 @@
+events:
+  - id: evt_9ab3kd
+    title: The flood of '09
+    when:
+      at: 2009-11-02
+    duration: P3D
+    characters: [char_7f3k2q, char_b3n0vs, char_t0ma5h]
+    locations: [loc_br1dg3]
+    note: The father holds the seventh pier through the night and dies of pneumonia a week later.
+  - id: evt_1eave5
+    title: Ada leaves for the polytechnic
+    when:
+      at: 2012-09-01
+    characters: [char_7f3k2q]
+    locations: [loc_5tat10]
+  - id: evt_p1an5t
+    title: The plans are stolen
+    when:
+      day: -5
+    characters: [char_b3n0vs]
+    locations: [loc_w0rk5p]
+    plotlines: [plot_h315tz, plot_gr1efa]
+    note: Off page. Ben uses Tomas's key.

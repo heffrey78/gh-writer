@@ -1,0 +1,41 @@
+relationships:
+  - id: rel_q2m9xa
+    from: char_7f3k2q
+    to: char_b3n0vs
+    type: sibling
+  - id: rel_a11e5a
+    from: char_7f3k2q
+    to: char_b3n0vs
+    type: allies
+    until: sc_0d9wm4
+  - id: rel_x81cpz
+    from: char_7f3k2q
+    to: char_b3n0vs
+    type: rivals
+    since: sc_0d9wm4
+    until: sc_r1vet8
+    note: After the bridge betrayal.
+  - id: rel_a11e5b
+    from: char_7f3k2q
+    to: char_b3n0vs
+    type: allies
+    since: sc_r1vet8
+    note: Reconciled at the seventh pier.
+  - id: rel_m3nt0r
+    from: char_t0ma5h
+    to: char_7f3k2q
+    type: mentor
+  - id: rel_0we5bk
+    from: char_b3n0vs
+    to: char_m1re1a
+    type: owes
+    until: sc_0d9wm4
+  - id: rel_h01d5m
+    from: char_m1re1a
+    to: art_p1an5x
+    type: holds
+    since: sc_0d9wm4
+  - id: rel_te5t5t
+    from: plot_gr1efa
+    to: theme_trvst5
+    type: tests

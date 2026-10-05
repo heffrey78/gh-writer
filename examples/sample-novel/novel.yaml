@@ -1,0 +1,44 @@
+schema_version: 1
+id: nv_4k8h2c
+title: The Bridge at Varn
+author: gh-writer sample
+target:
+  words: 80000
+  date: 2027-06-30
+entity_types:
+  - key: artifact
+    prefix: art
+    folder: artifacts
+    label: Artifact
+    color: 8c564b
+relationship_types:
+  - key: sibling
+    label: Sibling of
+    symmetric: true
+    from_types: [character]
+    to_types: [character]
+  - key: allies
+    label: Allied with
+    symmetric: true
+  - key: rivals
+    label: Rivals with
+    symmetric: true
+  - key: mentor
+    label: Mentor of
+    inverse_label: Mentee of
+    from_types: [character]
+    to_types: [character]
+  - key: owes
+    label: Owes
+    inverse_label: Is owed by
+  - key: holds
+    label: Holds
+    inverse_label: Held by
+    to_types: [artifact]
+  - key: tests
+    label: Tests
+    inverse_label: Tested by
+    from_types: [plotline]
+    to_types: [theme]
+calendar:
+  start: 2024-03-01
