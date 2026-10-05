@@ -1,0 +1,50 @@
+schema_version: 1
+id: nv_temp1a
+title: Untitled Novel
+author: ""
+# target:
+#   words: 90000
+#   date: 2027-12-31
+# entity_types:            # add your own bible types, e.g. artifacts, factions
+#   - key: faction
+#     prefix: fac
+#     folder: factions
+#     label: Faction
+relationship_types:
+  - key: family
+    label: Family of
+    symmetric: true
+  - key: parent
+    label: Parent of
+    inverse_label: Child of
+    from_types: [character]
+    to_types: [character]
+  - key: partner
+    label: Partner of
+    symmetric: true
+  - key: friend
+    label: Friend of
+    symmetric: true
+  - key: ally
+    label: Allied with
+    symmetric: true
+  - key: rival
+    label: Rival of
+    symmetric: true
+  - key: mentor
+    label: Mentor of
+    inverse_label: Mentee of
+    from_types: [character]
+    to_types: [character]
+  - key: loves
+    label: Loves
+    inverse_label: Loved by
+  - key: located_in
+    label: Located in
+    inverse_label: Contains
+    to_types: [location]
+  - key: explores
+    label: Explores
+    inverse_label: Explored by
+    from_types: [plotline]
+    to_types: [theme]

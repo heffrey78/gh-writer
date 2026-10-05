@@ -1,0 +1,16 @@
+name: Validate novel
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Check structure and references
+        run: node .github/gh-writer/validate.mjs
