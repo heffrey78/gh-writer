@@ -1,0 +1,16 @@
+{
+  "name": "@gh-writer/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser side of the local server: a typed API client and autosave.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@gh-writer/server": "0.1.0"
+  }
+}
