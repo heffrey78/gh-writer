@@ -24,6 +24,7 @@ await server.close();
 | `GET /api/novels/:id/files/<path>` | yes | `{ path, content, hash }` |
 | `PUT /api/novels/:id/files/<path>` | yes | `{ content, base }` → `{ hash }`, or `409 { current }` |
 | `GET /api/novels/:id/events` | yes | an event stream of changes made outside the app (below) |
+| `GET /api/novels/:id/sync` | yes | background commit status: `{ state, pendingChanges, lastCommit, blocked? }` |
 
 Routes added to `server.app` (before its first request) or in `createApp` sit behind the same security middleware.
 
@@ -69,6 +70,34 @@ Reading serves any such file that is UTF-8 (`415 NOT_TEXT` otherwise). Writing t
 **Atomic writes.** The text goes to a temp file in the same folder (`.<name>.<random>.ghw-tmp`) and is fsynced. The temp file is renamed over the target, then the folder is fsynced so the rename itself is durable (Windows skips the folder fsync). A crash leaves the old file or the new one, never a truncated one. A crash between the two steps can leave the temp file behind; it's hidden from the API and the watcher. The file keeps its permissions, and missing folders are created.
 
 **Live changes.** `GET /api/novels/:id/events` starts a chokidar watcher on the novel (one per novel, shared, closed when the last stream ends). It sends `ready` once the watcher is live. Read anything you need after `ready`, so no change can slip between the read and the stream. Each change to a visible file is then a `file` event: `{ type: "add" | "change" | "unlink", path, hash }`, with `hash` null once the file is gone. The server's own writes aren't echoed: a change whose content matches what the server last wrote to that path is dropped. A comment line every 25 s keeps the stream open. Closing the server ends every stream.
+
+## Background commits
+
+Each novel has a committer that turns saved work into git history without the author running git. Every successful write restarts a quiet timer. After 2 minutes without a save, or at the latest 10 minutes after the first save since the last commit, it commits:
+
+1. **Merges and rebases.** It doesn't commit while a merge, rebase, cherry-pick or revert is in progress (`MERGE_HEAD`, `rebase-merge`… or unmerged index entries). It waits, and tries again after the next quiet period.
+2. **Identity.** It doesn't commit without a git identity (`user.name` and `user.email`, or the `GIT_AUTHOR_*` variables). The status asks the author to set one.
+3. **Staging.** `git add -A` stages the novel's folder only, respecting `.gitignore`. Leftover `.*.ghw-tmp` files are excluded.
+4. **Committing.** `git commit --no-verify -- .` commits the folder only. Anything the author staged elsewhere in the repository stays staged. Nothing is committed when nothing changed. The author's identity and signing settings apply; their commit hooks don't, so a background save can't be stopped by them.
+
+The summary line names what changed and the net change in manuscript words, from core's `countWords`, for example:
+
+- `Draft: The Station, Walking the Span (+214 words)`
+- `New scene: Dawn (+40 words)`
+- `Remove scene: The Station (-312 words)`
+- `Bible: Ada Varn`
+- `Update novel.yaml`
+
+Several kinds join with `; `, and more than three names become "and N more". The body lists each file with its status and word change.
+
+`GET /sync` reports the state:
+
+- `idle`: nothing waiting.
+- `pending`: saves are waiting for the timer.
+- `committing`: a commit is under way.
+- `blocked`: a commit was refused. `blocked` holds `MERGE`, `IDENTITY` or `ERROR`, and a message.
+
+It also reports `pendingChanges`, the number of files in the novel that differ from the last commit, and `lastCommit` (`{ hash, summary, date }`). Closing the server commits whatever is still waiting, after the last write has finished. `createServer({ commit: { quietMs, maxMs } })` changes the timing, and `commit: false` turns background commits off.
 
 ## Security model
 

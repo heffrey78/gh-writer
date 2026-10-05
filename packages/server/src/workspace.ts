@@ -3,6 +3,7 @@ import { join, relative, sep } from "node:path";
 import { loadNovel, type FileSource, type Novel } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
 import { watch, type FSWatcher } from "chokidar";
+import { Committer, type CommitterOptions } from "./committer.ts";
 import { atomicWrite, hashText, isVisible, readText, writablePath, type TextFile, type WriteHooks } from "./files.ts";
 import type { Library } from "./library.ts";
 
@@ -19,11 +20,18 @@ export type WriteResult = { ok: true; hash: string } | { ok: false; current: Tex
  * One open novel: reads, conflict-checked atomic writes, and a watcher that tells subscribers about
  * changes made outside the app (another editor, a git pull) but not about the server's own writes.
  */
+export interface WorkspaceOptions {
+  /** Background commits; false turns them off. */
+  commit?: CommitterOptions | false;
+}
+
 export class NovelWorkspace {
   readonly root: string;
-  /** Resolves when the workspace closes: event streams end then. */
-  readonly closed: Promise<void>;
-  #close!: () => void;
+  /** Commits saved work in the background, unless turned off. */
+  readonly committer: Committer | undefined;
+  /** Resolves when the workspace stops: event streams end then. */
+  readonly stopped: Promise<void>;
+  #stop!: () => void;
   #locks = new Map<string, Promise<unknown>>();
   /** path → hash of what the server last wrote there: a watcher event with that hash is an echo. */
   #written = new Map<string, string>();
@@ -31,9 +39,10 @@ export class NovelWorkspace {
   #watcher?: FSWatcher;
   #ready?: Promise<void>;
 
-  constructor(root: string) {
+  constructor(root: string, { commit = {} }: WorkspaceOptions = {}) {
     this.root = root;
-    this.closed = new Promise((resolve) => (this.#close = resolve));
+    this.committer = commit === false ? undefined : new Committer(root, commit);
+    this.stopped = new Promise((resolve) => (this.#stop = resolve));
   }
 
   /** The story model, with the hash of every file it was read from (the bases for writes). */
@@ -79,6 +88,7 @@ export class NovelWorkspace {
         this.#written.delete(path);
         throw e;
       }
+      this.committer?.notify();
       return { ok: true, hash };
     });
   }
@@ -93,10 +103,16 @@ export class NovelWorkspace {
     };
   }
 
-  async close(): Promise<void> {
+  /** End the event streams. */
+  stop(): void {
     this.#listeners.clear();
-    this.#close();
-    await this.#unwatch();
+    this.#stop();
+  }
+
+  /** End the event streams, stop watching, and commit any saved work still waiting. */
+  async close(): Promise<void> {
+    this.stop();
+    await Promise.all([this.#unwatch(), this.committer?.close()]);
   }
 
   #watch(): Promise<void> {
@@ -154,10 +170,12 @@ export class NovelWorkspace {
 /** The open workspaces, one per library novel. */
 export class Workspaces {
   #library: Library;
+  #options: WorkspaceOptions;
   #open = new Map<string, NovelWorkspace>();
 
-  constructor(library: Library) {
+  constructor(library: Library, options: WorkspaceOptions = {}) {
     this.#library = library;
+    this.#options = options;
   }
 
   /** The workspace for a library novel, or undefined if there is no such novel. */
@@ -167,10 +185,15 @@ export class Workspaces {
     let ws = this.#open.get(id);
     if (ws?.root !== entry.path) {
       void ws?.close();
-      ws = new NovelWorkspace(entry.path);
+      ws = new NovelWorkspace(entry.path, this.#options);
       this.#open.set(id, ws);
     }
     return ws;
+  }
+
+  /** End every event stream, so that the HTTP server can finish its requests. */
+  stop(): void {
+    for (const ws of this.#open.values()) ws.stop();
   }
 
   async close(): Promise<void> {

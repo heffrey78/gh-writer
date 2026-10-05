@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import { getRequestListener } from "@hono/node-server";
 import type { Hono } from "hono";
 import { createApp } from "./app.ts";
+import type { CommitterOptions } from "./committer.ts";
 import { Library } from "./library.ts";
 import { TOKEN_PARAM } from "./security.ts";
 import { Workspaces } from "./workspace.ts";
@@ -17,6 +18,8 @@ export interface ServerOptions {
   port?: number;
   /** How long `close()` waits for in-flight requests before cutting their connections (ms). */
   shutdownTimeout?: number;
+  /** Background commit timing; false turns background commits off. */
+  commit?: CommitterOptions | false;
 }
 
 export interface RunningServer {
@@ -31,17 +34,17 @@ export interface RunningServer {
   library: Library;
   port: number;
   token: string;
-  /** Stops accepting connections, ends event streams, and resolves once in-flight requests have finished. */
+  /** Stops accepting connections, ends event streams, lets in-flight requests finish, then commits waiting work. */
   close(): Promise<void>;
 }
 
 const HOST = "127.0.0.1";
 
 /** Starts the server on 127.0.0.1 only. */
-export async function createServer({ library, token = newToken(), port = 0, shutdownTimeout = 10_000 }: ServerOptions = {}): Promise<RunningServer> {
+export async function createServer({ library, token = newToken(), port = 0, shutdownTimeout = 10_000, commit }: ServerOptions = {}): Promise<RunningServer> {
   library ??= await Library.open();
   let boundPort = port;
-  const workspaces = new Workspaces(library);
+  const workspaces = new Workspaces(library, commit === undefined ? {} : { commit });
   const app = createApp({ token, port: () => boundPort, library, workspaces });
   const server = createHttpServer(getRequestListener(app.fetch));
 
@@ -62,12 +65,12 @@ export async function createServer({ library, token = newToken(), port = 0, shut
       const timer = setTimeout(() => server.closeAllConnections(), shutdownTimeout).unref();
       server.close((err) => {
         clearTimeout(timer);
-        if (err) reject(err);
-        else resolve();
+        // Once the last write has finished: stop the watchers and commit the work still waiting.
+        workspaces.close().then(() => (err ? reject(err) : resolve()), reject);
       });
       server.closeIdleConnections();
-      // Ends the event streams and file watchers; writes in flight finish as ordinary requests.
-      void workspaces.close();
+      // Event streams never end on their own; writes in flight finish as ordinary requests.
+      workspaces.stop();
     }));
 
   const url = `http://${HOST}:${boundPort}`;

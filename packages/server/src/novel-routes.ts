@@ -14,6 +14,7 @@ type NovelEnv = { Variables: { ws: NovelWorkspace } };
  * GET /api/novels/:id/files/<path>  { path, content, hash }
  * PUT /api/novels/:id/files/<path>  { content, base } → 200 { hash }, or 409 { current } when base is stale
  * GET /api/novels/:id/events        event stream: "ready", then a "file" event { type, path, hash } per outside change
+ * GET /api/novels/:id/sync          background commit status: { state, pendingChanges, lastCommit, blocked? }
  */
 export function novelRoutes(library: Library, workspaces: Workspaces): Hono<NovelEnv> {
   const routes = new Hono<NovelEnv>();
@@ -66,6 +67,8 @@ export function novelRoutes(library: Library, workspaces: Workspaces): Hono<Nove
     },
   );
 
+  routes.get("/:id/sync", async (c) => c.json(c.var.ws.committer ? await c.var.ws.committer.status() : { state: "off" }));
+
   routes.get("/:id/events", (c) =>
     streamSSE(c, async (stream) => {
       const ws = c.var.ws;
@@ -74,7 +77,7 @@ export function novelRoutes(library: Library, workspaces: Workspaces): Hono<Nove
       const heartbeat = setInterval(() => void stream.write(": ping\n\n"), HEARTBEAT_MS);
       try {
         await stream.writeSSE({ event: "ready", data: "{}" });
-        await Promise.race([aborted, ws.closed]);
+        await Promise.race([aborted, ws.stopped]);
       } finally {
         clearInterval(heartbeat);
         unsubscribe();
