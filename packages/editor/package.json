@@ -1,0 +1,22 @@
+{
+  "name": "@gh-writer/editor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Prose editor: ProseMirror schema and lossless Markdown round-trip for scenes.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@gh-writer/core": "0.1.0",
+    "@types/mdast": "^4.0.4",
+    "mdast-util-from-markdown": "^2.1.0",
+    "mdast-util-gfm": "^3.1.0",
+    "mdast-util-to-markdown": "^2.2.0",
+    "micromark-extension-gfm": "^3.0.0",
+    "prosemirror-model": "^1.25.12"
+  },
+  "devDependencies": {
+    "prosemirror-transform": "^1.12.2"
+  }
+}
