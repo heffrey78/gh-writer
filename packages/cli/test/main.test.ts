@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -48,6 +48,41 @@ describe("gh-writer validate", () => {
     const report = JSON.parse(r.out) as { errors: number; diagnostics: { code: string }[] };
     expect(report.errors).toBe(1);
     expect(report.diagnostics.map((d) => d.code).sort()).toEqual(["E_DANGLING_REF", "W_POV_NOT_PRESENT"]);
+  });
+});
+
+describe("gh-writer serve", () => {
+  it("prints a launch URL with a token, serves it, and exits cleanly on SIGTERM", async () => {
+    const { FORCE_COLOR: _, ...env } = process.env;
+    const child = spawn("node", [main, "serve", sample, "--no-open"], { env: { ...env, NO_COLOR: "1" } });
+    let out = "";
+    child.stdout.setEncoding("utf8").on("data", (chunk: string) => (out += chunk));
+    const exited = new Promise<number | null>((resolve) => child.once("exit", resolve));
+
+    const launch = await new Promise<string>((resolve, reject) => {
+      child.stdout.on("data", () => {
+        const url = /http:\/\/127\.0\.0\.1:\d+\/\?token=[\w-]{43}/.exec(out)?.[0];
+        if (url) resolve(url);
+      });
+      child.once("exit", () => reject(new Error(`serve exited early:\n${out}`)));
+    });
+    expect(out).toContain(`gh-writer is serving ${sample}`);
+
+    const exchange = await fetch(launch, { redirect: "manual" });
+    expect(exchange.status).toBe(303);
+    const cookie = exchange.headers.get("set-cookie")?.split(";")[0] ?? "";
+    const health = await fetch(new URL("/api/health", launch), { headers: { cookie } });
+    expect(await health.json()).toEqual({ status: "ok", root: sample });
+    expect((await fetch(new URL("/api/health", launch))).status).toBe(403);
+
+    child.kill("SIGTERM");
+    expect(await exited).toBe(0);
+    expect(out).toContain("SIGTERM: stopping…\nStopped.");
+  }, 15_000);
+
+  it("rejects a bad port and a missing directory", () => {
+    expect(run(main, "serve", sample, "--port", "70000")).toMatchObject({ code: 1 });
+    expect(run(main, "serve", join(tmp, "missing"), "--no-open").err).toContain("Not a directory");
   });
 });
 

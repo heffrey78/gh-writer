@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import { newId, SCHEMA_VERSION } from "@gh-writer/core";
+import { runServe } from "./serve-command.ts";
 import { runValidate } from "./validate-command.ts";
 
 const USAGE = `Usage: gh-writer <command> [options]
 
 Commands:
+  serve [dir]               Start the app on this machine and open it in the browser
+      --port <n>            Listen on this port (default: a free one)
+      --no-open             Print the URL without opening a browser
   validate [dir] [--json]   Check a novel repository (default: current directory)
   new-id <prefix>           Print a new random ID, e.g. "gh-writer new-id char"
 
@@ -18,8 +22,11 @@ async function main(argv: string[]): Promise<number> {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
+    allowNegative: true,
     options: {
       json: { type: "boolean" },
+      port: { type: "string" },
+      open: { type: "boolean", default: true },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
     },
@@ -36,6 +43,14 @@ async function main(argv: string[]): Promise<number> {
   }
 
   switch (command) {
+    case "serve": {
+      const port = values.port === undefined ? 0 : Number(values.port);
+      if (!Number.isInteger(port) || port < 0 || port > 65535) {
+        console.error(`--port needs a port number from 0 to 65535, not "${values.port}"`);
+        return 1;
+      }
+      return runServe(rest[0] ?? ".", { port, open: values.open });
+    }
     case "validate":
       return runValidate(rest[0] ?? ".", { json: values.json });
     case "new-id": {
