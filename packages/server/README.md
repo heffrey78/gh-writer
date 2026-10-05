@@ -20,6 +20,10 @@ await server.close();
 | `POST /api/library` | yes | `{ path }` → `201 { novel }`, or `400 { code, error }` |
 | `DELETE /api/library/:id` | yes | `204`: forgets the novel; its folder is left alone |
 | `POST /api/library/clone` | yes | `{ repo, path? }` → an event stream (below) |
+| `GET /api/novels/:id` | yes | `{ novel, files }`: the story model (core `loadNovel`) and the hash of each file it was read from |
+| `GET /api/novels/:id/files/<path>` | yes | `{ path, content, hash }` |
+| `PUT /api/novels/:id/files/<path>` | yes | `{ content, base }` → `{ hash }`, or `409 { current }` |
+| `GET /api/novels/:id/events` | yes | an event stream of changes made outside the app (below) |
 
 Routes added to `server.app` (before its first request) or in `createApp` sit behind the same security middleware.
 
@@ -47,6 +51,24 @@ Failures are classified into stable codes with a message that says what to do; g
 | `DESTINATION_EXISTS` | the target folder has files | choose another folder |
 | `GIT_MISSING` | git isn't installed | install git |
 | `GIT` | anything else | git's last line |
+
+## Novel files
+
+Files are addressed by their repository-relative path, percent-encoded after `/files/`. A path must be plain and relative. Anything else is a `400 BAD_PATH`:
+
+- absolute paths, drive letters and backslashes
+- empty, `.` or `..` segments
+- hidden segments (`.git`, `.github`, temp files) and `node_modules`
+- NUL characters
+- symlinks, and folders that resolve outside the novel
+
+Reading serves any such file that is UTF-8 (`415 NOT_TEXT` otherwise). Writing takes `.md`, `.markdown`, `.yaml`, `.yml`, `.txt` and `.json` only, as well-formed Unicode. Files are limited to 2 MB (`413 TOO_LARGE`).
+
+**Stale-write protection.** A file's `hash` is the SHA-256 of its bytes, in hex. A PUT sends `base`: the hash the client last read, or `null` for a file it expects not to exist. If the file on disk differs, nothing is written. The answer is `409 CONFLICT` with `current` (the file's `content` and `hash`, or `null` if it's gone), for the client to merge. Writes to one path run one at a time, so two writes from the same base can't both succeed.
+
+**Atomic writes.** The text goes to a temp file in the same folder (`.<name>.<random>.ghw-tmp`) and is fsynced. The temp file is renamed over the target, then the folder is fsynced so the rename itself is durable (Windows skips the folder fsync). A crash leaves the old file or the new one, never a truncated one. A crash between the two steps can leave the temp file behind; it's hidden from the API and the watcher. The file keeps its permissions, and missing folders are created.
+
+**Live changes.** `GET /api/novels/:id/events` starts a chokidar watcher on the novel (one per novel, shared, closed when the last stream ends). It sends `ready` once the watcher is live. Read anything you need after `ready`, so no change can slip between the read and the stream. Each change to a visible file is then a `file` event: `{ type: "add" | "change" | "unlink", path, hash }`, with `hash` null once the file is gone. The server's own writes aren't echoed: a change whose content matches what the server last wrote to that path is dropped. A comment line every 25 s keeps the stream open. Closing the server ends every stream.
 
 ## Security model
 

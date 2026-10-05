@@ -1,31 +1,19 @@
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { classifyGitError, cloneUrl, createServer, GitFailure, Library, LibraryError, sessionCookie, type LibraryEntry } from "../src/index.ts";
+import { gitIn, novelRepo as novelRepoIn, sample, scratch } from "./fixtures.ts";
 import { send, sseEvents } from "./http.ts";
 
-const sample = fileURLToPath(new URL("../../../examples/sample-novel", import.meta.url));
-
 let tmp: string;
-let n = 0;
-const fresh = (name: string) => join(tmp, `${name}-${++n}`);
+let fresh: (name: string) => string;
+let cleanUp: () => void;
 
-/** Run git with the test's isolated config. */
-const gitIn = (dir: string, ...args: string[]) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-
-/** A git repository holding a copy of the sample novel. */
-function novelRepo(dir = fresh("novel")): string {
-  cpSync(sample, dir, { recursive: true });
-  gitIn(dir, "init", "-q");
-  gitIn(dir, "add", "-A");
-  gitIn(dir, "commit", "-qm", "Start");
-  return dir;
-}
+const novelRepo = (dir = fresh("novel")) => novelRepoIn(dir);
 
 /** A bare repository to clone from over file://. */
 function bareRemote(source: string): string {
@@ -36,16 +24,9 @@ function bareRemote(source: string): string {
 
 const openLibrary = (configDir = fresh("config")) => Library.open({ configDir, cloneDir: join(tmp, "clones") });
 
-beforeAll(() => {
-  tmp = mkdtempSync(join(tmpdir(), "gh-writer-library-"));
-  // Keep the author's own git config (credential helpers, signing…) out of the tests.
-  const config = join(tmp, "gitconfig");
-  writeFileSync(config, "[user]\n\tname = Test\n\temail = test@example.com\n[init]\n\tdefaultBranch = main\n");
-  process.env.GIT_CONFIG_GLOBAL = config;
-  process.env.GIT_CONFIG_NOSYSTEM = "1";
-});
+beforeAll(() => ({ tmp, fresh, cleanUp } = scratch("library")));
 
-afterAll(() => rmSync(tmp, { recursive: true, force: true }));
+afterAll(() => cleanUp());
 
 describe("Library.add", () => {
   it("adds a git repository holding novel.yaml, with its title and remote", async () => {

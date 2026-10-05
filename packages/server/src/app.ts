@@ -1,23 +1,27 @@
 import { Hono } from "hono";
 import { libraryRoutes } from "./library-routes.ts";
 import type { Library } from "./library.ts";
+import { novelRoutes } from "./novel-routes.ts";
 import { hasSession, security } from "./security.ts";
+import type { Workspaces } from "./workspace.ts";
 
 export interface AppOptions {
   token: string;
   /** The listening port, read per request. */
   port: () => number;
   library: Library;
+  workspaces: Workspaces;
 }
 
 /** The API, behind the security middleware. Routes added later go through it too. */
-export function createApp({ token, port, library }: AppOptions): Hono {
+export function createApp({ token, port, library, workspaces }: AppOptions): Hono {
   const app = new Hono();
   app.use(security({ token, port, publicPaths: new Set(["/api/session"]) }));
 
   app.get("/api/health", (c) => c.json({ status: "ok" }));
   app.get("/api/session", (c) => c.json({ authenticated: hasSession(c, token, port()) }));
   app.route("/api/library", libraryRoutes(library));
+  app.route("/api/novels", novelRoutes(library, workspaces));
 
   // Until the web app is served (#7), the launch URL lands here.
   const placeholder = (title: string) =>

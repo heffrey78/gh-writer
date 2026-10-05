@@ -6,6 +6,7 @@ import type { Hono } from "hono";
 import { createApp } from "./app.ts";
 import { Library } from "./library.ts";
 import { TOKEN_PARAM } from "./security.ts";
+import { Workspaces } from "./workspace.ts";
 
 export interface ServerOptions {
   /** The author's novels. Default: the library in the user config directory. */
@@ -30,7 +31,7 @@ export interface RunningServer {
   library: Library;
   port: number;
   token: string;
-  /** Stops accepting connections and resolves once in-flight requests have finished. */
+  /** Stops accepting connections, ends event streams, and resolves once in-flight requests have finished. */
   close(): Promise<void>;
 }
 
@@ -40,7 +41,8 @@ const HOST = "127.0.0.1";
 export async function createServer({ library, token = newToken(), port = 0, shutdownTimeout = 10_000 }: ServerOptions = {}): Promise<RunningServer> {
   library ??= await Library.open();
   let boundPort = port;
-  const app = createApp({ token, port: () => boundPort, library });
+  const workspaces = new Workspaces(library);
+  const app = createApp({ token, port: () => boundPort, library, workspaces });
   const server = createHttpServer(getRequestListener(app.fetch));
 
   await new Promise<void>((resolve, reject) => {
@@ -64,6 +66,8 @@ export async function createServer({ library, token = newToken(), port = 0, shut
         else resolve();
       });
       server.closeIdleConnections();
+      // Ends the event streams and file watchers; writes in flight finish as ordinary requests.
+      void workspaces.close();
     }));
 
   const url = `http://${HOST}:${boundPort}`;
