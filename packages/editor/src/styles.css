@@ -401,3 +401,64 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Spell checking. */
+.ghw-prose .ghw-misspelled {
+  text-decoration: underline wavy #c62828;
+  text-decoration-skip-ink: none;
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 1px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .ghw-prose .ghw-misspelled {
+    text-decoration-color: #ff8a80;
+  }
+}
+
+.ghw-spell-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 12rem;
+  max-width: 16rem;
+  padding: 0.25rem;
+  display: grid;
+  font: 0.875rem/1.4 system-ui, sans-serif;
+  color: var(--ghw-ink);
+  background: var(--ghw-paper);
+  border: 1px solid var(--ghw-rule);
+  border-radius: 0.4rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
+}
+
+.ghw-spell-menu [role="menuitem"] {
+  font: inherit;
+  text-align: left;
+  padding: 0.3rem 0.6rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ghw-spell-menu [role="menuitem"]:focus,
+.ghw-spell-menu [role="menuitem"]:hover {
+  background: var(--ghw-accent-soft);
+  outline: none;
+}
+
+.ghw-spell-menu [role="menuitem"]:focus-visible {
+  outline: 2px solid var(--ghw-accent);
+}
+
+.ghw-spell-menu [aria-disabled="true"] {
+  color: var(--ghw-muted);
+  cursor: default;
+}
+
+.ghw-spell-menu [role="separator"] {
+  height: 1px;
+  margin: 0.25rem 0;
+  background: var(--ghw-rule);
+}

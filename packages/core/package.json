@@ -7,7 +7,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./node": "./src/node.ts",
-    "./schemas/*": "./schemas/*"
+    "./schemas/*": "./schemas/*",
+    "./dictionary": "./src/dictionary.ts"
   },
   "dependencies": {
     "ajv": "^8.20.0",

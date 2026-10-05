@@ -1,11 +1,25 @@
 import type { Editor } from "@tiptap/core";
 import { StrictMode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { countWords } from "@gh-writer/core";
+import { countWords, loadNovel, memorySource } from "@gh-writer/core";
+import { addToDictionary, knownWords, parseDictionary } from "@gh-writer/core/dictionary";
 import { useStore } from "zustand";
-import { findCommands, joinSceneFile, liveCounts, sessionCommands, splitSceneFile, writingModeCommands, type Manuscript, type SceneSource } from "../src/index.ts";
+import {
+  createWorkerSpellService,
+  findCommands,
+  joinSceneFile,
+  liveCounts,
+  sessionCommands,
+  spellCommands,
+  splitSceneFile,
+  writingModeCommands,
+  type Manuscript,
+  type SceneSource,
+} from "../src/index.ts";
 import { ChapterEditor, FindReplace, SceneEditor, useWritingModes, WordCount } from "../src/react.tsx";
 import { generatedChapter } from "./generated.ts";
+import aff from "../../../node_modules/dictionary-en/index.aff?raw";
+import dic from "../../../node_modules/dictionary-en/index.dic?raw";
 import "../src/styles.css";
 import "./playground.css";
 
@@ -63,6 +77,21 @@ chapters.set(
 const chapterTitle = (dir: string) => chapterTitles.get(dir) ?? (dir === GENERATED ? "Generated chapter" : dir === "scenes" ? "Playground scenes" : dir);
 const chapterOf = (sceneId: string) => [...chapters].find(([, files]) => files.some((f) => f.path === sceneId))?.[0];
 
+// Spell checking: the English Hunspell dictionary in a worker; known words are the sample
+// novel's bible names (loaded with core's own loader, here in the browser) and the playground's
+// dictionary.txt, kept for the tab's session.
+const spellService = createWorkerSpellService({ aff, dic });
+const novelFiles: Record<string, string> = import.meta.glob("../../../examples/sample-novel/**/*.{md,yaml}", { query: "?raw", import: "default", eager: true });
+const sampleNovel = loadNovel(memorySource(Object.fromEntries(Object.entries(novelFiles).map(([path, text]) => [path.replace(/^.*?sample-novel\//, ""), text]))));
+const DICTIONARY_KEY = "playground:dictionary";
+const readStored = () => {
+  try {
+    return sessionStorage.getItem(DICTIONARY_KEY) ?? "";
+  } catch {
+    return "";
+  }
+};
+
 function initial(): string {
   const params = new URLSearchParams(location.search);
   const chapter = params.get("chapter");
@@ -106,6 +135,15 @@ function App() {
   const liveScene = useStore(liveCounts, (c) => c.scene);
   const sceneChapter = kind === "scene" ? scenes.filter((s) => s.path !== target && s.path.slice(0, s.path.lastIndexOf("/")) === target.slice(0, target.lastIndexOf("/"))) : [];
   const chapterWords = target.startsWith("manuscript/") && kind === "scene" ? sceneChapter.reduce((n, s) => n + countWords(bodies[s.path] ?? splitSceneFile(s.text).body), liveScene) : undefined;
+  const [dictionary, setDictionary] = useState(readStored);
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(DICTIONARY_KEY, dictionary);
+    } catch {}
+    void sampleNovel.then((novel) => spellService.setKnown(knownWords(novel, parseDictionary(dictionary))));
+  }, [dictionary]);
+  const spell = { service: spellService, onAddWord: (word: string) => setDictionary((text) => addToDictionary(text, word)) };
+
   // The whole manuscript for find and replace, with edits as saved. The generated chapter is
   // left out: its paragraphs are copies of the sample novel's.
   const manuscript: Manuscript = useMemo(
@@ -128,7 +166,7 @@ function App() {
       <header>
         <h1>Scene editor</h1>
         <div className="modes" role="group" aria-label="Commands">
-          {[...writingModeCommands, ...sessionCommands, ...findCommands].map((c) => (
+          {[...writingModeCommands, ...sessionCommands, ...findCommands, ...spellCommands].map((c) => (
             <button
               key={c.id}
               type="button"
@@ -177,6 +215,7 @@ function App() {
             autofocus
             onChange={(changes) => changes.forEach((c) => setBody(c.id, c.markdown))}
             onReady={ready}
+            spell={spell}
           />
         ) : (
           <SceneEditor
@@ -187,6 +226,7 @@ function App() {
             autofocus
             onChange={(md) => setBody(target, md)}
             onReady={ready}
+            spell={spell}
           />
         )}
       </main>
@@ -195,6 +235,14 @@ function App() {
         <p role="status" data-testid="status">
           {changed === 0 ? (files.length > 1 ? "Identical to the files on disk" : "Identical to the file on disk") : files.length > 1 ? `${changed} changed` : "Changed"}
         </p>
+        {dictionary && (
+          <section aria-label="dictionary.txt">
+            <h3>dictionary.txt</h3>
+            <pre data-testid="dictionary" tabIndex={0} aria-label="Saved contents of dictionary.txt">
+              {dictionary}
+            </pre>
+          </section>
+        )}
         {saved.map((f) => (
           <section key={f.path} aria-label={f.path}>
             {files.length > 1 && (

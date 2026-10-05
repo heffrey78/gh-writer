@@ -9,6 +9,7 @@ import { loadMarkdown, setInitialMarkdown } from "./editor.ts";
 import { proseContent } from "./extensions.ts";
 import { FindExtension } from "./find.ts";
 import { SearchHighlightExtension } from "./search.ts";
+import { SpellCheckExtension, type SpellService } from "./spell.ts";
 import { writingModes, WritingModesExtension, type WritingModes } from "./modes.ts";
 import { liveCounts, sessionWords, WordCountExtension, writingSession } from "./wordcount.ts";
 import { serializeProse } from "./markdown.ts";
@@ -33,6 +34,23 @@ export interface SceneEditorProps {
   onReady?: (editor: Editor) => void;
   /** The scene's ID, for word counts across the writing session. */
   sceneId?: string;
+  /** Spell checking: the checker, and where to save words added to the novel's dictionary. */
+  spell?: SpellProps;
+}
+
+export interface SpellProps {
+  service: SpellService;
+  onAddWord?: (word: string) => void;
+}
+
+/** The spell-check extension for an editor; `onAddWord` reads the latest prop, as extensions are set up once. */
+function useSpellExtension(spell: SpellProps | undefined) {
+  const latest = useRef(spell);
+  latest.current = spell;
+  return SpellCheckExtension.configure({
+    service: spell?.service ?? null,
+    onAddWord: spell?.onAddWord ? (word) => latest.current?.onAddWord?.(word) : undefined,
+  });
 }
 
 /** A WYSIWYG editor for one scene's prose. */
@@ -46,7 +64,9 @@ export function SceneEditor({
   className,
   onReady,
   sceneId = "scene",
+  spell,
 }: SceneEditorProps) {
+  const spellExtension = useSpellExtension(spell);
   const callbacks = useRef({ onChange, onReady });
   callbacks.current = { onChange, onReady };
   // The Markdown the editor last loaded or reported, to tell its own output from a new value.
@@ -72,6 +92,7 @@ export function SceneEditor({
       WordCountExtension.configure({ sceneId }),
       FindExtension,
       SearchHighlightExtension,
+      spellExtension,
       Placeholder.configure({ placeholder }),
     ],
     editorProps: {
@@ -143,6 +164,8 @@ export interface ChapterEditorProps {
   className?: string;
   /** Receives the TipTap editor once it exists, for commands and state outside the component. */
   onReady?: (editor: Editor) => void;
+  /** Spell checking: the checker, and where to save words added to the novel's dictionary. */
+  spell?: SpellProps;
 }
 
 /**
@@ -157,7 +180,9 @@ export function ChapterEditor({
   autofocus = false,
   className,
   onReady,
+  spell,
 }: ChapterEditorProps) {
+  const spellExtension = useSpellExtension(spell);
   const callbacks = useRef({ onChange, onReady });
   callbacks.current = { onChange, onReady };
   // Per scene: the Markdown last loaded or reported, and the content it was serialized from.
@@ -190,7 +215,7 @@ export function ChapterEditor({
   }).current;
 
   const editor = useEditor({
-    extensions: [...chapterContent, UndoRedo, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension],
+    extensions: [...chapterContent, UndoRedo, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension],
     editorProps: {
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": label, class: "ghw-prose ghw-chapter" },
     },
@@ -336,3 +361,4 @@ export function WordCount({ chapterWords, className }: WordCountProps) {
 }
 
 export { FindReplace, type FindReplaceProps } from "./find-panel.tsx";
+export type { SpellService } from "./spell.ts";

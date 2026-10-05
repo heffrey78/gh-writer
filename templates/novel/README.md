@@ -7,6 +7,7 @@ This novel uses the [gh-writer](https://github.com/heffrey78/gh-writer) format: 
 | Path | What it holds |
 |---|---|
 | `novel.yaml` | Title, author, word target, and the kinds of relationships your story uses. |
+| `dictionary.txt` | Words the spell checker should accept: invented words, dialect. Character and place names are known already. |
 | `manuscript/` | The book. Each chapter is a folder with a `_chapter.yaml`; each scene is a `.md` file inside it. Add part folders with a `_part.yaml` if your book has parts. |
 | `manuscript/_order.yaml`, `_part.yaml`, `_chapter.yaml` | **Reading order.** Moving a scene means moving its ID in these lists. The `01-` numbers in file names are just for tidy browsing. |
 | `bible/characters/`, `locations/`, `plotlines/`, `themes/` | One file per character, place, plotline or theme. |

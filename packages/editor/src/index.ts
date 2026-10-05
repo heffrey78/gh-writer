@@ -64,3 +64,15 @@ export {
   type SearchScope,
 } from "./search.ts";
 export { closeFind, FindExtension, findCommands, findPanel, openFind, type FindPanelState } from "./find.ts";
+export {
+  closeSpellingMenu,
+  createLocalSpellService,
+  createWorkerSpellService,
+  openSpellingMenu,
+  spellCommands,
+  SpellCheckExtension,
+  type SpellCheckOptions,
+  type SpellDictionary,
+  type SpellService,
+} from "./spell.ts";
+export { SpellEngine, type Misspellings } from "./spell-engine.ts";

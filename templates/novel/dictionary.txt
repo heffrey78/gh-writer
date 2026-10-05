@@ -1,0 +1,2 @@
+# Words the spell checker accepts in this novel, one per line.
+# Names and aliases from the story bible are accepted already.

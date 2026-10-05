@@ -20,6 +20,8 @@ export interface WritingModes {
   typewriter: boolean;
   /** Keep the word count visible in focus mode. */
   pinCount: boolean;
+  /** Underline misspelled words (when the app provides a spell checker). */
+  spellcheck: boolean;
 }
 
 export type WritingMode = keyof WritingModes;
@@ -61,13 +63,14 @@ export const writingModes = createStore<WritingModesStore>()(
       dim: false,
       typewriter: false,
       pinCount: false,
+      spellcheck: true,
       toggle: (mode) => set((s) => ({ [mode]: !s[mode] })),
       set: (modes) => set(modes),
     }),
     {
       name: "gh-writer:writing-modes",
       storage: createJSONStorage(() => storage),
-      partialize: ({ focus, dim, typewriter, pinCount }) => ({ focus, dim, typewriter, pinCount }),
+      partialize: ({ focus, dim, typewriter, pinCount, spellcheck }) => ({ focus, dim, typewriter, pinCount, spellcheck }),
     },
   ),
 );
