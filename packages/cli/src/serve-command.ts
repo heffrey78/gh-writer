@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
-import { statSync } from "node:fs";
-import { resolve } from "node:path";
-import { createServer } from "@gh-writer/server";
+import { existsSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { createServer, GitFailure, Library, LibraryError, type LibraryEntry } from "@gh-writer/server";
 
 export interface ServeOptions {
   /** 0 picks a free port. */
@@ -10,19 +10,31 @@ export interface ServeOptions {
   open?: boolean;
 }
 
-/** Serve the novel in `dir` until SIGINT or SIGTERM, then shut down cleanly and return the exit code. */
-export async function runServe(dir: string, { port = 0, open = true }: ServeOptions = {}, out: (s: string) => void = console.log): Promise<number> {
-  const root = resolve(dir);
-  if (!statSync(root, { throwIfNoEntry: false })?.isDirectory()) {
-    console.error(`Not a directory: ${root}`);
-    return 1;
+/**
+ * Serve the library until SIGINT or SIGTERM, then shut down cleanly and return the exit code.
+ * `dir`, or the current directory when it holds a novel, is added to the library and opened.
+ */
+export async function runServe(dir: string | undefined, { port = 0, open = true }: ServeOptions = {}, out: (s: string) => void = console.log): Promise<number> {
+  const library = await Library.open();
+  const target = dir ?? (existsSync(join(process.cwd(), "novel.yaml")) ? "." : undefined);
+  let novel: LibraryEntry | undefined;
+  if (target !== undefined) {
+    try {
+      novel = await library.add(resolve(target));
+    } catch (e) {
+      if (!(e instanceof LibraryError || e instanceof GitFailure)) throw e;
+      console.error(e.message);
+      return 1;
+    }
   }
+  for (const notice of library.notices) out(notice.message);
 
-  const server = await createServer({ root, port });
-  out(`gh-writer is serving ${root}`);
-  out(`  ${server.launchUrl}`);
+  const server = await createServer({ library, port });
+  const launchUrl = novel ? server.launchUrlFor(`/novels/${novel.id}`) : server.launchUrl;
+  out(novel ? `gh-writer is serving ${novel.title} (${novel.path})` : `gh-writer is serving your library (${library.file})`);
+  out(`  ${launchUrl}`);
   out("Press Ctrl+C to stop.");
-  if (open) openBrowser(server.launchUrl, () => out("Could not open a browser: open the URL above."));
+  if (open) openBrowser(launchUrl, () => out("Could not open a browser: open the URL above."));
 
   const signal = await new Promise<NodeJS.Signals>((done) => {
     const stop = (s: NodeJS.Signals) => {

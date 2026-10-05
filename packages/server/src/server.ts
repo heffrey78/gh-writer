@@ -4,11 +4,12 @@ import type { AddressInfo } from "node:net";
 import { getRequestListener } from "@hono/node-server";
 import type { Hono } from "hono";
 import { createApp } from "./app.ts";
+import { Library } from "./library.ts";
 import { TOKEN_PARAM } from "./security.ts";
 
 export interface ServerOptions {
-  /** The novel repository the server reads and writes. */
-  root: string;
+  /** The author's novels. Default: the library in the user config directory. */
+  library?: Library;
   /** The per-launch secret. A fresh random one by default. */
   token?: string;
   /** 0 (the default) picks a free port. */
@@ -24,6 +25,9 @@ export interface RunningServer {
   url: string;
   /** The URL to open in the browser: it carries the token, which the browser trades for a session cookie. */
   launchUrl: string;
+  /** The launch URL for a page of the app, e.g. "/novels/lib_4k8h2c". */
+  launchUrlFor(path: string): string;
+  library: Library;
   port: number;
   token: string;
   /** Stops accepting connections and resolves once in-flight requests have finished. */
@@ -33,9 +37,10 @@ export interface RunningServer {
 const HOST = "127.0.0.1";
 
 /** Starts the server on 127.0.0.1 only. */
-export async function createServer({ root, token = newToken(), port = 0, shutdownTimeout = 10_000 }: ServerOptions): Promise<RunningServer> {
+export async function createServer({ library, token = newToken(), port = 0, shutdownTimeout = 10_000 }: ServerOptions = {}): Promise<RunningServer> {
+  library ??= await Library.open();
   let boundPort = port;
-  const app = createApp({ root, token, port: () => boundPort });
+  const app = createApp({ token, port: () => boundPort, library });
   const server = createHttpServer(getRequestListener(app.fetch));
 
   await new Promise<void>((resolve, reject) => {
@@ -62,7 +67,8 @@ export async function createServer({ root, token = newToken(), port = 0, shutdow
     }));
 
   const url = `http://${HOST}:${boundPort}`;
-  return { app, url, launchUrl: `${url}/?${TOKEN_PARAM}=${token}`, port: boundPort, token, close };
+  const launchUrlFor = (path: string) => `${url}${path}?${TOKEN_PARAM}=${token}`;
+  return { app, url, launchUrl: launchUrlFor("/"), launchUrlFor, library, port: boundPort, token, close };
 }
 
 /** A 256-bit secret, URL-safe. */

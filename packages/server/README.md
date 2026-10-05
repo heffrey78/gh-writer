@@ -3,19 +3,50 @@
 The local gh-writer server: a [Hono](https://hono.dev) API on Node that reads and writes a novel repository on the author's machine. `gh-writer serve` starts it.
 
 ```ts
-import { createServer } from "@gh-writer/server";
+import { createServer, Library } from "@gh-writer/server";
 
-const server = await createServer({ root: "/path/to/novel" }); // token and port: random by default
-console.log(server.launchUrl); // http://127.0.0.1:41234/?token=…
+const library = await Library.open(); // library.json in the user config directory
+const novel = await library.add("/path/to/novel");
+const server = await createServer({ library }); // token and port: random by default
+console.log(server.launchUrlFor(`/novels/${novel.id}`)); // http://127.0.0.1:41234/novels/lib_…?token=…
 await server.close();
 ```
 
 | Endpoint | Session needed | Returns |
 |---|---|---|
-| `GET /api/health` | yes | `{ status: "ok", root }` |
+| `GET /api/health` | yes | `{ status: "ok" }` |
 | `GET /api/session` | no | `{ authenticated }`: whether the request carries a valid session cookie |
+| `GET /api/library` | yes | `{ novels, notices }` |
+| `POST /api/library` | yes | `{ path }` → `201 { novel }`, or `400 { code, error }` |
+| `DELETE /api/library/:id` | yes | `204`: forgets the novel; its folder is left alone |
+| `POST /api/library/clone` | yes | `{ repo, path? }` → an event stream (below) |
 
 Routes added to `server.app` (before its first request) or in `createApp` sit behind the same security middleware.
+
+## Library
+
+The library is the author's list of novels: `library.json` in the user config directory. That's `$XDG_CONFIG_HOME/gh-writer` (or `~/.config/gh-writer`) on Linux, `~/Library/Application Support/gh-writer` on macOS and `%APPDATA%\gh-writer` on Windows. `GH_WRITER_CONFIG_DIR` overrides it. Each entry has an `id` (`lib_…`), its `path`, the `title` from novel.yaml, the `remote` (origin, with any credentials stripped out of the URL) and `lastOpened`. `list()` returns the most recently opened first. The file is replaced atomically on every change.
+
+- **Adding** a folder checks that it's a folder (`NOT_A_DIRECTORY`), inside a git work tree (`NOT_A_REPO`) and holds novel.yaml (`NOT_A_NOVEL`). Adding a folder that's already there refreshes its entry.
+- **Missing folders** are dropped whenever the library is read, at startup or later. Each drop leaves a `MISSING` notice in `notices` for the server's lifetime. An unreadable library.json is set aside (`UNREADABLE` notice, with the backup's path) and the library starts empty.
+- **Cloning** takes `owner/name` (GitHub over https), an `https://`, `ssh://`, `git://` or `file://` URL, or `git@host:path`. Anything else, including anything git could read as an option, is `BAD_REPO`. The clone goes to `path`, or by default to `~/gh-writer/<name>`. A destination with files in it is refused (`DESTINATION_EXISTS`) and never touched. A failed clone, or a clone that turns out not to be a novel, leaves no folder behind.
+
+The clone endpoint answers with `text/event-stream`. It sends `progress` events (`{ stage, progress, processed, total }`, from git's own progress), then either `done` with `{ novel }`, or `error` with `{ code, error, detail? }`. Closing the request aborts the clone.
+
+### git and credentials
+
+The library uses the system git through simple-git and the author's own git setup: credential helpers (`gh auth setup-git`, Git Credential Manager) and SSH keys. GitHub sign-in inside the app comes with #8. The author's environment passes to git whole. simple-git would otherwise strip `GIT_*` variables such as `GIT_SSH_COMMAND`. git must never wait for input in the terminal the server runs in. So `GIT_TERMINAL_PROMPT=0`, and ssh runs with `BatchMode=yes` unless the author set `GIT_SSH_COMMAND` or `GIT_SSH`. That means a missing credential fails at once.
+
+Failures are classified into stable codes with a message that says what to do; git's own output is in `detail`:
+
+| Code | When | Message says |
+|---|---|---|
+| `AUTH` | no or rejected credentials, publickey denied, HTTP 401/403 | run `gh auth setup-git`, or add an SSH key to GitHub |
+| `NOT_FOUND` | no repository at the address | check the owner and name, and access |
+| `NETWORK` | DNS, refused or timed-out connections | check the connection |
+| `DESTINATION_EXISTS` | the target folder has files | choose another folder |
+| `GIT_MISSING` | git isn't installed | install git |
+| `GIT` | anything else | git's last line |
 
 ## Security model
 

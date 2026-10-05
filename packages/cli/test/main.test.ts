@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,10 +9,15 @@ const repo = fileURLToPath(new URL("../../../", import.meta.url));
 const main = join(repo, "packages/cli/src/main.ts");
 const sample = join(repo, "examples/sample-novel");
 
+// Plain output: FORCE_COLOR (set by some terminals and runners) would override NO_COLOR.
+// The library goes to a temporary config directory, not the author's.
+const env = () => {
+  const { FORCE_COLOR: _, ...rest } = process.env;
+  return { ...rest, NO_COLOR: "1", GH_WRITER_CONFIG_DIR: join(tmp, "config") };
+};
+
 const run = (file: string, ...args: string[]) => {
-  // Plain output: FORCE_COLOR (set by some terminals and runners) would override NO_COLOR.
-  const { FORCE_COLOR: _, ...env } = process.env;
-  const r = spawnSync("node", [file, ...args], { encoding: "utf8", env: { ...env, NO_COLOR: "1" } });
+  const r = spawnSync("node", [file, ...args], { encoding: "utf8", env: env() });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
 
@@ -52,37 +57,37 @@ describe("gh-writer validate", () => {
 });
 
 describe("gh-writer serve", () => {
-  it("prints a launch URL with a token, serves it, and exits cleanly on SIGTERM", async () => {
-    const { FORCE_COLOR: _, ...env } = process.env;
-    const child = spawn("node", [main, "serve", sample, "--no-open"], { env: { ...env, NO_COLOR: "1" } });
+  it("opens the novel, prints a launch URL with a token, serves it, and exits cleanly on SIGTERM", async () => {
+    const child = spawn("node", [main, "serve", sample, "--no-open"], { env: env() });
     let out = "";
     child.stdout.setEncoding("utf8").on("data", (chunk: string) => (out += chunk));
     const exited = new Promise<number | null>((resolve) => child.once("exit", resolve));
 
     const launch = await new Promise<string>((resolve, reject) => {
       child.stdout.on("data", () => {
-        const url = /http:\/\/127\.0\.0\.1:\d+\/\?token=[\w-]{43}/.exec(out)?.[0];
+        const url = /http:\/\/127\.0\.0\.1:\d+\/novels\/lib_[0-9a-z]{6}\?token=[\w-]{43}/.exec(out)?.[0];
         if (url) resolve(url);
       });
       child.once("exit", () => reject(new Error(`serve exited early:\n${out}`)));
     });
-    expect(out).toContain(`gh-writer is serving ${sample}`);
+    expect(out).toContain(`gh-writer is serving The Bridge at Varn (${realpathSync(sample)})`);
 
     const exchange = await fetch(launch, { redirect: "manual" });
     expect(exchange.status).toBe(303);
     const cookie = exchange.headers.get("set-cookie")?.split(";")[0] ?? "";
-    const health = await fetch(new URL("/api/health", launch), { headers: { cookie } });
-    expect(await health.json()).toEqual({ status: "ok", root: sample });
-    expect((await fetch(new URL("/api/health", launch))).status).toBe(403);
+    const library = (await (await fetch(new URL("/api/library", launch), { headers: { cookie } })).json()) as { novels: { path: string }[] };
+    expect(library.novels.map((n) => n.path)).toEqual([realpathSync(sample)]);
+    expect((await fetch(new URL("/api/library", launch))).status).toBe(403);
 
     child.kill("SIGTERM");
     expect(await exited).toBe(0);
     expect(out).toContain("SIGTERM: stopping…\nStopped.");
   }, 15_000);
 
-  it("rejects a bad port and a missing directory", () => {
+  it("refuses a folder that isn't a novel repository, a missing folder and a bad port", () => {
+    expect(run(main, "serve", broken, "--no-open")).toMatchObject({ code: 1, err: expect.stringContaining("isn't a git repository") });
+    expect(run(main, "serve", join(tmp, "missing"), "--no-open").err).toContain("isn't a folder");
     expect(run(main, "serve", sample, "--port", "70000")).toMatchObject({ code: 1 });
-    expect(run(main, "serve", join(tmp, "missing"), "--no-open").err).toContain("Not a directory");
   });
 });
 

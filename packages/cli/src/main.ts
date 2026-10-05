@@ -7,7 +7,8 @@ import { runValidate } from "./validate-command.ts";
 const USAGE = `Usage: gh-writer <command> [options]
 
 Commands:
-  serve [dir]               Start the app on this machine and open it in the browser
+  serve [dir]               Start the app on this machine and open the novel in dir
+                            (default: the current directory, if it holds one)
       --port <n>            Listen on this port (default: a free one)
       --no-open             Print the URL without opening a browser
   validate [dir] [--json]   Check a novel repository (default: current directory)
@@ -49,7 +50,7 @@ async function main(argv: string[]): Promise<number> {
         console.error(`--port needs a port number from 0 to 65535, not "${values.port}"`);
         return 1;
       }
-      return runServe(rest[0] ?? ".", { port, open: values.open });
+      return runServe(rest[0], { port, open: values.open });
     }
     case "validate":
       return runValidate(rest[0] ?? ".", { json: values.json });

@@ -1,39 +1,28 @@
-import { Agent, request as httpRequest, type IncomingHttpHeaders } from "node:http";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createServer, sessionCookie, type RunningServer } from "../src/index.ts";
+import { Agent, request as httpRequest } from "node:http";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createServer, Library, sessionCookie, type RunningServer } from "../src/index.ts";
+import { send } from "./http.ts";
 
 const TOKEN = "test-token-0123456789";
 
-interface Reply {
-  status: number;
-  headers: IncomingHttpHeaders;
-  body: string;
-}
-
-/** Raw HTTP to the server, so tests control Host, Origin and the rest the way an attacker could. */
-function send(
-  port: number,
-  path: string,
-  { method = "GET", headers = {}, agent }: { method?: string; headers?: Record<string, string>; agent?: Agent | false } = {},
-): Promise<Reply> {
-  return new Promise((resolve, reject) => {
-    const req = httpRequest({ host: "127.0.0.1", port, path, method, agent, headers: { host: `127.0.0.1:${port}`, ...headers } }, (res) => {
-      let body = "";
-      res.setEncoding("utf8");
-      res.on("data", (chunk: string) => (body += chunk));
-      res.on("end", () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body }));
-    });
-    req.on("error", reject);
-    req.end();
-  });
-}
-
+let tmp: string;
+let library: Library;
 let server: RunningServer;
 let session: Record<string, string>;
 let origin: string;
 
+beforeAll(async () => {
+  tmp = mkdtempSync(join(tmpdir(), "gh-writer-server-"));
+  library = await Library.open({ configDir: tmp });
+});
+
+afterAll(() => rmSync(tmp, { recursive: true, force: true }));
+
 beforeEach(async () => {
-  server = await createServer({ root: "/novels/the-bridge", token: TOKEN });
+  server = await createServer({ library, token: TOKEN });
   session = { cookie: `${sessionCookie(server.port)}=${TOKEN}` };
   origin = `http://127.0.0.1:${server.port}`;
 });
@@ -45,11 +34,12 @@ describe("createServer", () => {
     expect(server.url).toBe(`http://127.0.0.1:${server.port}`);
     expect(server.port).toBeGreaterThan(0);
     expect(server.launchUrl).toBe(`${server.url}/?token=${TOKEN}`);
+    expect(server.launchUrlFor("/novels/lib_abcdef")).toBe(`${server.url}/novels/lib_abcdef?token=${TOKEN}`);
   });
 
   it("makes a fresh URL-safe token per launch by default", async () => {
-    const a = await createServer({ root: "." });
-    const b = await createServer({ root: "." });
+    const a = await createServer({ library });
+    const b = await createServer({ library });
     try {
       expect(a.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
       expect(a.token).not.toBe(b.token);
@@ -86,7 +76,7 @@ describe("session", () => {
   it("serves a valid session", async () => {
     const r = await send(server.port, "/api/health", { headers: session });
     expect(r.status).toBe(200);
-    expect(JSON.parse(r.body)).toEqual({ status: "ok", root: "/novels/the-bridge" });
+    expect(JSON.parse(r.body)).toEqual({ status: "ok" });
   });
 
   it("rejects a missing or wrong session cookie", async () => {
@@ -98,6 +88,11 @@ describe("session", () => {
   it("answers /api/session without a session, saying whether there is one", async () => {
     expect(JSON.parse((await send(server.port, "/api/session")).body)).toEqual({ authenticated: false });
     expect(JSON.parse((await send(server.port, "/api/session", { headers: session })).body)).toEqual({ authenticated: true });
+  });
+
+  it("guards mounted routes too", async () => {
+    expect((await send(server.port, "/api/library")).status).toBe(403);
+    expect((await send(server.port, "/api/library", { headers: session })).status).toBe(200);
   });
 
   it("rejects unknown paths without a session before they can 404", async () => {
