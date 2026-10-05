@@ -18,6 +18,8 @@ export interface WritingModes {
   dim: boolean;
   /** Keep the caret line at a fixed height while typing and moving by keyboard. */
   typewriter: boolean;
+  /** Keep the word count visible in focus mode. */
+  pinCount: boolean;
 }
 
 export type WritingMode = keyof WritingModes;
@@ -58,13 +60,14 @@ export const writingModes = createStore<WritingModesStore>()(
       focus: false,
       dim: false,
       typewriter: false,
+      pinCount: false,
       toggle: (mode) => set((s) => ({ [mode]: !s[mode] })),
       set: (modes) => set(modes),
     }),
     {
       name: "gh-writer:writing-modes",
       storage: createJSONStorage(() => storage),
-      partialize: ({ focus, dim, typewriter }) => ({ focus, dim, typewriter }),
+      partialize: ({ focus, dim, typewriter, pinCount }) => ({ focus, dim, typewriter, pinCount }),
     },
   ),
 );
@@ -106,6 +109,12 @@ export const writingModeCommands: EditorCommand[] = [
     title: "Dim all but the current paragraph in focus mode",
     run: (editor) => toggleMode("dim", editor),
     isActive: () => writingModes.getState().dim,
+  },
+  {
+    id: "editor.togglePinnedWordCount",
+    title: "Show the word count in focus mode",
+    run: (editor) => toggleMode("pinCount", editor),
+    isActive: () => writingModes.getState().pinCount,
   },
 ];
 

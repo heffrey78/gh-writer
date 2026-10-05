@@ -8,7 +8,7 @@ let editor: Editor;
 
 beforeEach(() => {
   localStorage.clear();
-  writingModes.setState({ focus: false, dim: false, typewriter: false });
+  writingModes.setState({ focus: false, dim: false, typewriter: false, pinCount: false });
   editor = new Editor({ element: document.createElement("div"), extensions: [...proseContent, WritingModesExtension] });
   loadMarkdown(editor, "First paragraph.\n\nSecond paragraph.\n\n> Quoted.\n");
 });
@@ -72,7 +72,7 @@ describe("writing modes", () => {
 
   test("modes persist to local storage, without the actions", () => {
     writingModes.getState().set({ focus: true, typewriter: true });
-    expect(JSON.parse(localStorage.getItem("gh-writer:writing-modes")!).state).toEqual({ focus: true, dim: false, typewriter: true });
+    expect(JSON.parse(localStorage.getItem("gh-writer:writing-modes")!).state).toEqual({ focus: true, dim: false, typewriter: true, pinCount: false });
   });
 
   test("commands describe themselves for the palette", () => {
@@ -80,6 +80,7 @@ describe("writing modes", () => {
       ["editor.toggleFocusMode", "Mod-Shift-f"],
       ["editor.toggleTypewriterScrolling", "Mod-Shift-l"],
       ["editor.toggleFocusDimming", null],
+      ["editor.togglePinnedWordCount", null],
     ]);
     writingModeCommands[1]!.run();
     expect(writingModeCommands[1]!.isActive!()).toBe(true);

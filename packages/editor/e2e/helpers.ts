@@ -49,6 +49,8 @@ export async function caretAt(page: Page, text: string, before = false) {
     },
     { text, before },
   );
+  // TipTap focuses on the next frame; keys pressed before then would go elsewhere.
+  await expect(textbox(page)).toBeFocused();
 }
 
 export const caretAfter = (page: Page, text: string) => caretAt(page, text);

@@ -40,6 +40,22 @@ Both editors include `WritingModesExtension`. The modes live in one store, `writ
 
 Typewriter scrolling follows typing and keyboard movement, but not clicks, so the text doesn't jump out from under the pointer; the next keystroke recentres. Scrolling is instant, never animated. Ctrl+Shift+T and Ctrl+Alt+T were avoided as shortcuts: browsers reserve the first (reopen tab), and Linux desktops use the second for a terminal.
 
+### Word counts
+
+```tsx
+import { WordCount } from "@gh-writer/editor/react";
+
+<WordCount chapterWords={chapterTotal} />; // chapterWords only for a single-scene editor
+```
+
+`WordCount` shows the scene, chapter and session counts for the editor the writer last used, plus an optional session goal with a progress bar. When the goal is reached it shows a quiet "Goal reached", also announced once to screen readers. It hides in focus mode unless the count is pinned (the "Show the word count in focus mode" command). Give `SceneEditor` a `sceneId` so its scene is tracked in the session; chapter scenes carry their own IDs.
+
+- **Words** are counted as core's `countWords` counts a scene's Markdown, so the editor, CLI and progress history agree. Punctuation and Markdown syntax never count, a mention counts as its visible name, a hyphenated word counts once, and words joined by dashes count separately. The count uses `Intl.Segmenter`, so non-Latin scripts split properly.
+- **Live counting is incremental.** Counts are cached per node, and ProseMirror reuses untouched nodes, so a keystroke recounts one paragraph. Counts are published at most once per frame.
+- **The session** lasts as long as the browser tab and survives reloads (`sessionStorage`). Session words are the net change since each scene was first opened in the session, so they go negative after cutting. `sessionCommands` has "Start a new writing session". The goal carries over to new sessions (`localStorage`).
+
+The counts are also available headless: `countNode`, `documentCounts`, and the `liveCounts` and `writingSession` stores.
+
 ### Chapter view
 
 ```tsx

@@ -159,3 +159,12 @@ h3 span {
 .layout.focus aside {
   display: none;
 }
+
+main .counts {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.6rem 0;
+  background: var(--pg-bg);
+  border-bottom: 1px solid var(--pg-line);
+}

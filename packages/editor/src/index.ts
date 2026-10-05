@@ -26,3 +26,16 @@ export {
   type WritingMode,
   type WritingModes,
 } from "./modes.ts";
+export {
+  countNode,
+  documentCounts,
+  liveCounts,
+  sessionCommands,
+  sessionWords,
+  WordCountExtension,
+  writingSession,
+  type LiveCounts,
+  type SessionScene,
+  type WordCountOptions,
+  type WritingSession,
+} from "./wordcount.ts";

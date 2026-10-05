@@ -1,8 +1,10 @@
 import type { Editor } from "@tiptap/core";
-import { StrictMode, useMemo, useState } from "react";
+import { StrictMode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { joinSceneFile, splitSceneFile, writingModeCommands, type SceneSource } from "../src/index.ts";
-import { ChapterEditor, SceneEditor, useWritingModes } from "../src/react.tsx";
+import { countWords } from "@gh-writer/core";
+import { useStore } from "zustand";
+import { joinSceneFile, liveCounts, sessionCommands, splitSceneFile, writingModeCommands, type SceneSource } from "../src/index.ts";
+import { ChapterEditor, SceneEditor, useWritingModes, WordCount } from "../src/react.tsx";
 import { generatedChapter } from "./generated.ts";
 import "../src/styles.css";
 import "./playground.css";
@@ -58,7 +60,20 @@ function initial(): string {
 
 function App() {
   const [open, setOpen] = useState(initial);
-  const [bodies, setBodies] = useState<Record<string, string>>({});
+  // Edits stand in for saved files: kept for the tab's session, so a reload shows them (as the
+  // real app would after saving) and session word counts can be checked across reloads.
+  const [bodies, setBodies] = useState<Record<string, string>>(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("playground:bodies") ?? "{}");
+    } catch {
+      return {};
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("playground:bodies", JSON.stringify(bodies));
+    } catch {}
+  }, [bodies]);
   const [kind, target] = [open.slice(0, open.indexOf(":")), open.slice(open.indexOf(":") + 1)];
   const files = kind === "chapter" ? chapters.get(target)! : [scenes.find((s) => s.path === target)!];
 
@@ -75,6 +90,10 @@ function App() {
     window.editor = e;
     setEditor(e);
   };
+  // In the scene view the chapter count is the app's to give: the other scenes' saved counts plus this one live.
+  const liveScene = useStore(liveCounts, (c) => c.scene);
+  const sceneChapter = kind === "scene" ? scenes.filter((s) => s.path !== target && s.path.slice(0, s.path.lastIndexOf("/")) === target.slice(0, target.lastIndexOf("/"))) : [];
+  const chapterWords = target.startsWith("manuscript/") && kind === "scene" ? sceneChapter.reduce((n, s) => n + countWords(bodies[s.path] ?? splitSceneFile(s.text).body), liveScene) : undefined;
   const keys = (k: string) => k.replace("Mod", navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl").replace(/-/g, "+").replace(/\+([a-z])$/, (_, c: string) => `+${c.toUpperCase()}`);
 
   return (
@@ -86,8 +105,14 @@ function App() {
       <header>
         <h1>Scene editor</h1>
         <div className="modes" role="group" aria-label="Writing modes">
-          {writingModeCommands.map((c) => (
-            <button key={c.id} type="button" aria-pressed={c.isActive?.() ?? false} onClick={() => c.run(editor)} title={c.keys && keys(c.keys)}>
+          {[...writingModeCommands, ...sessionCommands].map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              aria-pressed={"isActive" in c ? c.isActive!() : undefined}
+              onClick={() => c.run(editor)}
+              title={"keys" in c && c.keys ? keys(c.keys) : undefined}
+            >
               {c.title}
             </button>
           ))}
@@ -113,6 +138,7 @@ function App() {
         </label>
       </header>
       <main>
+        <WordCount className="counts" chapterWords={chapterWords} />
         {kind === "chapter" ? (
           <ChapterEditor
             key={open}
@@ -125,6 +151,7 @@ function App() {
         ) : (
           <SceneEditor
             key={open}
+            sceneId={target}
             markdown={sources[0]!.markdown}
             changeDelay={150}
             autofocus
