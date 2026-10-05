@@ -13,8 +13,10 @@ type NovelEnv = { Variables: { ws: NovelWorkspace } };
  * GET /api/novels/:id               { novel, files }: the story model and the hash of each file it was read from
  * GET /api/novels/:id/files/<path>  { path, content, hash }
  * PUT /api/novels/:id/files/<path>  { content, base } → 200 { hash }, or 409 { current } when base is stale
- * GET /api/novels/:id/events        event stream: "ready", then a "file" event { type, path, hash } per outside change
- * GET /api/novels/:id/sync          background commit status: { state, pendingChanges, lastCommit, blocked? }
+ * GET /api/novels/:id/events        event stream: "ready", the sync status, then a "file" event { type, path, hash } per outside change
+ *                                   and a "sync" event (the status) whenever it changes
+ * GET /api/novels/:id/sync          sync status: { state, remote, branch, ahead, behind, lastSync, conflict?, error?, commit }
+ * POST /api/novels/:id/sync         sync now; the status once it's done
  */
 export function novelRoutes(library: Library, workspaces: Workspaces): Hono<NovelEnv> {
   const routes = new Hono<NovelEnv>();
@@ -67,19 +69,37 @@ export function novelRoutes(library: Library, workspaces: Workspaces): Hono<Nove
     },
   );
 
-  routes.get("/:id/sync", async (c) => c.json(c.var.ws.committer ? await c.var.ws.committer.status() : { state: "off" }));
+  routes.get("/:id/sync", async (c) => c.json(await c.var.ws.syncStatus()));
+  routes.post("/:id/sync", async (c) => {
+    await c.var.ws.syncer?.sync();
+    return c.json(await c.var.ws.syncStatus());
+  });
 
   routes.get("/:id/events", (c) =>
     streamSSE(c, async (stream) => {
       const ws = c.var.ws;
       const aborted = new Promise<void>((resolve) => stream.onAbort(resolve));
       const unsubscribe = await ws.subscribe((e) => void stream.writeSSE({ event: "file", data: JSON.stringify(e) }));
+      // Status reads are git calls: run them one after another, and skip ones overtaken by a newer change.
+      let reading: Promise<void> = Promise.resolve();
+      let changes = 0;
+      const sendSync = () => {
+        const n = ++changes;
+        reading = reading.then(async () => {
+          if (n !== changes) return;
+          const status = await ws.syncStatus().catch(() => undefined);
+          if (status) await stream.writeSSE({ event: "sync", data: JSON.stringify(status) });
+        });
+      };
+      const offSync = ws.onSyncChange(sendSync);
       const heartbeat = setInterval(() => void stream.write(": ping\n\n"), HEARTBEAT_MS);
       try {
         await stream.writeSSE({ event: "ready", data: "{}" });
+        sendSync();
         await Promise.race([aborted, ws.stopped]);
       } finally {
         clearInterval(heartbeat);
+        offSync();
         unsubscribe();
       }
     }),

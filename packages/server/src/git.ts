@@ -1,7 +1,7 @@
 import { simpleGit, type SimpleGit, type SimpleGitProgressEvent } from "simple-git";
 
 /** Stable codes for what went wrong, so the UI can say what to do. */
-export type GitErrorCode = "AUTH" | "NOT_FOUND" | "NETWORK" | "DESTINATION_EXISTS" | "GIT_MISSING" | "BAD_REPO" | "GIT";
+export type GitErrorCode = "AUTH" | "NOT_FOUND" | "NETWORK" | "REJECTED" | "DESTINATION_EXISTS" | "GIT_MISSING" | "BAD_REPO" | "GIT";
 
 export class GitFailure extends Error {
   readonly code: GitErrorCode;
@@ -23,12 +23,14 @@ const GUIDANCE: Record<Exclude<GitErrorCode, "GIT">, string> = {
     "(https://github.com/settings/keys) and load it with ssh-add. Then try again.",
   NOT_FOUND: "No repository at that address. Check the owner and name, and that your GitHub account can see it.",
   NETWORK: "Couldn't reach the server. Check your connection and try again.",
+  REJECTED: "The remote has changes this copy doesn't have yet: bring them in, then push again.",
   DESTINATION_EXISTS: "The destination folder already exists and isn't empty. Choose another folder.",
   GIT_MISSING: "git isn't installed or isn't on the PATH. Install git (https://git-scm.com) and restart gh-writer.",
   BAD_REPO: "That isn't a repository address. Use owner/name or a URL such as https://github.com/owner/name.",
 };
 
-// Checked in order: a 403 "unable to access" is AUTH, not NETWORK.
+// Checked in order: a 403 "unable to access" is AUTH, not NETWORK. A push refused because the remote
+// moved is REJECTED; one refused by the remote itself ("[remote rejected]", e.g. a protected branch) is GIT.
 const PATTERNS: [GitErrorCode, RegExp][] = [
   ["GIT_MISSING", /spawn git ENOENT|git: (command )?not found/i],
   [
@@ -40,6 +42,7 @@ const PATTERNS: [GitErrorCode, RegExp][] = [
     "NETWORK",
     /Could not resolve host|Failed to connect|Connection refused|Connection timed out|Network is unreachable|Operation timed out|Could not read from remote repository|early EOF|unable to access/i,
   ],
+  ["REJECTED", /\[rejected\]|\((fetch first|non-fast-forward)\)/i],
   ["DESTINATION_EXISTS", /already exists and is not an empty directory/i],
 ];
 

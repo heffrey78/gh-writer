@@ -7,6 +7,7 @@ import { createApp } from "./app.ts";
 import type { CommitterOptions } from "./committer.ts";
 import { Library } from "./library.ts";
 import { TOKEN_PARAM } from "./security.ts";
+import type { SyncerOptions } from "./sync.ts";
 import { Workspaces } from "./workspace.ts";
 
 export interface ServerOptions {
@@ -20,6 +21,8 @@ export interface ServerOptions {
   shutdownTimeout?: number;
   /** Background commit timing; false turns background commits off. */
   commit?: CommitterOptions | false;
+  /** Sync timing; false turns syncing with the remote off. */
+  sync?: SyncerOptions | false;
 }
 
 export interface RunningServer {
@@ -41,10 +44,10 @@ export interface RunningServer {
 const HOST = "127.0.0.1";
 
 /** Starts the server on 127.0.0.1 only. */
-export async function createServer({ library, token = newToken(), port = 0, shutdownTimeout = 10_000, commit }: ServerOptions = {}): Promise<RunningServer> {
+export async function createServer({ library, token = newToken(), port = 0, shutdownTimeout = 10_000, commit, sync }: ServerOptions = {}): Promise<RunningServer> {
   library ??= await Library.open();
   let boundPort = port;
-  const workspaces = new Workspaces(library, commit === undefined ? {} : { commit });
+  const workspaces = new Workspaces(library, { ...(commit !== undefined ? { commit } : {}), ...(sync !== undefined ? { sync } : {}) });
   const app = createApp({ token, port: () => boundPort, library, workspaces });
   const server = createHttpServer(getRequestListener(app.fetch));
 

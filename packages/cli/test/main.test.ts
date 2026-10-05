@@ -88,6 +88,7 @@ describe("gh-writer serve", () => {
     expect(run(main, "serve", broken, "--no-open")).toMatchObject({ code: 1, err: expect.stringContaining("isn't a git repository") });
     expect(run(main, "serve", join(tmp, "missing"), "--no-open").err).toContain("isn't a folder");
     expect(run(main, "serve", sample, "--port", "70000")).toMatchObject({ code: 1 });
+    expect(run(main, "serve", sample, "--sync-every", "soon")).toMatchObject({ code: 1, err: expect.stringContaining("--sync-every") });
   });
 });
 

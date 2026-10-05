@@ -36,6 +36,14 @@ export type CommitResult = { committed: LastCommit } | { skipped: "NOTHING" | Bl
 const PATHSPEC = ["--", ".", `:(exclude,glob)**/.*${TEMP_SUFFIX}`];
 const IN_PROGRESS = ["MERGE_HEAD", "REBASE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply"];
 
+/** Whether a merge, rebase, cherry-pick or revert is under way in the repository holding `root`. */
+export async function operationInProgress(root: string): Promise<boolean> {
+  const g = git(root);
+  const paths = (await g.raw(["rev-parse", ...IN_PROGRESS.flatMap((p) => ["--git-path", p])])).trim().split("\n");
+  if (paths.some((p) => existsSync(resolve(root, p)))) return true;
+  return (await g.raw(["ls-files", "--unmerged", "--", "."])).trim() !== "";
+}
+
 const realSchedule = (fn: () => void, ms: number) => {
   const timer = setTimeout(fn, ms);
   timer.unref();
@@ -59,6 +67,8 @@ export class Committer {
   #running: Promise<CommitResult> | undefined;
   #lastCommit: LastCommit | null = null;
   #blocked: CommitStatus["blocked"];
+  #held = 0;
+  #listeners = new Set<() => void>();
 
   constructor(root: string, { quietMs = 120_000, maxMs = 600_000, schedule = realSchedule }: CommitterOptions = {}) {
     this.root = root;
@@ -69,10 +79,34 @@ export class Committer {
 
   /** A save happened: restart the quiet timer, and start the cap if this is the first save since a commit. */
   notify(): void {
+    const wasDirty = this.#dirty;
     this.#dirty = true;
     this.#cancelQuiet?.();
-    this.#cancelQuiet = this.#schedule(() => void this.commit(), this.#quietMs);
-    this.#cancelMax ??= this.#schedule(() => void this.commit(), this.#maxMs);
+    this.#cancelQuiet = this.#schedule(() => this.#onTimer(), this.#quietMs);
+    this.#cancelMax ??= this.#schedule(() => this.#onTimer(), this.#maxMs);
+    if (!wasDirty) this.#changed();
+  }
+
+  /** Called after each commit attempt and when saves start waiting. Returns a function that removes it. */
+  onChange(listener: () => void): () => void {
+    this.#listeners.add(listener);
+    return () => void this.#listeners.delete(listener);
+  }
+
+  /**
+   * Run `fn` with background commits held off (sync rebasing the work tree, a checkpoint restore).
+   * Explicit commit() calls still run; timers that come due meanwhile wait until `fn` has finished.
+   */
+  async hold<T>(fn: () => Promise<T>): Promise<T> {
+    this.#held++;
+    try {
+      await this.idle();
+      return await fn();
+    } finally {
+      if (--this.#held === 0 && this.#dirty && !this.#cancelQuiet) {
+        this.#cancelQuiet = this.#schedule(() => this.#onTimer(), this.#quietMs);
+      }
+    }
   }
 
   /** Commit now if there is anything to commit. Concurrent calls share one run. */
@@ -100,6 +134,19 @@ export class Committer {
     if (this.#dirty) await this.commit().catch(() => {});
   }
 
+  #onTimer(): void {
+    if (this.#held) {
+      // Picked up again when the hold ends.
+      this.#cancelTimers();
+      return;
+    }
+    void this.commit();
+  }
+
+  #changed(): void {
+    for (const listener of this.#listeners) listener();
+  }
+
   async #commit(): Promise<CommitResult> {
     this.#committing = true;
     // Saves from here on belong to the next commit.
@@ -119,12 +166,13 @@ export class Committer {
       return { skipped: "ERROR" };
     } finally {
       this.#committing = false;
+      this.#changed();
     }
   }
 
   async #tryCommit(): Promise<CommitResult> {
     const g = git(this.root);
-    if (await this.#inProgress()) {
+    if (await operationInProgress(this.root)) {
       return this.#block("MERGE", "A merge or rebase is in progress in this repository; saved work will be committed once it's finished.");
     }
     if (!(await this.#hasIdentity())) {
@@ -149,15 +197,8 @@ export class Committer {
   #block(code: BlockedCode, message: string): CommitResult {
     this.#blocked = { code, message };
     this.#dirty = true;
-    this.#cancelQuiet = this.#schedule(() => void this.commit(), this.#quietMs);
+    this.#cancelQuiet = this.#schedule(() => this.#onTimer(), this.#quietMs);
     return { skipped: code };
-  }
-
-  async #inProgress(): Promise<boolean> {
-    const g = git(this.root);
-    const paths = (await g.raw(["rev-parse", ...IN_PROGRESS.flatMap((p) => ["--git-path", p])])).trim().split("\n");
-    if (paths.some((p) => existsSync(resolve(this.root, p)))) return true;
-    return (await g.raw(["ls-files", "--unmerged", "--", "."])).trim() !== "";
   }
 
   async #hasIdentity(): Promise<boolean> {
@@ -173,10 +214,8 @@ export class Committer {
     const g = git(this.root);
     const out = await g.raw(["diff", "--cached", "--name-status", "-M", "--relative", "-z", ...PATHSPEC]);
     const fields = out.split("\0").filter(Boolean);
-    const hasHead = await g
-      .raw(["rev-parse", "--verify", "--quiet", "HEAD"])
-      .then(() => true)
-      .catch(() => false);
+    // --quiet: no HEAD exits 1 with no output (which simple-git doesn't treat as an error).
+    const hasHead = (await g.raw(["rev-parse", "--verify", "--quiet", "HEAD"]).catch(() => "")).trim() !== "";
     const show = (spec: string) => g.raw(["show", spec]).catch(() => undefined);
 
     const changes: FileChange[] = [];

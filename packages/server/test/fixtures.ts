@@ -23,6 +23,32 @@ export function scratch(prefix: string): { tmp: string; fresh: (name: string) =>
   return { tmp, fresh: (name) => join(tmp, `${name}-${++n}`), cleanUp: () => rmSync(tmp, { recursive: true, force: true }) };
 }
 
+/** A clock the test moves by hand: `schedule` has the shape the committer and syncer take. */
+export function fakeClock() {
+  let now = 0;
+  const timers = new Set<{ at: number; fn: () => void }>();
+  return {
+    schedule(fn: () => void, ms: number) {
+      const timer = { at: now + ms, fn };
+      timers.add(timer);
+      return () => void timers.delete(timer);
+    },
+    advance(ms: number) {
+      const until = now + ms;
+      for (;;) {
+        const due = [...timers].filter((t) => t.at <= until).sort((a, b) => a.at - b.at)[0];
+        if (!due) break;
+        timers.delete(due);
+        now = due.at;
+        due.fn();
+      }
+      now = until;
+    },
+    /** Delays of the timers waiting now, soonest first. */
+    pending: () => [...timers].map((t) => t.at - now).sort((a, b) => a - b),
+  };
+}
+
 /** A git repository holding a copy of the sample novel, committed. */
 export function novelRepo(dir: string): string {
   cpSync(sample, dir, { recursive: true });

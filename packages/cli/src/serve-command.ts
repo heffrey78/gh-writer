@@ -8,13 +8,15 @@ export interface ServeOptions {
   port?: number;
   /** Open the launch URL in the default browser. */
   open?: boolean;
+  /** Minutes between background syncs with the remote; 0 syncs only on demand. Default 5. */
+  syncEvery?: number;
 }
 
 /**
  * Serve the library until SIGINT or SIGTERM, then shut down cleanly and return the exit code.
  * `dir`, or the current directory when it holds a novel, is added to the library and opened.
  */
-export async function runServe(dir: string | undefined, { port = 0, open = true }: ServeOptions = {}, out: (s: string) => void = console.log): Promise<number> {
+export async function runServe(dir: string | undefined, { port = 0, open = true, syncEvery }: ServeOptions = {}, out: (s: string) => void = console.log): Promise<number> {
   const library = await Library.open();
   const target = dir ?? (existsSync(join(process.cwd(), "novel.yaml")) ? "." : undefined);
   let novel: LibraryEntry | undefined;
@@ -29,7 +31,7 @@ export async function runServe(dir: string | undefined, { port = 0, open = true 
   }
   for (const notice of library.notices) out(notice.message);
 
-  const server = await createServer({ library, port });
+  const server = await createServer({ library, port, ...(syncEvery !== undefined ? { sync: { intervalMs: syncEvery * 60_000 } } : {}) });
   const launchUrl = novel ? server.launchUrlFor(`/novels/${novel.id}`) : server.launchUrl;
   out(novel ? `gh-writer is serving ${novel.title} (${novel.path})` : `gh-writer is serving your library (${library.file})`);
   out(`  ${launchUrl}`);

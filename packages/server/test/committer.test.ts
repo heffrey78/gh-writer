@@ -2,7 +2,7 @@ import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { commitMessage, Committer, createServer, Library, sessionCookie, TEMP_SUFFIX } from "../src/index.ts";
-import { gitIn, novelRepo, sample, scratch } from "./fixtures.ts";
+import { fakeClock, gitIn, novelRepo, sample, scratch } from "./fixtures.ts";
 import { send } from "./http.ts";
 
 const SCENE = "manuscript/01-return/01-arrival/01-the-station.md";
@@ -12,30 +12,6 @@ const MIN = 60_000;
 let fresh: (name: string) => string;
 let cleanUp: () => void;
 let tmp: string;
-
-/** A clock the test moves by hand. */
-function fakeClock() {
-  let now = 0;
-  const timers = new Set<{ at: number; fn: () => void }>();
-  return {
-    schedule(fn: () => void, ms: number) {
-      const timer = { at: now + ms, fn };
-      timers.add(timer);
-      return () => void timers.delete(timer);
-    },
-    advance(ms: number) {
-      const until = now + ms;
-      for (;;) {
-        const due = [...timers].filter((t) => t.at <= until).sort((a, b) => a.at - b.at)[0];
-        if (!due) break;
-        timers.delete(due);
-        now = due.at;
-        due.fn();
-      }
-      now = until;
-    },
-  };
-}
 
 const commits = (dir: string) => Number(gitIn(dir, "rev-list", "--count", "HEAD").trim());
 const lastMessage = (dir: string) => gitIn(dir, "log", "-1", "--format=%B").trim();
@@ -205,7 +181,7 @@ describe("through the server", () => {
       const { hash } = JSON.parse((await send(server.port, `${base}/files/${SCENE}`, { headers })).body) as { hash: string };
       return send(server.port, `${base}/files/${SCENE}`, { method: "PUT", headers, body: JSON.stringify({ content, base: hash }) });
     };
-    const sync = async () => JSON.parse((await send(server.port, `${base}/sync`, { headers })).body) as { state: string; pendingChanges: number };
+    const sync = async () => (JSON.parse((await send(server.port, `${base}/sync`, { headers })).body) as { commit: { state: string; pendingChanges: number } }).commit;
 
     const original = readFileSync(join(dir, SCENE), "utf8");
     expect((await put(`${original} first`)).status).toBe(200);

@@ -3,9 +3,10 @@ import { join, relative, sep } from "node:path";
 import { loadNovel, type FileSource, type Novel } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
 import { watch, type FSWatcher } from "chokidar";
-import { Committer, type CommitterOptions } from "./committer.ts";
+import { Committer, type CommitStatus, type CommitterOptions } from "./committer.ts";
 import { atomicWrite, hashText, isVisible, readText, writablePath, type TextFile, type WriteHooks } from "./files.ts";
 import type { Library } from "./library.ts";
+import { Syncer, type SyncerOptions, type SyncStatus } from "./sync.ts";
 
 /** A file that changed on disk. `hash` is null once the file is gone. */
 export interface FileEvent {
@@ -16,19 +17,26 @@ export interface FileEvent {
 
 export type WriteResult = { ok: true; hash: string } | { ok: false; current: TextFile | undefined };
 
+/** What GET /sync reports: the sync state ("off" when sync is turned off), with the background commit status. */
+export type NovelSyncStatus = (SyncStatus | { state: "off" }) & { commit: CommitStatus | { state: "off" } };
+
+export interface WorkspaceOptions {
+  /** Background commits; false turns them off. */
+  commit?: CommitterOptions | false;
+  /** Sync with the remote; false turns it off. */
+  sync?: SyncerOptions | false;
+}
+
 /**
  * One open novel: reads, conflict-checked atomic writes, and a watcher that tells subscribers about
  * changes made outside the app (another editor, a git pull) but not about the server's own writes.
  */
-export interface WorkspaceOptions {
-  /** Background commits; false turns them off. */
-  commit?: CommitterOptions | false;
-}
-
 export class NovelWorkspace {
   readonly root: string;
   /** Commits saved work in the background, unless turned off. */
   readonly committer: Committer | undefined;
+  /** Syncs with the remote in the background, unless turned off. */
+  readonly syncer: Syncer | undefined;
   /** Resolves when the workspace stops: event streams end then. */
   readonly stopped: Promise<void>;
   #stop!: () => void;
@@ -38,11 +46,47 @@ export class NovelWorkspace {
   #listeners = new Set<(e: FileEvent) => void>();
   #watcher?: FSWatcher;
   #ready?: Promise<void>;
+  /** Writes under way, and the exclusive task (sync, restore) that new writes wait for. */
+  #writing = 0;
+  #drained?: () => void;
+  #exclusive?: Promise<unknown>;
 
-  constructor(root: string, { commit = {} }: WorkspaceOptions = {}) {
+  constructor(root: string, { commit = {}, sync = {} }: WorkspaceOptions = {}) {
     this.root = root;
     this.committer = commit === false ? undefined : new Committer(root, commit);
+    this.syncer =
+      sync === false ? undefined : new Syncer(root, sync, { ...(this.committer ? { committer: this.committer } : {}), exclusive: (fn) => this.exclusive(fn) });
     this.stopped = new Promise((resolve) => (this.#stop = resolve));
+    this.syncer?.start();
+  }
+
+  async syncStatus(): Promise<NovelSyncStatus> {
+    const [sync, commit] = await Promise.all([this.syncer?.status() ?? { state: "off" as const }, this.committer?.status() ?? { state: "off" as const }]);
+    return { ...sync, commit };
+  }
+
+  /** Listen for changes to the sync or commit status. Returns a function that removes the listener. */
+  onSyncChange(listener: () => void): () => void {
+    const off = [this.syncer?.onChange(listener), this.committer?.onChange(listener)];
+    return () => off.forEach((f) => f?.());
+  }
+
+  /**
+   * Run `fn` alone: writes under way finish first, new ones wait until it's done, and background commits
+   * are held off. For changes to the work tree that mustn't interleave with saves (a rebase, a restore).
+   */
+  async exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    while (this.#exclusive) await this.#exclusive.catch(() => {});
+    const run = (async () => {
+      if (this.#writing) await new Promise<void>((resolve) => (this.#drained = resolve));
+      return this.committer ? this.committer.hold(fn) : fn();
+    })();
+    this.#exclusive = run;
+    try {
+      return await run;
+    } finally {
+      this.#exclusive = undefined;
+    }
   }
 
   /** The story model, with the hash of every file it was read from (the bases for writes). */
@@ -74,7 +118,7 @@ export class NovelWorkspace {
    * file comes back. Writes to one path run one at a time.
    */
   write(path: string, content: string, base: string | null, hooks?: WriteHooks): Promise<WriteResult> {
-    return this.#locked(path, async () => {
+    return this.#locked(path, () => this.#shared(async () => {
       const full = await writablePath(this.root, path, content);
       const current = await readText(this.root, path);
       if ((current?.hash ?? null) !== base) return { ok: false, current };
@@ -90,7 +134,20 @@ export class NovelWorkspace {
       }
       this.committer?.notify();
       return { ok: true, hash };
-    });
+    }));
+  }
+
+  async #shared<T>(task: () => Promise<T>): Promise<T> {
+    while (this.#exclusive) await this.#exclusive.catch(() => {});
+    this.#writing++;
+    try {
+      return await task();
+    } finally {
+      if (--this.#writing === 0) {
+        this.#drained?.();
+        this.#drained = undefined;
+      }
+    }
   }
 
   /** Listen for outside changes. Resolves once the watcher is ready: changes from then on are reported. */
@@ -109,9 +166,10 @@ export class NovelWorkspace {
     this.#stop();
   }
 
-  /** End the event streams, stop watching, and commit any saved work still waiting. */
+  /** End the event streams, stop syncing and watching, and commit any saved work still waiting. */
   async close(): Promise<void> {
     this.stop();
+    await this.syncer?.close();
     await Promise.all([this.#unwatch(), this.committer?.close()]);
   }
 

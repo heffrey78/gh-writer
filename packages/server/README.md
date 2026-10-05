@@ -23,8 +23,9 @@ await server.close();
 | `GET /api/novels/:id` | yes | `{ novel, files }`: the story model (core `loadNovel`) and the hash of each file it was read from |
 | `GET /api/novels/:id/files/<path>` | yes | `{ path, content, hash }` |
 | `PUT /api/novels/:id/files/<path>` | yes | `{ content, base }` → `{ hash }`, or `409 { current }` |
-| `GET /api/novels/:id/events` | yes | an event stream of changes made outside the app (below) |
-| `GET /api/novels/:id/sync` | yes | background commit status: `{ state, pendingChanges, lastCommit, blocked? }` |
+| `GET /api/novels/:id/events` | yes | an event stream of changes made outside the app, and of the sync status (below) |
+| `GET /api/novels/:id/sync` | yes | the sync status: `{ state, remote, branch, ahead, behind, lastSync, conflict?, error?, commit }` |
+| `POST /api/novels/:id/sync` | yes | syncs now, then answers with the status |
 
 Routes added to `server.app` (before its first request) or in `createApp` sit behind the same security middleware.
 
@@ -49,6 +50,7 @@ Failures are classified into stable codes with a message that says what to do; g
 | `AUTH` | no or rejected credentials, publickey denied, HTTP 401/403 | run `gh auth setup-git`, or add an SSH key to GitHub |
 | `NOT_FOUND` | no repository at the address | check the owner and name, and access |
 | `NETWORK` | DNS, refused or timed-out connections | check the connection |
+| `REJECTED` | a push refused because the remote has newer commits | (sync brings them in and pushes again) |
 | `DESTINATION_EXISTS` | the target folder has files | choose another folder |
 | `GIT_MISSING` | git isn't installed | install git |
 | `GIT` | anything else | git's last line |
@@ -69,7 +71,7 @@ Reading serves any such file that is UTF-8 (`415 NOT_TEXT` otherwise). Writing t
 
 **Atomic writes.** The text goes to a temp file in the same folder (`.<name>.<random>.ghw-tmp`) and is fsynced. The temp file is renamed over the target, then the folder is fsynced so the rename itself is durable (Windows skips the folder fsync). A crash leaves the old file or the new one, never a truncated one. A crash between the two steps can leave the temp file behind; it's hidden from the API and the watcher. The file keeps its permissions, and missing folders are created.
 
-**Live changes.** `GET /api/novels/:id/events` starts a chokidar watcher on the novel (one per novel, shared, closed when the last stream ends). It sends `ready` once the watcher is live. Read anything you need after `ready`, so no change can slip between the read and the stream. Each change to a visible file is then a `file` event: `{ type: "add" | "change" | "unlink", path, hash }`, with `hash` null once the file is gone. The server's own writes aren't echoed: a change whose content matches what the server last wrote to that path is dropped. A comment line every 25 s keeps the stream open. Closing the server ends every stream.
+**Live changes.** `GET /api/novels/:id/events` starts a chokidar watcher on the novel (one per novel, shared, closed when the last stream ends). It sends `ready` once the watcher is live. Read anything you need after `ready`, so no change can slip between the read and the stream. Each change to a visible file is then a `file` event: `{ type: "add" | "change" | "unlink", path, hash }`, with `hash` null once the file is gone. The server's own writes aren't echoed: a change whose content matches what the server last wrote to that path is dropped. A `sync` event carries the [sync status](#sync), right after `ready` and whenever it changes. A comment line every 25 s keeps the stream open. Closing the server ends every stream.
 
 ## Background commits
 
@@ -90,7 +92,7 @@ The summary line names what changed and the net change in manuscript words, from
 
 Several kinds join with `; `, and more than three names become "and N more". The body lists each file with its status and word change.
 
-`GET /sync` reports the state:
+The [sync status](#sync) reports it as `commit`:
 
 - `idle`: nothing waiting.
 - `pending`: saves are waiting for the timer.
@@ -98,6 +100,30 @@ Several kinds join with `; `, and more than three names become "and N more". The
 - `blocked`: a commit was refused. `blocked` holds `MERGE`, `IDENTITY` or `ERROR`, and a message.
 
 It also reports `pendingChanges`, the number of files in the novel that differ from the last commit, and `lastCommit` (`{ hash, summary, date }`). Closing the server commits whatever is still waiting, after the last write has finished. `createServer({ commit: { quietMs, maxMs } })` changes the timing, and `commit: false` turns background commits off.
+
+## Sync
+
+Each novel with a remote is kept in step with it: once when it's opened, every 5 minutes, and on `POST /sync`. One sync runs at a time per novel; a request during one waits for it. A sync:
+
+1. **Commits** saved work (the [committer](#background-commits) above, without waiting for its timer).
+2. **Fetches** from the remote. It's the branch's upstream remote, or `origin`, or the only remote. With none, the state is `local` and nothing else happens.
+3. **Brings remote changes in.** Writes to the novel wait for this step, and saves made during the fetch are committed first. With no local commits to keep, it fast-forwards. Otherwise it rebases them onto the remote's, so a solo author's history stays linear. The merge is tried in memory first (`git merge-tree`). If the same lines changed on both sides, nothing in the work tree is touched: the state is `conflict`, with the files, for the resolver (#47). A rebase that conflicts commit by commit is aborted, with the same result. Local commits are always kept.
+4. **Pushes** to the branch's upstream, setting it up on the first push. If the remote moved during the sync, its changes are brought in and the push is tried again, up to three times.
+
+The work tree changes in step 3 reach the editor as `file` events, like any outside change. A save based on the old version gets a `409`, so unsaved text is never overwritten.
+
+| State | Means |
+|---|---|
+| `synced` | the remote has everything, and this copy has everything from the remote |
+| `syncing` | a sync is under way |
+| `ahead`, `behind` | `ahead` local commits aren't pushed yet, or `behind` remote commits aren't brought in (as of the last fetch) |
+| `local` | there's no remote |
+| `offline` | the remote couldn't be reached. Writing and committing go on, and the sync is retried after 15 s, doubling up to the interval. |
+| `needs-sign-in` | the remote refused the credentials (`AUTH`, with what to do). Retried at the normal interval. |
+| `conflict` | the remote changed the same lines; `conflict.files` lists them |
+| `error` | anything else, in `error`: `DETACHED` (not on a branch), `BUSY` (a merge or rebase of the author's is in progress), or a [git code](#git-and-credentials) |
+
+`ahead` and `behind` are always counted, whatever the state. `lastSync` is when the last sync finished cleanly. `createServer({ sync: { intervalMs, retryMs } })` changes the timing. `intervalMs: 0` syncs only on demand (`gh-writer serve --sync-every 0`), and `sync: false` turns syncing off: the state is then `off`.
 
 ## Security model
 

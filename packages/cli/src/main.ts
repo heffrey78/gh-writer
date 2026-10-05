@@ -11,6 +11,7 @@ Commands:
                             (default: the current directory, if it holds one)
       --port <n>            Listen on this port (default: a free one)
       --no-open             Print the URL without opening a browser
+      --sync-every <min>    Sync with GitHub every <min> minutes (default 5; 0: only on demand)
   validate [dir] [--json]   Check a novel repository (default: current directory)
   new-id <prefix>           Print a new random ID, e.g. "gh-writer new-id char"
 
@@ -27,6 +28,7 @@ async function main(argv: string[]): Promise<number> {
     options: {
       json: { type: "boolean" },
       port: { type: "string" },
+      "sync-every": { type: "string" },
       open: { type: "boolean", default: true },
       help: { type: "boolean", short: "h" },
       version: { type: "boolean", short: "v" },
@@ -50,7 +52,12 @@ async function main(argv: string[]): Promise<number> {
         console.error(`--port needs a port number from 0 to 65535, not "${values.port}"`);
         return 1;
       }
-      return runServe(rest[0], { port, open: values.open });
+      const syncEvery = values["sync-every"] === undefined ? undefined : Number(values["sync-every"]);
+      if (syncEvery !== undefined && !(syncEvery >= 0 && syncEvery <= 1440)) {
+        console.error(`--sync-every needs a number of minutes from 0 to 1440, not "${values["sync-every"]}"`);
+        return 1;
+      }
+      return runServe(rest[0], { port, open: values.open, ...(syncEvery !== undefined ? { syncEvery } : {}) });
     }
     case "validate":
       return runValidate(rest[0] ?? ".", { json: values.json });

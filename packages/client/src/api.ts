@@ -29,6 +29,20 @@ export interface CommitStatus {
   blocked?: { code: string; message: string };
 }
 
+/** The sync state ("off" when the server doesn't sync), with the background commit status. */
+export interface SyncStatus {
+  state: "local" | "syncing" | "synced" | "ahead" | "behind" | "offline" | "needs-sign-in" | "conflict" | "error" | "off";
+  remote?: string | null;
+  branch?: string | null;
+  ahead?: number;
+  behind?: number;
+  lastSync?: string | null;
+  /** Files changed on both sides, for the resolver (#47). */
+  conflict?: { files: string[] };
+  error?: { code: string; message: string; detail?: string };
+  commit: CommitStatus;
+}
+
 export type WriteResult = { ok: true; hash: string } | { ok: false; current: TextFile | null };
 
 /** A non-2xx answer other than a write conflict. `status` 0 means the server couldn't be reached. */
@@ -102,6 +116,8 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
       const { status, data } = await request<{ hash: string; current: TextFile | null }>("PUT", file(novelId, path), { content, base }, options);
       return status === 409 ? { ok: false, current: data.current } : { ok: true, hash: data.hash };
     },
-    sync: async (id: string) => (await request<CommitStatus>("GET", `/api/novels/${encodeURIComponent(id)}/sync`)).data,
+    sync: async (id: string) => (await request<SyncStatus>("GET", `/api/novels/${encodeURIComponent(id)}/sync`)).data,
+    /** Sync with the remote now; resolves with the status once it's done. */
+    syncNow: async (id: string) => (await request<SyncStatus>("POST", `/api/novels/${encodeURIComponent(id)}/sync`)).data,
   };
 }
