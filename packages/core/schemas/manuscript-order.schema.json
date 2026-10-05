@@ -5,8 +5,8 @@
   "description": "Top-level reading order: exactly one of parts or chapters.",
   "type": "object",
   "properties": {
-    "parts": { "$ref": "common.schema.json#/$defs/idList" },
-    "chapters": { "$ref": "common.schema.json#/$defs/idList" }
+    "parts": { "$ref": "common.schema.json#/$defs/orderList" },
+    "chapters": { "$ref": "common.schema.json#/$defs/orderList" }
   },
   "minProperties": 1,
   "maxProperties": 1,

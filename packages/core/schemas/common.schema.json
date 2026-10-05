@@ -10,8 +10,17 @@
     },
     "idList": {
       "type": "array",
-      "items": { "$ref": "#/$defs/id" },
+      "items": {
+        "$ref": "#/$defs/id"
+      },
       "uniqueItems": true
+    },
+    "orderList": {
+      "description": "Ordered list of child IDs. Duplicates are reported by the validator (E_ORDER_DUPLICATE), not the schema.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/id"
+      }
     },
     "date": {
       "type": "string",
@@ -29,27 +38,52 @@
     "storyTime": {
       "description": "Either an absolute ISO date/date-time, or a relative day with optional HH:MM time.",
       "type": "object",
-      "if": { "required": ["at"] },
+      "if": {
+        "required": [
+          "at"
+        ]
+      },
       "then": {
-        "properties": { "at": { "$ref": "#/$defs/dateTime" } },
-        "required": ["at"],
+        "properties": {
+          "at": {
+            "$ref": "#/$defs/dateTime"
+          }
+        },
+        "required": [
+          "at"
+        ],
         "additionalProperties": false
       },
       "else": {
         "properties": {
-          "day": { "type": "integer" },
-          "time": { "type": "string", "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$" }
+          "day": {
+            "type": "integer"
+          },
+          "time": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+          }
         },
-        "required": ["day"],
+        "required": [
+          "day"
+        ],
         "additionalProperties": false
       }
     },
     "tags": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 },
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "uniqueItems": true
     },
-    "text": { "type": "string" },
-    "nonEmptyText": { "type": "string", "minLength": 1 }
+    "text": {
+      "type": "string"
+    },
+    "nonEmptyText": {
+      "type": "string",
+      "minLength": 1
+    }
   }
 }

@@ -7,7 +7,7 @@
     "id": { "$ref": "common.schema.json#/$defs/id" },
     "title": { "$ref": "common.schema.json#/$defs/text" },
     "synopsis": { "$ref": "common.schema.json#/$defs/text" },
-    "scenes": { "$ref": "common.schema.json#/$defs/idList" }
+    "scenes": { "$ref": "common.schema.json#/$defs/orderList" }
   },
   "required": ["id", "scenes"],
   "additionalProperties": false

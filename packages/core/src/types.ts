@@ -120,4 +120,6 @@ export interface Diagnostic {
   file?: string;
   /** JSON pointer within the file's data, if any. */
   pointer?: string;
+  /** 1-based line number in the file, if known. */
+  line?: number;
 }

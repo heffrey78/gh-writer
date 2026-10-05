@@ -7,7 +7,7 @@
     "id": { "$ref": "common.schema.json#/$defs/id" },
     "title": { "$ref": "common.schema.json#/$defs/nonEmptyText" },
     "synopsis": { "$ref": "common.schema.json#/$defs/text" },
-    "chapters": { "$ref": "common.schema.json#/$defs/idList" }
+    "chapters": { "$ref": "common.schema.json#/$defs/orderList" }
   },
   "required": ["id", "title", "chapters"],
   "additionalProperties": false
