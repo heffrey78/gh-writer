@@ -27,9 +27,34 @@ Mentions are atoms: the caret steps over them, typing can't split them, and Back
 
 The typography uses CSS custom properties (`--ghw-prose-font`, `--ghw-prose-measure`, `--ghw-ink`…) and follows the OS light or dark setting, or `data-theme` on the root element.
 
+### Chapter view
+
+```tsx
+import { ChapterEditor } from "@gh-writer/editor/react";
+
+<ChapterEditor
+  key={chapter.id}
+  scenes={chapter.scenes.map((s) => ({ id: s.id, title: s.title, markdown: s.body }))}
+  onChange={(changed) => changed.forEach(({ id, markdown }) => save(id, markdown))}
+/>;
+```
+
+`ChapterEditor` shows a chapter's scenes as one continuous text, with each scene's title at its boundary, while every scene stays its own file. `onChange` receives only the scenes whose body changed. Untouched scenes aren't even serialized, because ProseMirror reuses their nodes, and their files stay byte-identical.
+
+The caret moves freely across scene boundaries, but ordinary editing can't merge, split or delete scenes:
+- Backspace at a scene's start and Delete at its end do nothing (scene nodes are isolating).
+- Deleting or typing over a selection that spans scenes edits each scene's part separately. A scene that is entirely selected keeps one empty paragraph.
+- Any other transaction that would change which scenes there are is rejected, unless it carries the `SCENE_STRUCTURE` meta. That covers cutting, pasting or Enter over a multi-scene selection, which therefore do nothing.
+
+A changed `markdown` for one scene (say the file changed on disk) replaces that scene in place, keeping the rest of the chapter, the selection and the undo history. A different set or order of scenes reloads the chapter.
+
+The headless pieces are `chapterContent` (the extensions, with `chapter` as the top node), `parseChapter`, `serializeChapter`, `touchedScenes`, `loadChapter`, `replaceScene` and `deleteAcrossScenes`.
+
+**Performance:** the target is under 50 ms from keystroke to render on a 10,000-word chapter. `e2e/latency.spec.ts` types into the middle of a generated 10,600-word chapter in the dev build and fails if the 95th percentile reaches 50 ms. Measured: p50 4.4 ms and p95 18.6 ms, or p50 14.3 ms and p95 22.4 ms with the CPU throttled 4×. Opening a chapter parses every scene (about 140 ms for 10,000 words), and serializing happens only after typing pauses, only for touched scenes.
+
 ### Playground
 
-`npm run playground -w @gh-writer/editor` serves a test page with every sample-novel scene and a formatting sampler, beside a live view of the file as it would be saved. `npm run test:e2e` runs the Playwright tests against it, including an axe accessibility audit. Run `npx playwright install chromium` in this package once first.
+`npm run playground -w @gh-writer/editor` serves a test page with every sample-novel scene and chapter, a formatting sampler and a generated 10,000-word chapter, beside a live view of each file as it would be saved. `npm run test:e2e` runs the Playwright tests against it, including an axe accessibility audit. Run `npx playwright install chromium` in this package once first.
 
 ## Headless API
 

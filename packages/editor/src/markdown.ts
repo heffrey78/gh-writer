@@ -4,7 +4,7 @@ import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmFromMarkdown, gfmToMarkdown } from "mdast-util-gfm";
 import { toMarkdown, type Handle, type Options } from "mdast-util-to-markdown";
 import { gfm } from "micromark-extension-gfm";
-import { Fragment, type Mark, type Node, type Schema } from "@tiptap/pm/model";
+import { Fragment, type Attrs, type Mark, type Node, type NodeType, type Schema } from "@tiptap/pm/model";
 import { proseSchema } from "./schema.ts";
 
 /*
@@ -30,8 +30,11 @@ function mdast(markdown: string): Root {
 /** Thrown while converting a block the schema can't represent faithfully. */
 class Unsupported extends Error {}
 
-/** Parse a scene body (the Markdown after the front matter) into a ProseMirror document. */
-export function parseProse(markdown: string, schema: Schema = proseSchema): Node {
+/**
+ * Parse a scene body (the Markdown after the front matter) into a ProseMirror document, or into
+ * another node holding the blocks and their file attributes, such as a scene in a chapter.
+ */
+export function parseProse(markdown: string, schema: Schema = proseSchema, type: NodeType = schema.nodes.doc!, attrs: Attrs = {}): Node {
   const tree = mdast(markdown);
   const blocks: Node[] = [];
   let pos = 0;
@@ -41,15 +44,15 @@ export function parseProse(markdown: string, schema: Schema = proseSchema): Node
     const node = parsed.type.create({ ...parsed.attrs, src: markdown.slice(start, end), gap: markdown.slice(pos, start) }, parsed.content);
     // Parsing in context is the authority: a block can read differently on its own (e.g. `-`).
     unchanged.set(node, true);
+    if (!blocks.length) firstBlocks.add(node);
     blocks.push(node);
     pos = end;
   }
   if (!blocks.length) blocks.push(schema.nodes.paragraph!.create({ src: "", gap: "" }));
-  const attrs = { trailing: markdown.slice(pos), eol: lineEnding(markdown), style: sourceStyle(tree, markdown) };
-  return schema.nodes.doc!.create(attrs, blocks);
+  return type.create({ ...attrs, trailing: markdown.slice(pos), eol: lineEnding(markdown), style: sourceStyle(tree, markdown) }, blocks);
 }
 
-/** Serialize a document produced by parseProse (and possibly edited) back to Markdown. */
+/** Serialize a document (or scene) produced by parseProse, and possibly edited, back to Markdown. */
 export function serializeProse(doc: Node): string {
   const eol = doc.attrs.eol === "\r\n" ? "\r\n" : "\n";
   let out = "";
@@ -58,7 +61,7 @@ export function serializeProse(doc: Node): string {
     const reused = isUnchanged(block);
     if (!reused && isEmpty(block)) return;
     const text: string = reused ? block.attrs.src : withEol(canonicalBlock(block, doc.attrs.style), eol);
-    out += separator(prev, block.attrs.gap, reused, text, eol) + text;
+    out += separator(prev, block.attrs.gap, reused && (prev !== null || firstBlocks.has(block)), text, eol) + text;
     prev = { text, reused };
   });
   // Keep the file's ending after an unedited last block (even no final newline); otherwise end
@@ -163,6 +166,8 @@ function inlines(nodes: PhrasingContent[], marks: readonly Mark[], markdown: str
 // ProseMirror -> Markdown
 
 const unchanged = new WeakMap<Node, boolean>();
+/** Blocks that began their file: only their gap is leading whitespace worth keeping in first place. */
+const firstBlocks = new WeakSet<Node>();
 
 /**
  * Whether a block still matches the Markdown it was parsed from. ProseMirror reuses unchanged
@@ -201,7 +206,8 @@ function isEmpty(node: Node): boolean {
 /** The whitespace to put before a block, reusing the original gap where that is safe. */
 function separator(prev: { text: string; reused: boolean } | null, gap: unknown, reused: boolean, text: string, eol: string): string {
   if (typeof gap !== "string" || !/^[ \t\r\n]*$/.test(gap)) return prev ? eol + eol : "";
-  if (!prev) return reused || gap === "" || gap.endsWith("\n") ? gap : "";
+  // Leading whitespace survives only on an untouched block that began the file.
+  if (!prev) return reused ? gap : "";
   const blank = /\n[ \t\r]*\n/.test(gap);
   // Two untouched blocks may keep a gap without a blank line (e.g. `para\n***`) if they still parse apart.
   if (reused && prev.reused && gap.includes("\n") && (blank || mdast(prev.text + gap + text).children.length === 2)) return gap;

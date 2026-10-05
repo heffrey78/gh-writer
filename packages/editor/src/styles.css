@@ -10,6 +10,7 @@
   --ghw-accent-soft: rgb(44 93 143 / 0.1);
   --ghw-raw-bg: rgb(31 29 26 / 0.05);
   --ghw-selection: rgb(44 93 143 / 0.22);
+  --ghw-rule: #ddd6ca;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -20,6 +21,7 @@
     --ghw-accent-soft: rgb(140 184 230 / 0.14);
     --ghw-raw-bg: rgb(232 228 220 / 0.07);
     --ghw-selection: rgb(140 184 230 / 0.3);
+    --ghw-rule: #3a3732;
   }
 }
 
@@ -30,6 +32,7 @@
   --ghw-accent-soft: rgb(140 184 230 / 0.14);
   --ghw-raw-bg: rgb(232 228 220 / 0.07);
   --ghw-selection: rgb(140 184 230 / 0.3);
+  --ghw-rule: #3a3732;
 }
 
 .ghw-prose {
@@ -128,5 +131,24 @@
   float: left;
   height: 0;
   color: var(--ghw-muted);
+  pointer-events: none;
+}
+
+/* Chapter view: each scene file is a section, labelled with its title. */
+.ghw-prose .ghw-scene + .ghw-scene {
+  margin-top: 2.5em;
+  padding-top: 1.5em;
+  border-top: 1px solid var(--ghw-rule);
+}
+
+.ghw-prose .ghw-scene::before {
+  content: attr(data-title);
+  display: block;
+  margin-bottom: 1em;
+  font: 600 0.6875rem/1.4 system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ghw-muted);
+  user-select: none;
   pointer-events: none;
 }

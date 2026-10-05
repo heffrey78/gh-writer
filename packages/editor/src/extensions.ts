@@ -8,7 +8,7 @@ import { Mark, Node, markInputRule, mergeAttributes, nodeInputRule, wrappingInpu
  */
 
 /** Attributes that only the Markdown round-trip uses: never rendered, never copied on split. */
-function hidden(names: Record<string, unknown>): Attributes {
+export function hidden(names: Record<string, unknown>): Attributes {
   return Object.fromEntries(
     Object.entries(names).map(([name, value]) => [name, { default: value, rendered: false, keepOnSplit: false, parseHTML: () => value }]),
   );
