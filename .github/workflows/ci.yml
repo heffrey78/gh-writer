@@ -17,3 +17,5 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - name: Validate sample novel
+        run: npm run validate -- examples/sample-novel
