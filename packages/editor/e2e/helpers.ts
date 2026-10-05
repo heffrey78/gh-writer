@@ -17,20 +17,17 @@ export async function open(page: Page, query: string) {
 }
 
 /**
- * Press a key that moves the caret natively, then wait for ProseMirror to see the move: it
- * reads the selection on the browser's selectionchange event, which arrives after the key, and
- * Playwright types faster than any person would.
+ * Press a key that moves the caret natively, then wait until ProseMirror has seen the move: it
+ * reads the selection on the browser's selectionchange event, which arrives after the key (and
+ * may be preceded by one from an earlier focus change), and Playwright types faster than any
+ * person would.
  */
 export async function move(page: Page, key: string) {
-  const synced = page.evaluate(
-    () =>
-      new Promise<void>((done) => {
-        document.addEventListener("selectionchange", () => requestAnimationFrame(() => done()), { once: true });
-        setTimeout(done, 500);
-      }),
-  );
+  const before = await page.evaluate(() => window.editor!.state.selection.toJSON());
   await page.keyboard.press(key);
-  await synced;
+  await page
+    .waitForFunction((before) => JSON.stringify(window.editor!.state.selection.toJSON()) !== JSON.stringify(before), before, { timeout: 1000 })
+    .catch(() => {}); // a key that couldn't move the caret (e.g. at the end already)
 }
 
 /** Put the caret straight after `text`, or straight before it with `before`. */
