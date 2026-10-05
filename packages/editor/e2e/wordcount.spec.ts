@@ -78,6 +78,8 @@ test("the count hides in focus mode unless pinned", async ({ page }) => {
   await expect(bar(page)).toBeHidden();
   await page.keyboard.press("ControlOrMeta+Shift+F");
   await page.getByRole("button", { name: "Show the word count in focus mode" }).click();
+  // The command returns focus to the text on the next frame; the shortcut is the editor's.
+  await expect(textbox(page)).toBeFocused();
   await page.keyboard.press("ControlOrMeta+Shift+F");
   await expect(page.getByRole("banner")).toBeHidden();
   await expect(bar(page)).toBeVisible();
