@@ -1,0 +1,16 @@
+{
+  "name": "@gh-writer/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Novel repository format: schemas, story model, loader and validator.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node.ts",
+    "./schemas/*": "./schemas/*"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "yaml": "^2.9.1"
+  }
+}

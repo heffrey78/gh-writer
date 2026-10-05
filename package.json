@@ -1,0 +1,25 @@
+{
+  "name": "gh-writer",
+  "private": true,
+  "type": "module",
+  "description": "Plan and write a novel with GitHub: local-first writing app, story bible and diagrams.",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "validate": "node packages/cli/src/main.ts validate",
+    "build:validator": "node scripts/build-validator.ts",
+    "check": "npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

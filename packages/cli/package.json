@@ -1,0 +1,13 @@
+{
+  "name": "@gh-writer/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "gh-writer command line: validate and helper commands.",
+  "bin": {
+    "gh-writer": "./src/main.ts"
+  },
+  "dependencies": {
+    "@gh-writer/core": "0.1.0"
+  }
+}
