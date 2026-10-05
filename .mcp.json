@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "gh-project": {
+      "type": "stdio",
+      "command": "gh-project-mcp",
+      "args": [],
+      "env": {
+        "GH_PROJECT_REPO": "heffrey78/gh-writer"
+      }
+    }
+  }
+}
