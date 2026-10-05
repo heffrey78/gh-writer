@@ -27,6 +27,19 @@ Mentions are atoms: the caret steps over them, typing can't split them, and Back
 
 The typography uses CSS custom properties (`--ghw-prose-font`, `--ghw-prose-measure`, `--ghw-ink`…) and follows the OS light or dark setting, or `data-theme` on the root element.
 
+### Writing modes
+
+| Keys | Mode |
+|---|---|
+| Mod+Shift+F | Focus mode: the app hides everything but the text |
+| Mod+Shift+L | Typewriter scrolling: the caret line stays 40% of the way down |
+
+Both editors include `WritingModesExtension`. The modes live in one store, `writingModes` (Zustand), shared by every editor and the app shell, and persist in local storage (they just don't persist where storage is blocked). React code reads them with `useWritingModes()`. The editor marks itself (`ghw-focus`, `ghw-typewriter`), but hiding chrome in focus mode is the app's job: `const focus = useWritingModes((m) => m.focus)`.
+
+`writingModeCommands` describes each toggle for the command palette: an `id`, a `title`, default `keys`, `run(editor)` and `isActive()`. Running one returns focus to the text with the selection unchanged. A third command, with no default shortcut, dims every paragraph but the current one in focus mode. Dimming is off by default, because dimmed text falls below WCAG contrast.
+
+Typewriter scrolling follows typing and keyboard movement, but not clicks, so the text doesn't jump out from under the pointer; the next keystroke recentres. Scrolling is instant, never animated. Ctrl+Shift+T and Ctrl+Alt+T were avoided as shortcuts: browsers reserve the first (reopen tab), and Linux desktops use the second for a terminal.
+
 ### Chapter view
 
 ```tsx

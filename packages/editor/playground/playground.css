@@ -115,3 +115,47 @@ h3 span {
   font-weight: normal;
   color: var(--pg-muted);
 }
+
+.modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.modes button {
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--pg-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--pg-ink);
+  cursor: pointer;
+}
+
+.modes button[aria-pressed="true"] {
+  background: var(--pg-ink);
+  color: var(--pg-bg);
+  border-color: var(--pg-ink);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Focus mode: only the text. */
+.layout.focus {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 1fr;
+}
+
+.layout.focus header,
+.layout.focus aside {
+  display: none;
+}

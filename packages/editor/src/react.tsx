@@ -3,9 +3,11 @@ import type { Fragment, Node } from "@tiptap/pm/model";
 import { Placeholder, UndoRedo } from "@tiptap/extensions";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import { useEffect, useRef } from "react";
+import { useStore } from "zustand";
 import { chapterContent, loadChapter, parseChapter, replaceScene, type SceneMarkdown, type SceneSource } from "./chapter.ts";
 import { loadMarkdown, setInitialMarkdown } from "./editor.ts";
 import { proseContent } from "./extensions.ts";
+import { writingModes, WritingModesExtension, type WritingModes } from "./modes.ts";
 import { serializeProse } from "./markdown.ts";
 
 export interface SceneEditorProps {
@@ -57,7 +59,7 @@ export function SceneEditor({
   }).current;
 
   const editor = useEditor({
-    extensions: [...proseContent, UndoRedo, Placeholder.configure({ placeholder })],
+    extensions: [...proseContent, UndoRedo, WritingModesExtension, Placeholder.configure({ placeholder })],
     editorProps: {
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": label, class: "ghw-prose" },
     },
@@ -87,6 +89,13 @@ export function SceneEditor({
   useFlushOnLeave(flush);
 
   return <EditorContent editor={editor} className={className} />;
+}
+
+/** The writing modes (focus, dimming, typewriter), for the app to hide its chrome in focus mode. */
+export function useWritingModes(): WritingModes;
+export function useWritingModes<T>(select: (modes: WritingModes) => T): T;
+export function useWritingModes<T>(select: (modes: WritingModes) => T = (m) => m as T): T {
+  return useStore(writingModes, select);
 }
 
 /** Report pending changes when the page is hidden or closed, and on unmount. */
@@ -167,7 +176,7 @@ export function ChapterEditor({
   }).current;
 
   const editor = useEditor({
-    extensions: [...chapterContent, UndoRedo],
+    extensions: [...chapterContent, UndoRedo, WritingModesExtension],
     editorProps: {
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": label, class: "ghw-prose ghw-chapter" },
     },

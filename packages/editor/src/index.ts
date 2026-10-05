@@ -16,3 +16,13 @@ export {
   type SceneMarkdown,
   type SceneSource,
 } from "./chapter.ts";
+export {
+  centreCaret,
+  TYPEWRITER_LINE,
+  writingModeCommands,
+  writingModes,
+  WritingModesExtension,
+  type EditorCommand,
+  type WritingMode,
+  type WritingModes,
+} from "./modes.ts";

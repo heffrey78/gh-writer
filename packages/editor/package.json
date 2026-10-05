@@ -21,7 +21,8 @@
     "mdast-util-to-markdown": "^2.2.0",
     "micromark-extension-gfm": "^3.0.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

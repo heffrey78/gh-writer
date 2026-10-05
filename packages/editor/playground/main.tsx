@@ -1,8 +1,8 @@
 import type { Editor } from "@tiptap/core";
 import { StrictMode, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { joinSceneFile, splitSceneFile, type SceneSource } from "../src/index.ts";
-import { ChapterEditor, SceneEditor } from "../src/react.tsx";
+import { joinSceneFile, splitSceneFile, writingModeCommands, type SceneSource } from "../src/index.ts";
+import { ChapterEditor, SceneEditor, useWritingModes } from "../src/react.tsx";
 import { generatedChapter } from "./generated.ts";
 import "../src/styles.css";
 import "./playground.css";
@@ -69,11 +69,29 @@ function App() {
   const saved = files.map((f) => ({ ...f, saved: joinSceneFile({ ...splitSceneFile(f.text), body: bodies[f.path] ?? splitSceneFile(f.text).body }) }));
   const changed = saved.filter((f) => f.saved !== f.text).length;
   const setBody = (path: string, md: string) => setBodies((b) => ({ ...b, [path]: md }));
+  const modes = useWritingModes();
+  const [editor, setEditor] = useState<Editor>();
+  const ready = (e: Editor) => {
+    window.editor = e;
+    setEditor(e);
+  };
+  const keys = (k: string) => k.replace("Mod", navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl").replace(/-/g, "+").replace(/\+([a-z])$/, (_, c: string) => `+${c.toUpperCase()}`);
 
   return (
-    <div className="layout">
+    <div className={modes.focus ? "layout focus" : "layout"}>
+      {/* Announces mode changes, which are otherwise only visible. */}
+      <p className="visually-hidden" role="status" aria-live="polite">
+        {`Focus mode ${modes.focus ? "on" : "off"}. Typewriter scrolling ${modes.typewriter ? "on" : "off"}.`}
+      </p>
       <header>
         <h1>Scene editor</h1>
+        <div className="modes" role="group" aria-label="Writing modes">
+          {writingModeCommands.map((c) => (
+            <button key={c.id} type="button" aria-pressed={c.isActive?.() ?? false} onClick={() => c.run(editor)} title={c.keys && keys(c.keys)}>
+              {c.title}
+            </button>
+          ))}
+        </div>
         <label>
           Open{" "}
           <select value={open} onChange={(e) => setOpen(e.target.value)}>
@@ -102,7 +120,7 @@ function App() {
             changeDelay={150}
             autofocus
             onChange={(changes) => changes.forEach((c) => setBody(c.id, c.markdown))}
-            onReady={(editor) => (window.editor = editor)}
+            onReady={ready}
           />
         ) : (
           <SceneEditor
@@ -111,7 +129,7 @@ function App() {
             changeDelay={150}
             autofocus
             onChange={(md) => setBody(target, md)}
-            onReady={(editor) => (window.editor = editor)}
+            onReady={ready}
           />
         )}
       </main>

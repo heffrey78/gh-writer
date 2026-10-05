@@ -152,3 +152,24 @@
   user-select: none;
   pointer-events: none;
 }
+
+/* Typewriter scrolling: room above the text so its first line can sit at the caret height. */
+.ghw-prose.ghw-typewriter {
+  padding-top: 40vh;
+}
+
+/* Focus mode with dimming: everything but the paragraph holding the caret fades back. */
+.ghw-prose.ghw-dim :is(p, pre, hr) {
+  opacity: 0.4;
+  transition: opacity 0.2s ease;
+}
+
+.ghw-prose.ghw-dim .ghw-current {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ghw-prose.ghw-dim :is(p, pre, hr) {
+    transition: none;
+  }
+}
