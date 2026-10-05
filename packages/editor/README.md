@@ -56,6 +56,36 @@ import { WordCount } from "@gh-writer/editor/react";
 
 The counts are also available headless: `countNode`, `documentCounts`, and the `liveCounts` and `writingSession` stores.
 
+### Find and replace
+
+```tsx
+import { FindReplace } from "@gh-writer/editor/react";
+
+<FindReplace
+  manuscript={chapters.map((c) => ({ id: c.id, title: c.title, scenes: c.scenes.map((s) => ({ id: s.id, title: s.title, markdown: s.body })) }))}
+  editor={editor}
+  onReplace={(changed) => changed.forEach(({ id, markdown }) => save(id, markdown))}
+  onOpenScene={(sceneId) => openSceneOrItsChapter(sceneId)}
+/>;
+```
+
+| Keys | Does |
+|---|---|
+| Mod+F | Find in the scene, starting from the selected text |
+| Mod+Shift+H | Find and replace in the whole manuscript |
+| Enter, Shift+Enter | Next and previous match |
+| Alt+Enter | Replace all |
+| Escape | Close and return to the text |
+
+The panel searches the scene holding the caret, its chapter or the whole manuscript, with options for case, whole words and regular expressions (`$1`, `$<name>` and `$&` in replacements). Results are grouped by chapter and scene in reading order. Choosing a result in a scene that isn't open calls `onOpenScene`, and the panel selects the match once the editor holds that scene.
+
+- **What is searched:** each paragraph's visible text, so a match can run across italics or bold, and a mention matches on its name. Front matter, mention IDs and raw inline Markdown never match.
+- **Open scenes are searched live** in the editor's document, including unsaved edits. Other scenes are parsed from the Markdown in `manuscript`.
+- **Replacing in the open document** is a single editor transaction, undone with Mod+Z. Closed scenes get new Markdown through `onReplace`. "Replace all" also offers one Undo for everything, which restores the closed scenes and undoes the editor's step if nothing has happened there since. Scenes without matches aren't touched, and within a changed scene only the matching paragraphs are rewritten.
+- **Mentions:** replacing a mention's whole name renames the mention and keeps its link to the entity. A match on part of a name can be found but not replaced.
+
+`findCommands` has "Find in scene", "Find in chapter" and "Find and replace in manuscript" for the palette, and both editors include `FindExtension` (the shortcuts) and `SearchHighlightExtension`. Headless, `searchManuscript`, `replaceAll`, `replaceInMarkdown` and `replaceInEditor` do the work.
+
 ### Chapter view
 
 ```tsx

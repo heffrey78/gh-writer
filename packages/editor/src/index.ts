@@ -39,3 +39,28 @@ export {
   type WordCountOptions,
   type WritingSession,
 } from "./wordcount.ts";
+export {
+  applyReplacements,
+  caretScene,
+  compileQuery,
+  editorScenes,
+  expandReplacement,
+  findInNode,
+  replaceAll,
+  replaceInEditor,
+  replaceInMarkdown,
+  searchManuscript,
+  SearchHighlightExtension,
+  setSearchHighlights,
+  type ChapterResult,
+  type Manuscript,
+  type ManuscriptChapter,
+  type ReplaceAllResult,
+  type SceneResult,
+  type SearchMatch,
+  type SearchOptions,
+  type SearchQuery,
+  type SearchResults,
+  type SearchScope,
+} from "./search.ts";
+export { closeFind, FindExtension, findCommands, findPanel, openFind, type FindPanelState } from "./find.ts";

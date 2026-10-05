@@ -168,3 +168,11 @@ main .counts {
   background: var(--pg-bg);
   border-bottom: 1px solid var(--pg-line);
 }
+
+main .find {
+  position: sticky;
+  top: 2.75rem;
+  z-index: 1;
+  margin: 0.5rem 0;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.08);
+}

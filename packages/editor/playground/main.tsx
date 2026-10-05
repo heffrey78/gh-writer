@@ -3,8 +3,8 @@ import { StrictMode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { countWords } from "@gh-writer/core";
 import { useStore } from "zustand";
-import { joinSceneFile, liveCounts, sessionCommands, splitSceneFile, writingModeCommands, type SceneSource } from "../src/index.ts";
-import { ChapterEditor, SceneEditor, useWritingModes, WordCount } from "../src/react.tsx";
+import { findCommands, joinSceneFile, liveCounts, sessionCommands, splitSceneFile, writingModeCommands, type Manuscript, type SceneSource } from "../src/index.ts";
+import { ChapterEditor, FindReplace, SceneEditor, useWritingModes, WordCount } from "../src/react.tsx";
 import { generatedChapter } from "./generated.ts";
 import "../src/styles.css";
 import "./playground.css";
@@ -51,6 +51,18 @@ chapters.set(
   })),
 );
 
+// Chapter titles from the sample novel's _chapter.yaml files.
+const chapterFiles: Record<string, string> = import.meta.glob("../../../examples/sample-novel/manuscript/**/_chapter.yaml", { query: "?raw", import: "default", eager: true });
+const chapterTitles = new Map(
+  Object.entries(chapterFiles).map(([path, text]) => [path.replace(/^.*?(manuscript\/.*)\/_chapter\.yaml$/, "$1"), /^title:\s*(.+)$/m.exec(text)?.[1] ?? path]),
+);
+chapters.set(
+  "scenes",
+  scenes.filter((s) => s.path.startsWith("scenes/")),
+);
+const chapterTitle = (dir: string) => chapterTitles.get(dir) ?? (dir === GENERATED ? "Generated chapter" : dir === "scenes" ? "Playground scenes" : dir);
+const chapterOf = (sceneId: string) => [...chapters].find(([, files]) => files.some((f) => f.path === sceneId))?.[0];
+
 function initial(): string {
   const params = new URLSearchParams(location.search);
   const chapter = params.get("chapter");
@@ -94,6 +106,17 @@ function App() {
   const liveScene = useStore(liveCounts, (c) => c.scene);
   const sceneChapter = kind === "scene" ? scenes.filter((s) => s.path !== target && s.path.slice(0, s.path.lastIndexOf("/")) === target.slice(0, target.lastIndexOf("/"))) : [];
   const chapterWords = target.startsWith("manuscript/") && kind === "scene" ? sceneChapter.reduce((n, s) => n + countWords(bodies[s.path] ?? splitSceneFile(s.text).body), liveScene) : undefined;
+  // The whole manuscript for find and replace, with edits as saved. The generated chapter is
+  // left out: its paragraphs are copies of the sample novel's.
+  const manuscript: Manuscript = useMemo(
+    () =>
+      [...chapters].filter(([dir]) => dir !== GENERATED).map(([dir, files]) => ({
+        id: dir,
+        title: chapterTitle(dir),
+        scenes: files.map((f) => ({ id: f.path, title: f.title, markdown: bodies[f.path] ?? splitSceneFile(f.text).body })),
+      })),
+    [bodies],
+  );
   const keys = (k: string) => k.replace("Mod", navigator.platform.startsWith("Mac") ? "⌘" : "Ctrl").replace(/-/g, "+").replace(/\+([a-z])$/, (_, c: string) => `+${c.toUpperCase()}`);
 
   return (
@@ -104,8 +127,8 @@ function App() {
       </p>
       <header>
         <h1>Scene editor</h1>
-        <div className="modes" role="group" aria-label="Writing modes">
-          {[...writingModeCommands, ...sessionCommands].map((c) => (
+        <div className="modes" role="group" aria-label="Commands">
+          {[...writingModeCommands, ...sessionCommands, ...findCommands].map((c) => (
             <button
               key={c.id}
               type="button"
@@ -139,6 +162,13 @@ function App() {
       </header>
       <main>
         <WordCount className="counts" chapterWords={chapterWords} />
+        <FindReplace
+          className="find"
+          manuscript={manuscript}
+          editor={editor}
+          onReplace={(changed) => setBodies((b) => ({ ...b, ...Object.fromEntries(changed.map((c) => [c.id, c.markdown])) }))}
+          onOpenScene={(id) => setOpen(kind === "chapter" ? `chapter:${chapterOf(id)}` : `scene:${id}`)}
+        />
         {kind === "chapter" ? (
           <ChapterEditor
             key={open}

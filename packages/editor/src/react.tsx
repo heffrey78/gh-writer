@@ -7,6 +7,8 @@ import { useStore } from "zustand";
 import { chapterContent, loadChapter, parseChapter, replaceScene, type SceneMarkdown, type SceneSource } from "./chapter.ts";
 import { loadMarkdown, setInitialMarkdown } from "./editor.ts";
 import { proseContent } from "./extensions.ts";
+import { FindExtension } from "./find.ts";
+import { SearchHighlightExtension } from "./search.ts";
 import { writingModes, WritingModesExtension, type WritingModes } from "./modes.ts";
 import { liveCounts, sessionWords, WordCountExtension, writingSession } from "./wordcount.ts";
 import { serializeProse } from "./markdown.ts";
@@ -63,7 +65,15 @@ export function SceneEditor({
   }).current;
 
   const editor = useEditor({
-    extensions: [...proseContent, UndoRedo, WritingModesExtension, WordCountExtension.configure({ sceneId }), Placeholder.configure({ placeholder })],
+    extensions: [
+      ...proseContent,
+      UndoRedo,
+      WritingModesExtension,
+      WordCountExtension.configure({ sceneId }),
+      FindExtension,
+      SearchHighlightExtension,
+      Placeholder.configure({ placeholder }),
+    ],
     editorProps: {
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": label, class: "ghw-prose" },
     },
@@ -180,7 +190,7 @@ export function ChapterEditor({
   }).current;
 
   const editor = useEditor({
-    extensions: [...chapterContent, UndoRedo, WritingModesExtension, WordCountExtension],
+    extensions: [...chapterContent, UndoRedo, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension],
     editorProps: {
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": label, class: "ghw-prose ghw-chapter" },
     },
@@ -324,3 +334,5 @@ export function WordCount({ chapterWords, className }: WordCountProps) {
     </div>
   );
 }
+
+export { FindReplace, type FindReplaceProps } from "./find-panel.tsx";
