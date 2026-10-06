@@ -12,6 +12,7 @@ import type { Workspace } from "../novel/workspace.ts";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { Field } from "../ui/field.tsx";
+import { RelationshipsPanel } from "./relationships.tsx";
 import { typeOf } from "./types.ts";
 
 const VIA: Record<SceneLink, string> = { pov: "point of view", characters: "present", locations: "set here", plotlines: "plotline", themes: "theme", mention: "mentioned" };
@@ -190,14 +191,9 @@ export function EntryPage({ novelId, novel, entity, workspace, spell }: { novelI
         ) : (
           <p className="text-sm text-muted">No scene refers to {entity.name} yet.</p>
         )}
-        {links.relationships.length > 0 && (
-          <ul aria-label="Relationships" className="grid gap-1 text-sm">
-            {links.relationships.map((r) => (
-              <li key={r.id}>{describe(novel, entity.id, r)}</li>
-            ))}
-          </ul>
-        )}
       </section>
+
+      <RelationshipsPanel novelId={novelId} novel={novel} entity={entity} />
 
       <AlertDialog.Root open={references !== undefined} onOpenChange={(o) => !o && setReferences(undefined)}>
         <AlertDialog.Portal>

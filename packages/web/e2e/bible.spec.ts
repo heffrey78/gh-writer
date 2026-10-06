@@ -80,7 +80,7 @@ test("lists every scene that refers to a character, and asks before deleting one
   const listed = page.getByRole("region", { name: "In the story" }).getByRole("listitem").filter({ has: page.getByRole("link") });
   await expect(listed).toHaveCount(naming.length);
   for (const title of naming) await expect(listed.filter({ hasText: title })).toHaveCount(1);
-  await expect(page.getByRole("list", { name: "Relationships" })).toContainText("Rivals with Ben Varn, from “The Betrayal”");
+  await expect(page.getByRole("list", { name: "All relationships" })).toContainText("Rivals with Ben Varn, from “The Betrayal”");
 
   await page.getByRole("button", { name: "Delete" }).click();
   const ask = page.getByRole("alertdialog");

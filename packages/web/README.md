@@ -57,6 +57,17 @@ An entry's page (`/novels/:id/bible/:entityId`) has:
 - **In the story:** every scene that refers to the entry, and how (point of view, present, set here, plotline, theme, mentioned), each linking to the scene; and its relationships, read from its side ("Rivals with Ben Varn, from “The Betrayal”").
 - **Delete:** if the story still refers to the entry, it lists every reference and asks first. Otherwise it simply goes ("Bible: remove …").
 
+**Relationships** on an entry's page:
+
+- **All relationships** are listed with when they hold ("Rivals with Ben Varn, from “The Betrayal”, until “The Last Rivet”").
+- **As of** picks a scene and shows only those holding there. The picker lists every scene in reading order under its chapter, searchable by title or chapter.
+- **Add relationship** chooses the kind, read from this entry's side (a one-way kind offers both, such as "Mentor of" and "Mentee of"), the other entry (searchable by name or alias), optional from and until scenes, and a note.
+- **Change at…** picks a scene and what it becomes from then on. The current record ends there and a new one starts there, so "allies until the betrayal, rivals after it" is two records.
+- **End at…** picks the scene it no longer holds from.
+- **Remove** asks first.
+
+The server's refusals (a change before the relationship starts, say) are shown in the dialog. On the bible page, **Kinds of relationship** lists the kinds, adds one (both ways, or one-way with its other side) and renames one.
+
 The palette has "Story bible", "New character" (one for each type), and every entry by name or alias ("Character: Ada Varn").
 
 ## Commands

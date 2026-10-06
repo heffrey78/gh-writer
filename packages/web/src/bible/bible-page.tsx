@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { Button } from "../ui/button.tsx";
 import { NewEntryDialog, NewTypeDialog } from "./new-entry.tsx";
+import { RelationshipTypes } from "./relationship-types.tsx";
 import { entriesByType, matches, plural } from "./types.ts";
 
 /** The story bible: every entry by type, searchable by name and alias. */
@@ -74,6 +75,7 @@ export function BiblePage({ novelId, novel }: { novelId: string; novel: Novel })
           </section>
         ),
       )}
+      {!query && <RelationshipTypes novelId={novelId} novel={novel} />}
       <NewEntryDialog novelId={novelId} novel={novel} type={adding ?? undefined} open={adding !== null} onOpenChange={(o) => !o && setAdding(null)} />
       <NewTypeDialog novelId={novelId} novel={novel} open={addingType} onOpenChange={setAddingType} />
     </div>
