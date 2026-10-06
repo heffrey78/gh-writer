@@ -61,7 +61,7 @@ export function serializeProse(doc: Node): string {
     const reused = isUnchanged(block);
     if (!reused && isEmpty(block)) return;
     const text: string = reused ? block.attrs.src : withEol(canonicalBlock(block, doc.attrs.style), eol);
-    out += separator(prev, block.attrs.gap, reused && (prev !== null || firstBlocks.has(block)), text, eol) + text;
+    out += separator(prev, out, block.attrs.gap, reused && (prev !== null || firstBlocks.has(block)), text, eol) + text;
     prev = { text, reused };
   });
   // Keep the file's ending after an unedited last block (even no final newline); otherwise end
@@ -204,13 +204,15 @@ function isEmpty(node: Node): boolean {
 }
 
 /** The whitespace to put before a block, reusing the original gap where that is safe. */
-function separator(prev: { text: string; reused: boolean } | null, gap: unknown, reused: boolean, text: string, eol: string): string {
+function separator(prev: { text: string; reused: boolean } | null, before: string, gap: unknown, reused: boolean, text: string, eol: string): string {
   if (typeof gap !== "string" || !/^[ \t\r\n]*$/.test(gap)) return prev ? eol + eol : "";
   // Leading whitespace survives only on an untouched block that began the file.
   if (!prev) return reused ? gap : "";
   const blank = /\n[ \t\r]*\n/.test(gap);
-  // Two untouched blocks may keep a gap without a blank line (e.g. `para\n***`) if they still parse apart.
-  if (reused && prev.reused && gap.includes("\n") && (blank || mdast(prev.text + gap + text).children.length === 2)) return gap;
+  // Two untouched blocks may keep a gap without a blank line (e.g. `para\n***`) if they still parse apart,
+  // in the context of everything before them: whether lines join can depend on blocks further back
+  // (after an empty `>`, indented lines are separate code blocks; on their own, they're one).
+  if (reused && prev.reused && gap.includes("\n") && (blank || mdast(before + gap + text).children.length === mdast(before).children.length + 1)) return gap;
   if (blank && gap.endsWith("\n")) return gap;
   return eol + eol;
 }

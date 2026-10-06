@@ -111,6 +111,11 @@ describe("unedited round-trip", () => {
     expect(splitSceneFile("---\n---\nBody")).toEqual({ frontMatter: "---\n---\n", body: "Body" });
   });
 
+  test("keeps lines apart that only the blocks before them keep apart", () => {
+    // Found by the fuzz test below: after an empty block quote, indented lines are separate code blocks.
+    for (const md of [">\r\n    a\n    a", ">\n    a\n    a"]) expect(roundTrip(md)).toBe(md);
+  });
+
   test("arbitrary Markdown round-trips unedited", () => {
     const unit = fc.constantFrom(..."ab \n\n\n\t*_[]()#>-+=`~|!<&\\:.1".split(""), "#char_7f3k2q", "\r\n", "    ", "http://x.y");
     fc.assert(fc.property(fc.string({ unit, maxLength: 80 }), (md) => roundTrip(md) === md), { numRuns: Number(process.env.FUZZ_RUNS ?? 3000) });
