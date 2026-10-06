@@ -167,6 +167,34 @@ A checkpoint is a named point to come back to before a risky revision: an annota
 
 `404 NOT_FOUND` is an unknown checkpoint, and `404 SCENE_NOT_FOUND` a scene the checkpoint doesn't have.
 
+## Operations
+
+Changes to the story's structure touch several files and must land whole. `transaction(root, writes, message)` (`src/operations.ts`) is how they do:
+
+1. **No identity, no change.** Without a git identity it changes nothing (`409 BLOCKED`).
+2. **Checks first.** Each file is checked against the hash its caller read (`409 STALE { path }`).
+3. **Writes.** Each file is written atomically. If any write fails, the ones already made are put back.
+4. **One commit.** Only those paths are committed, with a message naming the change. Other saved work is left for the background committer.
+
+Operations run in the workspace's exclusive section, so saves wait for them. They read the novel afresh, and edit YAML and front matter with core's `editYaml`/`editFrontMatter`, which change only the fields involved.
+
+### Story bible
+
+| Endpoint | Does | Commit |
+|---|---|---|
+| `POST /bible/entities` `{ type, name, …fields, notes? }` | Adds an entity of any type, built-in or custom, with a new ID, as `bible/<folder>/<slug>.md` | `Bible: add Ilse Varn` |
+| `PATCH /bible/entities/:id` `{ base, changes }` | Edits fields (`null` removes one). A new name moves the file to match, and nothing else changes. | `Bible: rename Ada Varn to Ada Kost` / `Bible: edit …` |
+| `POST /bible/entities/:id/delete` `{ base, confirm? }` | Deletes the file. If anything refers to the entity, it's refused (`409 REFERENCED { references }`: scenes and how, relationships, events) unless `confirm`. References are then left for the validator to report. | `Bible: remove …` |
+| `POST /bible/relationships` `{ from, to, type, since?, until?, note? }` | Adds a relationship (checked: entities, type, scenes, `since` before `until`) | `Bible: Ada Varn allies Mirela Kost` |
+| `PATCH /bible/relationships/:id` `{ changes }` | Edits it in place | |
+| `POST /bible/relationships/:id/change` `{ at, type?, note? }` | From scene `at` on, it's different: the record ends there and a new one starts there, running as long as the old one did | `… becomes rivals at “The Betrayal”` |
+| `POST /bible/relationships/:id/end` `{ at }` | It no longer holds from scene `at` | |
+| `POST /bible/relationships/:id/delete` | Removes the record | |
+| `POST /bible/entity-types`, `PATCH /bible/entity-types/:key` | Custom entity types in novel.yaml: key, prefix (unique, not reserved), label, folder, colour | `Bible: add the Vehicle type` |
+| `POST /bible/relationship-types`, `PATCH /bible/relationship-types/:key` | Relationship types: label, inverse label, symmetric, the entity types at each end | |
+
+All are under `/api/novels/:id`. Other refusals are `400 BAD_REQUEST` (with what's wrong) and `404 NOT_FOUND`.
+
 ## Security model
 
 The server can read and write the author's files, and a git push from it reaches GitHub. Its job is to answer only the author's own gh-writer tab. The threats are other web pages open in the same browser and other machines on the network. Local processes are out of scope: they can read the files directly.

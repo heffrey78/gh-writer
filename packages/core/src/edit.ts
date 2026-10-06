@@ -83,8 +83,8 @@ function edited(text: string, doc: Document, edit: YamlEdit, eol: string): strin
         const replacement = scalarText(value, pair.value);
         if (replacement !== undefined) return splice(text, pair.value.range![0], pair.value.range![1], replacement);
       }
-      // A flow collection stays flow, on its line.
-      if ((isSeq(pair.value) || isMap(pair.value)) && pair.value.flow && Array.isArray(value) === isSeq(pair.value) && typeof value === "object" && value !== null) {
+      // A flow collection stays flow, on its line. An empty one (`[]`, `{}`) is a placeholder: filled, it becomes a block.
+      if ((isSeq(pair.value) || isMap(pair.value)) && pair.value.flow && pair.value.items.length && Array.isArray(value) === isSeq(pair.value) && typeof value === "object" && value !== null) {
         return splice(text, pair.value.range![0], pair.value.range![1], flowText(value));
       }
       // Anything else: the whole pair, written again at its indentation.

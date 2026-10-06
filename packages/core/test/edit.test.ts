@@ -59,7 +59,7 @@ describe("editYaml", () => {
   });
 
   it("writes a collection that replaces a scalar or an empty one as a block, at the pair's place", () => {
-    expect(editYaml("a: 1\ntags: []\nz: 2\n", [{ path: ["tags"], value: ["x", "y"] }])).toBe("a: 1\ntags: [x, y]\nz: 2\n");
+    expect(editYaml("a: 1\ntags: []\nz: 2\n", [{ path: ["tags"], value: ["x", "y"] }])).toBe("a: 1\ntags:\n  - x\n  - y\nz: 2\n");
     expect(editYaml("a: 1\nwhen: soon\nz: 2\n", [{ path: ["when"], value: { day: 3 } }])).toBe("a: 1\nwhen:\n  day: 3\nz: 2\n");
   });
 

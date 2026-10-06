@@ -92,6 +92,38 @@ export interface CloneOptions {
   signal?: AbortSignal;
 }
 
+/** What an operation committed: the commit (null if nothing changed) and the files it wrote. */
+export interface OperationResult {
+  commit: string | null;
+  files: string[];
+}
+
+export interface EntityFields {
+  name?: string;
+  aliases?: string[];
+  summary?: string | null;
+  image?: string | null;
+  fields?: Record<string, string | number | boolean>;
+  tags?: string[];
+}
+
+export interface RelationshipFields {
+  from?: string;
+  to?: string;
+  type?: string;
+  since?: string | null;
+  until?: string | null;
+  note?: string | null;
+}
+
+/** Something that refers to an entity, listed when deleting it is refused. */
+export type Reference =
+  | { kind: "scene"; id: string; title: string; via: string[] }
+  | { kind: "relationship"; id: string; type: string; other: string }
+  | { kind: "event"; id: string; title: string };
+
+export type DeleteResult = ({ ok: true } & OperationResult) | { ok: false; references: Reference[] };
+
 export type WriteResult = { ok: true; hash: string } | { ok: false; current: TextFile | null };
 
 /** A non-2xx answer other than a write conflict. `status` 0 means the server couldn't be reached. */
@@ -232,6 +264,8 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
       );
       return status === 409 ? { ok: false, conflicts: data.conflicts ?? null } : { ok: true, status: data };
     },
+    /** The story bible's changes: each is one commit; refusals throw ApiError with the server's code (STALE, BAD_REQUEST, BLOCKED…). */
+    bible: bibleApi((id) => `/api/novels/${encodeURIComponent(id)}/bible`, request),
     /** Sync with the remote now; resolves with the status once it's done. */
     syncNow: async (id: string) => (await request<SyncStatus>("POST", `/api/novels/${encodeURIComponent(id)}/sync`)).data,
   };
@@ -254,4 +288,42 @@ export async function* serverEvents(body: ReadableStream<Uint8Array>): AsyncGene
       yield { event, data: JSON.parse(data) as unknown };
     }
   }
+}
+
+type Request = <T>(method: string, path: string, body?: unknown, options?: RequestOptions & { passing?: string }) => Promise<{ status: number; data: T }>;
+
+function bibleApi(root: (novelId: string) => string, request: Request) {
+  const call = async <T>(method: string, novelId: string, path: string, body: unknown = {}) => (await request<T>(method, `${root(novelId)}${path}`, body)).data;
+  return {
+    createEntity: (novelId: string, type: string, fields: EntityFields & { name: string }, notes?: string) =>
+      call<OperationResult & { id: string; file: string }>("POST", novelId, "/entities", { type, ...fields, ...(notes ? { notes } : {}) }),
+    updateEntity: (novelId: string, id: string, base: string, changes: EntityFields) =>
+      call<OperationResult & { file: string }>("PATCH", novelId, `/entities/${encodeURIComponent(id)}`, { base, changes }),
+    /** Refused (not thrown) when something refers to it: the references come back; pass confirm to delete anyway. */
+    deleteEntity: async (novelId: string, id: string, base: string, confirm = false): Promise<DeleteResult> => {
+      const { status, data } = await request<OperationResult & { references?: Reference[] }>(
+        "POST",
+        `${root(novelId)}/entities/${encodeURIComponent(id)}/delete`,
+        { base, confirm },
+        { passing: "REFERENCED" },
+      );
+      return status === 409 ? { ok: false, references: data.references ?? [] } : { ok: true, ...data };
+    },
+    createRelationship: (novelId: string, fields: RelationshipFields & { from: string; to: string; type: string }) =>
+      call<OperationResult & { id: string }>("POST", novelId, "/relationships", fields),
+    updateRelationship: (novelId: string, id: string, changes: RelationshipFields) => call<OperationResult>("PATCH", novelId, `/relationships/${encodeURIComponent(id)}`, { changes }),
+    /** From scene `at` on, the relationship is of `type` (or has `note`): the current record ends there and a new one starts. */
+    changeRelationship: (novelId: string, id: string, at: string, changes: { type?: string; note?: string | null }) =>
+      call<OperationResult & { id: string }>("POST", novelId, `/relationships/${encodeURIComponent(id)}/change`, { at, ...changes }),
+    endRelationship: (novelId: string, id: string, at: string) => call<OperationResult>("POST", novelId, `/relationships/${encodeURIComponent(id)}/end`, { at }),
+    deleteRelationship: (novelId: string, id: string) => call<OperationResult>("POST", novelId, `/relationships/${encodeURIComponent(id)}/delete`),
+    createEntityType: (novelId: string, fields: { key: string; prefix: string; label: string; folder?: string; color?: string }) =>
+      call<OperationResult>("POST", novelId, "/entity-types", fields),
+    updateEntityType: (novelId: string, key: string, changes: { label?: string; color?: string | null }) =>
+      call<OperationResult>("PATCH", novelId, `/entity-types/${encodeURIComponent(key)}`, changes),
+    createRelationshipType: (novelId: string, fields: { key: string; label: string; inverse_label?: string; symmetric?: boolean; from_types?: string[]; to_types?: string[] }) =>
+      call<OperationResult>("POST", novelId, "/relationship-types", fields),
+    updateRelationshipType: (novelId: string, key: string, changes: { label?: string; inverse_label?: string; symmetric?: boolean; from_types?: string[]; to_types?: string[] }) =>
+      call<OperationResult>("PATCH", novelId, `/relationship-types/${encodeURIComponent(key)}`, changes),
+  };
 }

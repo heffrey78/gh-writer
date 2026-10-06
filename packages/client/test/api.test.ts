@@ -17,3 +17,12 @@ describe("409 answers", () => {
     await expect(answering(409, { code: "NO_CONFLICT", error: "Nothing to resolve." }).resolveConflicts("n", "abc", {})).rejects.toBeInstanceOf(ApiError);
   });
 });
+
+describe("bible", () => {
+  it("returns a refused delete's references instead of throwing", async () => {
+    const references = [{ kind: "scene", id: "sc_5tat1n", title: "The Station", via: ["pov"] }];
+    expect(await answering(409, { code: "REFERENCED", references }).bible.deleteEntity("n", "char_x", "h")).toEqual({ ok: false, references });
+    await expect(answering(409, { code: "STALE", error: "Changed." }).bible.deleteEntity("n", "char_x", "h")).rejects.toMatchObject({ code: "STALE" });
+    expect(await answering(200, { commit: "abc", files: ["bible/characters/x.md"] }).bible.deleteEntity("n", "char_x", "h", true)).toEqual({ ok: true, commit: "abc", files: ["bible/characters/x.md"] });
+  });
+});

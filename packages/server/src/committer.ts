@@ -44,6 +44,19 @@ export async function operationInProgress(root: string): Promise<boolean> {
   return (await g.raw(["ls-files", "--unmerged", "--", "."])).trim() !== "";
 }
 
+export const IDENTITY_MESSAGE =
+  'git doesn\'t know who you are, so your work can\'t be committed. Set your name and email: git config --global user.name "Your Name" and git config --global user.email "you@example.com".';
+
+/** Whether git has a name and email to commit with (config or GIT_AUTHOR_* / GIT_COMMITTER_*). */
+export async function hasGitIdentity(root: string): Promise<boolean> {
+  const g = git(root);
+  const get = async (key: string) => (await g.raw(["config", "--get", key]).catch(() => "")).trim();
+  const env = process.env;
+  const name = env.GIT_AUTHOR_NAME || env.GIT_COMMITTER_NAME || (await get("user.name"));
+  const email = env.GIT_AUTHOR_EMAIL || env.GIT_COMMITTER_EMAIL || (await get("user.email"));
+  return Boolean(name && email);
+}
+
 const realSchedule = (fn: () => void, ms: number) => {
   const timer = setTimeout(fn, ms);
   timer.unref();
@@ -175,12 +188,7 @@ export class Committer {
     if (await operationInProgress(this.root)) {
       return this.#block("MERGE", "A merge or rebase is in progress in this repository; saved work will be committed once it's finished.");
     }
-    if (!(await this.#hasIdentity())) {
-      return this.#block(
-        "IDENTITY",
-        'git doesn\'t know who you are, so your work can\'t be committed. Set your name and email: git config --global user.name "Your Name" and git config --global user.email "you@example.com".',
-      );
-    }
+    if (!(await hasGitIdentity(this.root))) return this.#block("IDENTITY", IDENTITY_MESSAGE);
 
     await g.raw(["add", "-A", ...PATHSPEC]);
     const changes = await this.#stagedChanges();
@@ -201,14 +209,7 @@ export class Committer {
     return { skipped: code };
   }
 
-  async #hasIdentity(): Promise<boolean> {
-    const g = git(this.root);
-    const get = async (key: string) => (await g.raw(["config", "--get", key]).catch(() => "")).trim();
-    const env = process.env;
-    const name = env.GIT_AUTHOR_NAME || env.GIT_COMMITTER_NAME || (await get("user.name"));
-    const email = env.GIT_AUTHOR_EMAIL || env.GIT_COMMITTER_EMAIL || (await get("user.email"));
-    return Boolean(name && email);
-  }
+
 
   async #stagedChanges(): Promise<FileChange[]> {
     const g = git(this.root);

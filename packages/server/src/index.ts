@@ -11,8 +11,10 @@ export {
   type FileResolution,
   type PreparedMerge,
 } from "./conflicts.ts";
+export { BibleOperations, type EntityFields, type EntityTypeFields, type RelationshipFields, type RelationshipTypeFields } from "./bible.ts";
+export { OperationError, transaction, type FileWrite, type OperationErrorCode, type OperationResult } from "./operations.ts";
 export { commitMessage, type FileChange } from "./commit-message.ts";
-export { Committer, operationInProgress, type BlockedCode, type CommitResult, type CommitStatus, type CommitterOptions, type LastCommit } from "./committer.ts";
+export { Committer, hasGitIdentity, operationInProgress, type BlockedCode, type CommitResult, type CommitStatus, type CommitterOptions, type LastCommit } from "./committer.ts";
 export { atomicWrite, checkPath, FileError, hashText, MAX_FILE_BYTES, TEMP_SUFFIX, type FileErrorCode, type TextFile, type WriteHooks } from "./files.ts";
 export { classifyGitError, cloneUrl, GitFailure, type GitErrorCode } from "./git.ts";
 export { defaultConfigDir, Library, LibraryError, type CloneOptions, type LibraryEntry, type LibraryErrorCode, type LibraryNotice } from "./library.ts";
