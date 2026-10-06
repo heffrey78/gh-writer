@@ -37,5 +37,7 @@ jobs:
         if: failure()
         with:
           name: playwright-results
-          path: packages/editor/test-results/
+          path: |
+            packages/editor/test-results/
+            packages/web/test-results/
           retention-days: 7

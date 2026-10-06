@@ -76,18 +76,37 @@ export type FileResolution = { ours: string | null } & ({ content: string | null
 
 export type ResolveResult = { ok: true; status: SyncStatus } | { ok: false; conflicts: Conflicts | null };
 
+/** git's progress while cloning. `progress` is a percentage of the current stage. */
+export interface CloneProgress {
+  stage: string;
+  progress: number;
+  processed: number;
+  total: number;
+}
+
+export interface CloneOptions {
+  /** Where to clone to. Default: a folder named after the repository in ~/gh-writer. */
+  path?: string;
+  onProgress?: (p: CloneProgress) => void;
+  /** Aborting closes the request, which stops the clone. */
+  signal?: AbortSignal;
+}
+
 export type WriteResult = { ok: true; hash: string } | { ok: false; current: TextFile | null };
 
 /** A non-2xx answer other than a write conflict. `status` 0 means the server couldn't be reached. */
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
+  /** git's own output behind a git failure, for a "details" disclosure. */
+  readonly detail: string | undefined;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, detail?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    this.detail = detail;
   }
 
   /** Worth trying again: the server was unreachable or failed, rather than refusing the request. */
@@ -146,6 +165,35 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
     session: async () => (await request<{ authenticated: boolean }>("GET", "/api/session")).data,
     library: async () => (await request<{ novels: LibraryEntry[]; notices: LibraryNotice[] }>("GET", "/api/library")).data,
     addNovel: async (path: string) => (await request<{ novel: LibraryEntry }>("POST", "/api/library", { path })).data.novel,
+    /** Clone owner/name or a URL into the library. Rejects with an ApiError carrying git's code (AUTH, NOT_FOUND…) and guidance. */
+    clone: async (repo: string, { path, onProgress, signal }: CloneOptions = {}): Promise<LibraryEntry> => {
+      let res: Response;
+      try {
+        res = await fetch(`${baseUrl}/api/library/clone`, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...headers },
+          body: JSON.stringify(path ? { repo, path } : { repo }),
+          credentials: "same-origin",
+          ...(signal ? { signal } : {}),
+        });
+      } catch (e) {
+        if (signal?.aborted) throw e;
+        throw new ApiError(0, "UNREACHABLE", `Couldn't reach gh-writer: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      if (!res.ok || !res.body) {
+        const data = (await res.json().catch(() => undefined)) as { code?: string; error?: string } | undefined;
+        throw new ApiError(res.status, data?.code ?? "HTTP", data?.error ?? `Clone: HTTP ${res.status}`);
+      }
+      for await (const { event, data } of serverEvents(res.body)) {
+        if (event === "progress") onProgress?.(data as CloneProgress);
+        else if (event === "done") return (data as { novel: LibraryEntry }).novel;
+        else if (event === "error") {
+          const { code, error, detail } = data as { code: string; error: string; detail?: string };
+          throw new ApiError(400, code, error, detail);
+        }
+      }
+      throw new ApiError(0, "UNREACHABLE", "The clone stopped before it finished.");
+    },
     removeNovel: async (id: string) => void (await request("DELETE", `/api/library/${encodeURIComponent(id)}`)),
     /** The story model (core's Novel) and the hash of each file it was read from. */
     novel: async <Novel = unknown>(id: string) => (await request<{ novel: Novel; files: Record<string, string> }>("GET", `/api/novels/${encodeURIComponent(id)}`)).data,
@@ -187,4 +235,23 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
     /** Sync with the remote now; resolves with the status once it's done. */
     syncNow: async (id: string) => (await request<SyncStatus>("POST", `/api/novels/${encodeURIComponent(id)}/sync`)).data,
   };
+}
+
+/** The events of a text/event-stream body, as they arrive. */
+export async function* serverEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<{ event: string; data: unknown }> {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for await (const chunk of body as unknown as AsyncIterable<Uint8Array>) {
+    buffer += decoder.decode(chunk, { stream: true }).replace(/\r\n?/g, "\n");
+    let end;
+    while ((end = buffer.indexOf("\n\n")) !== -1) {
+      const block = buffer.slice(0, end);
+      buffer = buffer.slice(end + 2);
+      const lines = block.split("\n");
+      const data = lines.filter((l) => l.startsWith("data:")).map((l) => l.slice(5).replace(/^ /, "")).join("\n");
+      if (!data) continue;
+      const event = lines.find((l) => l.startsWith("event:"))?.slice(6).trim() ?? "message";
+      yield { event, data: JSON.parse(data) as unknown };
+    }
+  }
 }

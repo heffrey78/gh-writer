@@ -34,6 +34,8 @@ await server.close();
 
 Routes added to `server.app` (before its first request) or in `createApp` sit behind the same security middleware.
 
+`createServer({ web })` serves the built app ([packages/web](../web/README.md)) from that folder at every other path. Hashed files under `/assets/` are cached for good. Every other path gets `index.html`, never cached and sent with a strict Content Security Policy (`CONTENT_SECURITY_POLICY`), and the app routes itself. Unknown `/api` paths and missing build files are 404s, and nothing outside the folder is ever served. Without `web`, a placeholder page answers. `gh-writer serve` passes `packages/web/dist` when it has been built.
+
 ## Library
 
 The library is the author's list of novels: `library.json` in the user config directory. That's `$XDG_CONFIG_HOME/gh-writer` (or `~/.config/gh-writer`) on Linux, `~/Library/Application Support/gh-writer` on macOS and `%APPDATA%\gh-writer` on Windows. `GH_WRITER_CONFIG_DIR` overrides it. Each entry has an `id` (`lib_…`), its `path`, the `title` from novel.yaml, the `remote` (origin, with any credentials stripped out of the URL) and `lastOpened`. `list()` returns the most recently opened first. The file is replaced atomically on every change.

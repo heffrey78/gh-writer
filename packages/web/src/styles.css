@@ -1,0 +1,75 @@
+@import "tailwindcss";
+@import "@gh-writer/editor/styles.css";
+
+/*
+ * One palette for the app and the editor: the editor's --ghw-* properties (light, dark, and
+ * data-theme overrides) plus the few the app adds here, in the same three places.
+ */
+:root {
+  --ghw-panel: #f1ede5;
+  --ghw-raised: #ffffff;
+  --ghw-danger: #a3271d;
+  --ghw-danger-soft: rgb(163 39 29 / 0.09);
+  --ghw-ok: #2f6b3a;
+  --ghw-warn: #8a5300;
+  --ghw-warn-soft: rgb(138 83 0 / 0.1);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ghw-panel: #24221f;
+    --ghw-raised: #2b2925;
+    --ghw-danger: #f2978e;
+    --ghw-danger-soft: rgb(242 151 142 / 0.12);
+    --ghw-ok: #8fd19e;
+    --ghw-warn: #f0bf6c;
+    --ghw-warn-soft: rgb(240 191 108 / 0.12);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ghw-panel: #24221f;
+  --ghw-raised: #2b2925;
+  --ghw-danger: #f2978e;
+  --ghw-danger-soft: rgb(242 151 142 / 0.12);
+  --ghw-ok: #8fd19e;
+  --ghw-warn: #f0bf6c;
+  --ghw-warn-soft: rgb(240 191 108 / 0.12);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-ink: var(--ghw-ink);
+  --color-muted: var(--ghw-muted);
+  --color-paper: var(--ghw-paper);
+  --color-panel: var(--ghw-panel);
+  --color-raised: var(--ghw-raised);
+  --color-rule: var(--ghw-rule);
+  --color-accent: var(--ghw-accent);
+  --color-accent-soft: var(--ghw-accent-soft);
+  --color-danger: var(--ghw-danger);
+  --color-danger-soft: var(--ghw-danger-soft);
+  --color-ok: var(--ghw-ok);
+  --color-warn: var(--ghw-warn);
+  --color-warn-soft: var(--ghw-warn-soft);
+  --font-prose: var(--ghw-prose-font);
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html,
+body {
+  background: var(--ghw-paper);
+  color: var(--ghw-ink);
+  font-family: var(--font-ui);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ghw-accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--ghw-selection);
+}

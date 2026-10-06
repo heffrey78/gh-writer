@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createServer, GitFailure, Library, LibraryError, type LibraryEntry } from "@gh-writer/server";
 
 export interface ServeOptions {
@@ -31,7 +32,9 @@ export async function runServe(dir: string | undefined, { port = 0, open = true,
   }
   for (const notice of library.notices) out(notice.message);
 
-  const server = await createServer({ library, port, ...(syncEvery !== undefined ? { sync: { intervalMs: syncEvery * 60_000 } } : {}) });
+  const web = webApp();
+  if (!web) out("The web app isn't built yet: run `npm run build` first. Serving the API only.");
+  const server = await createServer({ library, port, ...(web ? { web } : {}), ...(syncEvery !== undefined ? { sync: { intervalMs: syncEvery * 60_000 } } : {}) });
   const launchUrl = novel ? server.launchUrlFor(`/novels/${novel.id}`) : server.launchUrl;
   out(novel ? `gh-writer is serving ${novel.title} (${novel.path})` : `gh-writer is serving your library (${library.file})`);
   out(`  ${launchUrl}`);
@@ -52,6 +55,12 @@ export async function runServe(dir: string | undefined, { port = 0, open = true,
   await server.close();
   out("Stopped.");
   return 0;
+}
+
+/** The built web app (packages/web/dist), if it has been built. */
+function webApp(): string | undefined {
+  const dir = fileURLToPath(new URL("../../web/dist", import.meta.url));
+  return existsSync(join(dir, "index.html")) ? dir : undefined;
 }
 
 function force(): never {

@@ -23,6 +23,8 @@ export interface ServerOptions {
   commit?: CommitterOptions | false;
   /** Sync timing; false turns syncing with the remote off. */
   sync?: SyncerOptions | false;
+  /** The built web app's folder (packages/web/dist), served at every path outside /api. */
+  web?: string;
 }
 
 export interface RunningServer {
@@ -44,11 +46,11 @@ export interface RunningServer {
 const HOST = "127.0.0.1";
 
 /** Starts the server on 127.0.0.1 only. */
-export async function createServer({ library, token = newToken(), port = 0, shutdownTimeout = 10_000, commit, sync }: ServerOptions = {}): Promise<RunningServer> {
+export async function createServer({ library, token = newToken(), port = 0, shutdownTimeout = 10_000, commit, sync, web }: ServerOptions = {}): Promise<RunningServer> {
   library ??= await Library.open();
   let boundPort = port;
   const workspaces = new Workspaces(library, { ...(commit !== undefined ? { commit } : {}), ...(sync !== undefined ? { sync } : {}) });
-  const app = createApp({ token, port: () => boundPort, library, workspaces });
+  const app = createApp({ token, port: () => boundPort, library, workspaces, ...(web ? { web } : {}) });
   const server = createHttpServer(getRequestListener(app.fetch));
 
   await new Promise<void>((resolve, reject) => {
