@@ -70,6 +70,11 @@ body {
   outline-offset: 2px;
 }
 
+/* The writing surface shows focus with its caret; a ring around the whole text distracts. */
+.ghw-prose:focus-visible {
+  outline: none;
+}
+
 ::selection {
   background: var(--ghw-selection);
 }

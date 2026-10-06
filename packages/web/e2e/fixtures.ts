@@ -19,6 +19,8 @@ export interface App {
   env: NodeJS.ProcessEnv;
   /** Start (or restart) the server; options are `gh-writer serve` arguments. */
   restart: (...args: string[]) => Promise<void>;
+  /** Stop the server (SIGTERM, a clean shutdown). */
+  stop: () => Promise<void>;
   /** A git repository holding a copy of the sample novel, committed. */
   novelRepo: (name?: string) => string;
   /** A bare repository with the sample novel, for cloning from. */
@@ -87,6 +89,7 @@ export const test = base.extend<{ app: App }>({
         app.launchUrl = launchUrl;
         app.url = new URL(launchUrl).origin;
       },
+      stop: () => stop(child),
     };
     await app.restart();
     await use(app);

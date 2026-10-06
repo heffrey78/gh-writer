@@ -119,6 +119,14 @@ describe("autosave", () => {
     expect(disk()).toBe(`${original}${" word".repeat(10)}`);
   });
 
+  it("reports each save's text and hash", async () => {
+    const saved: [string, string, string][] = [];
+    const a = await open({ interval: 50, onSaved: (...args) => saved.push(args) });
+    a.change(SCENE, "Saved text.\n");
+    await until(a, (s) => s.status === "saved");
+    expect(saved).toEqual([[SCENE, "Saved text.\n", (await api.readFile(novelId, SCENE)).hash]]);
+  });
+
   it("saves by default two seconds after a pause", async () => {
     const a = await open();
     a.change(SCENE, "Two seconds.\n");

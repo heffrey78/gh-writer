@@ -49,6 +49,8 @@ export interface AutosaveOptions {
   storage?: StorageLike | null;
   /** Called when a save meets newer text on disk: offer the conflict resolver (#47) or a reload. */
   onConflict?: (conflict: Conflict) => void;
+  /** Called when a file's text is on disk: what was saved and its new hash. */
+  onSaved?: (path: string, content: string, hash: string) => void;
 }
 
 interface Entry {
@@ -97,6 +99,7 @@ export function createAutosave({
   maxRetryDelay = 30_000,
   storage: storageOption,
   onConflict,
+  onSaved,
 }: AutosaveOptions): Autosave {
   const storage = storageOption === null ? undefined : (storageOption ?? sessionStorage());
   const store = createStore<AutosaveState>(() => ({ status: "saved", unsaved: 0, error: undefined, conflicts: [] }));
@@ -161,6 +164,7 @@ export function createAutosave({
         lastError = undefined;
         if (result.ok) {
           e.base = result.hash;
+          onSaved?.(path, content, result.hash);
           if (e.pending === content) {
             e.pending = undefined;
             forget(path);

@@ -1,15 +1,22 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Link } from "react-router";
 import { useTheme, type ThemeChoice } from "./theme.ts";
 import { cn } from "./ui/cn.ts";
 
-/** The app's frame: a skip link, the top bar (home, page actions, theme), and the page. */
-export function Shell({ actions, children, wide }: { actions?: ReactNode; children: ReactNode; wide?: boolean }) {
+/**
+ * The app's frame: a skip link, the top bar (home, page actions, theme), and the page. `wide` pages lay
+ * themselves out across the window; `chrome={false}` hides the bar (focus mode).
+ */
+export function Shell({ actions, children, wide, chrome = true, title }: { actions?: ReactNode; children: ReactNode; wide?: boolean; chrome?: boolean; title?: string }) {
+  useEffect(() => {
+    document.title = title ? `${title} · gh-writer` : "gh-writer";
+  }, [title]);
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className={cn("flex flex-col", wide ? "h-dvh" : "min-h-dvh")}>
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-raised focus:px-3 focus:py-2">
         Skip to content
       </a>
+      {chrome && (
       <header className="flex items-center gap-3 border-b border-rule bg-panel px-4 py-2">
         <Link to="/" className="flex items-center gap-2 rounded-md px-1 font-semibold">
           <Logo />
@@ -20,7 +27,8 @@ export function Shell({ actions, children, wide }: { actions?: ReactNode; childr
           <ThemeSelect />
         </div>
       </header>
-      <main id="main" tabIndex={-1} className={cn("flex-1 outline-none", !wide && "mx-auto w-full max-w-4xl px-4 py-8")}>
+      )}
+      <main id="main" tabIndex={-1} className={cn("flex-1 outline-none", wide ? "min-h-0" : "mx-auto w-full max-w-4xl px-4 py-8")}>
         {children}
       </main>
     </div>

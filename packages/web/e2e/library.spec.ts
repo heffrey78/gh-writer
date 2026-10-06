@@ -27,7 +27,7 @@ test("opens a folder by keyboard alone, then lists it", async ({ page, app }) =>
   await page.keyboard.type(dir);
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/novels\/lib_\w+$/);
-  await expect(page.getByRole("heading", { level: 1, name: "The Bridge at Varn" })).toBeVisible();
+  await expect(page).toHaveTitle("The Bridge at Varn · gh-writer");
 
   await page.getByRole("link", { name: "gh-writer" }).click();
   await expect(novels(page)).toHaveCount(1);
@@ -51,7 +51,7 @@ test("clones from a repository and opens the novel", async ({ page, app }) => {
   await launch(page, app);
   await page.getByRole("textbox", { name: "Repository" }).fill(`file://${bare}`);
   await page.getByRole("button", { name: "Clone" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "The Bridge at Varn" })).toBeVisible();
+  await expect(page).toHaveTitle("The Bridge at Varn · gh-writer");
   await page.goto(app.url);
   await expect(novels(page)).toContainText(join(app.home, "gh-writer", "varn"));
   await expect(novels(page)).toContainText(bare);
