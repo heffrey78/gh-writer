@@ -9,6 +9,7 @@ import { useStore } from "zustand";
 import { joinSceneFile, splitSceneFile } from "@gh-writer/editor";
 import { api } from "../api.ts";
 import { useCommands } from "../commands.ts";
+import { mentionEntities } from "../bible/types.ts";
 import { useCurrentScene } from "./current.ts";
 import { SceneDetails, useSceneDetails } from "./scene-details.tsx";
 import { useStructure } from "./structure.ts";
@@ -36,6 +37,7 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
     [view, byId],
   );
   const paths = scenes.map((s) => s.file);
+  const entities = useMemo(() => mentionEntities(novel), [novel]);
   // Focus goes to the text when a chapter or scene is opened, not when it reloads (files renamed by a move).
   const viewId = "scene" in view ? view.scene.id : view.chapter.id;
   const focusedView = useRef<string | undefined>(undefined);
@@ -192,6 +194,7 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
             onChange={(md) => workspace.change(view.scene.file, md)}
             onReady={setEditor}
             autofocus={autofocus}
+            entities={entities}
             {...(spell ? { spell } : {})}
           />
         ) : (
@@ -201,6 +204,7 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
             onChange={(changed) => changed.forEach((c) => workspace.change(c.id, c.markdown))}
             onReady={setEditor}
             autofocus={autofocus}
+            entities={entities}
             {...(spell ? { spell } : {})}
           />
         )}

@@ -9,6 +9,7 @@ import { loadMarkdown, setInitialMarkdown } from "./editor.ts";
 import { proseContent } from "./extensions.ts";
 import { FindExtension } from "./find.ts";
 import { SearchHighlightExtension } from "./search.ts";
+import { MentionSuggestExtension, type MentionEntity } from "./mention-suggest.ts";
 import { SpellCheckExtension, type SpellService } from "./spell.ts";
 import { writingModes, WritingModesExtension, type WritingModes } from "./modes.ts";
 import { liveCounts, sessionWords, WordCountExtension, writingSession } from "./wordcount.ts";
@@ -36,6 +37,8 @@ export interface SceneEditorProps {
   sceneId?: string;
   /** Spell checking: the checker, and where to save words added to the novel's dictionary. */
   spell?: SpellProps;
+  /** What @ suggests: the story bible's entries. */
+  entities?: readonly MentionEntity[];
 }
 
 export interface SpellProps {
@@ -53,6 +56,13 @@ function useSpellExtension(spell: SpellProps | undefined) {
   });
 }
 
+/** @ suggestions over the latest `entities` prop, as extensions are set up once. */
+function useMentionExtension(entities: readonly MentionEntity[] | undefined) {
+  const latest = useRef(entities);
+  latest.current = entities;
+  return MentionSuggestExtension.configure({ entities: () => latest.current ?? [] });
+}
+
 /** A WYSIWYG editor for one scene's prose. */
 export function SceneEditor({
   markdown,
@@ -65,8 +75,10 @@ export function SceneEditor({
   onReady,
   sceneId = "scene",
   spell,
+  entities,
 }: SceneEditorProps) {
   const spellExtension = useSpellExtension(spell);
+  const mentionExtension = useMentionExtension(entities);
   const callbacks = useRef({ onChange, onReady });
   callbacks.current = { onChange, onReady };
   // The Markdown the editor last loaded or reported, to tell its own output from a new value.
@@ -93,6 +105,7 @@ export function SceneEditor({
       FindExtension,
       SearchHighlightExtension,
       spellExtension,
+      mentionExtension,
       Placeholder.configure({ placeholder }),
     ],
     editorProps: {
@@ -166,6 +179,8 @@ export interface ChapterEditorProps {
   onReady?: (editor: Editor) => void;
   /** Spell checking: the checker, and where to save words added to the novel's dictionary. */
   spell?: SpellProps;
+  /** What @ suggests: the story bible's entries. */
+  entities?: readonly MentionEntity[];
 }
 
 /**
@@ -181,8 +196,10 @@ export function ChapterEditor({
   className,
   onReady,
   spell,
+  entities,
 }: ChapterEditorProps) {
   const spellExtension = useSpellExtension(spell);
+  const mentionExtension = useMentionExtension(entities);
   const callbacks = useRef({ onChange, onReady });
   callbacks.current = { onChange, onReady };
   // Per scene: the Markdown last loaded or reported, and the content it was serialized from.
@@ -215,7 +232,7 @@ export function ChapterEditor({
   }).current;
 
   const editor = useEditor({
-    extensions: [...chapterContent, UndoRedo, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension],
+    extensions: [...chapterContent, UndoRedo, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, mentionExtension],
     editorProps: {
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": label, class: "ghw-prose ghw-chapter" },
     },

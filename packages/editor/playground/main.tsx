@@ -14,6 +14,7 @@ import {
   splitSceneFile,
   writingModeCommands,
   type Manuscript,
+  type MentionEntity,
   type SceneSource,
 } from "../src/index.ts";
 import { ChapterEditor, FindReplace, SceneEditor, useWritingModes, WordCount } from "../src/react.tsx";
@@ -144,6 +145,13 @@ function App() {
     void sampleNovel.then((novel) => spellService.setKnown(knownWords(novel, parseDictionary(dictionary))));
   }, [dictionary]);
   const spell = { service: spellService, onAddWord: (word: string) => setDictionary((text) => addToDictionary(text, word)) };
+  // @ suggests the sample novel's bible.
+  const [entities, setEntities] = useState<MentionEntity[]>([]);
+  useEffect(() => {
+    void sampleNovel.then((novel) =>
+      setEntities(novel.entityTypes.flatMap((t) => novel.entities.filter((e) => e.type === t.key).map((e) => ({ id: e.id, name: e.name, aliases: e.aliases, type: t.label })))),
+    );
+  }, []);
 
   // The whole manuscript for find and replace, with edits as saved. The generated chapter is
   // left out: its paragraphs are copies of the sample novel's.
@@ -217,6 +225,7 @@ function App() {
             onChange={(changes) => changes.forEach((c) => setBody(c.id, c.markdown))}
             onReady={ready}
             spell={spell}
+            entities={entities}
           />
         ) : (
           <SceneEditor
@@ -228,6 +237,7 @@ function App() {
             onChange={(md) => setBody(target, md)}
             onReady={ready}
             spell={spell}
+            entities={entities}
           />
         )}
       </main>

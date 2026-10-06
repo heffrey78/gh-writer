@@ -13,7 +13,7 @@ import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { Field } from "../ui/field.tsx";
 import { RelationshipsPanel } from "./relationships.tsx";
-import { typeOf } from "./types.ts";
+import { mentionEntities, typeOf } from "./types.ts";
 
 const VIA: Record<SceneLink, string> = { pov: "point of view", characters: "present", locations: "set here", plotlines: "plotline", themes: "theme", mention: "mentioned" };
 
@@ -25,6 +25,7 @@ export function EntryPage({ novelId, novel, entity, workspace, spell }: { novelI
   const navigate = useNavigate();
   const type = typeOf(novel, entity);
   const file = useStore(workspace.store, (s) => s.files[entity.file]);
+  const mentions = useMemo(() => mentionEntities(novel), [novel]);
   const links = useMemo(() => backlinks(novel, entity.id), [novel, entity.id]);
   const ids = { form: useId(), notes: useId(), links: useId() };
 
@@ -164,6 +165,7 @@ export function EntryPage({ novelId, novel, entity, workspace, spell }: { novelI
               placeholder="Backstory, voice, anything worth remembering…"
               markdown={file.body}
               onChange={(md) => workspace.change(entity.file, md)}
+              entities={mentions}
               className="[&_.ghw-prose]:min-h-24 [&_.ghw-prose]:py-3"
               {...(spell ? { spell } : {})}
             />

@@ -1,4 +1,5 @@
 import type { Entity, Novel } from "@gh-writer/core";
+import type { MentionEntity } from "@gh-writer/editor";
 
 /** A type's name for a list of its entries: "Characters". */
 export const plural = (label: string) => (/(s|x|ch|sh)$/i.test(label) ? `${label}es` : /[^aeiou]y$/i.test(label) ? `${label.slice(0, -1)}ies` : `${label}s`);
@@ -18,3 +19,13 @@ export const matches = (entity: Entity, query: string) => {
   const q = query.trim().toLowerCase();
   return !q || [entity.name, ...entity.aliases].some((n) => n.toLowerCase().includes(q));
 };
+
+/** Every entry, for @ suggestions: by type in the bible's order, then by name. */
+export function mentionEntities(novel: Novel): MentionEntity[] {
+  return novel.entityTypes.flatMap((t) =>
+    novel.entities
+      .filter((e) => e.type === t.key)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((e) => ({ id: e.id, name: e.name, aliases: e.aliases, type: t.label })),
+  );
+}

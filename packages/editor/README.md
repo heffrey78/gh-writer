@@ -25,6 +25,8 @@ Mod is Cmd on macOS and Ctrl elsewhere. Typing Markdown also formats: `*word*` o
 
 Mentions are atoms: the caret steps over them, typing can't split them, and Backspace removes one whole. Raw Markdown blocks are edited as plain text.
 
+**@ suggestions.** Give either editor `entities` (`{ id, name, aliases, type }`, `type` being the label to group by) and typing `@` at the start of a word, then a few letters, lists matching entries by name or alias, grouped by type in the order given. The list is a `listbox` the text box points at with `aria-activedescendant`, so focus stays in the text and screen readers read the highlighted option. ↑ ↓ move, Enter or Tab inserts the mention, Escape closes the list and leaves the `@` text as typed, and clicking an option inserts it. The mention shows the name or alias that was matched ("@ad" writes Ada, "@ada v" Ada Varn) and is written `[Ada](#char_7f3k2q)`, so it keeps its words and still finds its entry by ID if the entry is renamed. `suggestMentions(entities, query)` is the ranking on its own: a name or alias starting with the query first, then one with a word starting with it, then one containing it.
+
 The typography uses CSS custom properties (`--ghw-prose-font`, `--ghw-prose-measure`, `--ghw-ink`…) and follows the OS light or dark setting, or `data-theme` on the root element.
 
 ### Writing modes

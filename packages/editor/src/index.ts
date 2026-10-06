@@ -77,3 +77,4 @@ export {
   type SpellService,
 } from "./spell.ts";
 export { SpellEngine, type Misspellings } from "./spell-engine.ts";
+export { mentionSuggestKey, MentionSuggestExtension, suggestMentions, type MentionEntity, type MentionSuggestion, type MentionSuggestOptions } from "./mention-suggest.ts";
