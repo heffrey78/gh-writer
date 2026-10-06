@@ -30,6 +30,20 @@ function remember(id: string): void {
   }
 }
 
+/**
+ * How well a command matches what's typed, from its title and keywords (the first keyword is the
+ * title): the start of the title, then anywhere in it, then every word somewhere. 0 hides it.
+ */
+export function rank(_value: string, search: string, keywords: string[] = []): number {
+  const q = search.trim().toLowerCase();
+  if (!q) return 1;
+  const title = (keywords[0] ?? "").toLowerCase();
+  if (title.startsWith(q)) return 1;
+  if (title.includes(q)) return 0.8;
+  const haystack = keywords.join(" ").toLowerCase();
+  return q.split(/\s+/).every((word) => haystack.includes(word)) ? 0.5 : 0;
+}
+
 /** The palette's own shortcuts, and the editor's formatting keys, for the reference. */
 export const APP_KEYS: { title: string; keys: string }[] = [
   { title: "Command palette", keys: "Mod-k" },
@@ -164,7 +178,7 @@ export function CommandPalette() {
             className="fixed top-[12vh] left-1/2 z-[70] w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-lg border border-rule bg-raised text-ink shadow-2xl"
           >
             <Dialog.Title className="sr-only">Command palette</Dialog.Title>
-            <Cmdk label="Commands" loop>
+            <Cmdk label="Commands" loop filter={rank}>
               <Cmdk.Input
                 value={search}
                 onValueChange={setSearch}

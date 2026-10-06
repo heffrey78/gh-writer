@@ -3,11 +3,15 @@ import type { Novel } from "@gh-writer/core";
 import { useWritingModes } from "@gh-writer/editor/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router";
+import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams } from "react-router";
 import { api, keys } from "../api.ts";
 import { useCommands, type Command } from "../commands.ts";
 import { Shell } from "../layout.tsx";
 import { ErrorAlert } from "../ui/alert.tsx";
+import { BiblePage } from "../bible/bible-page.tsx";
+import { EntryPage } from "../bible/entry-page.tsx";
+import { NewEntryDialog } from "../bible/new-entry.tsx";
+import { plural } from "../bible/types.ts";
 import { CheckpointsButton } from "./checkpoints.tsx";
 import { SaveConflicts, SyncConflicts } from "./conflicts.tsx";
 import { useNovelEvents } from "./events.ts";
@@ -28,6 +32,7 @@ export function NovelPage() {
   const [workspace, setWorkspace] = useState<Workspace>();
   const [resolving, setResolving] = useState(false);
   const [checkpointsOpen, setCheckpointsOpen] = useState(false);
+  const [newEntry, setNewEntry] = useState<string | null>(null);
   const focus = useWritingModes((m) => m.focus);
   const spell = useSpell(api, novelId, novel.data?.novel);
 
@@ -70,6 +75,15 @@ export function NovelPage() {
       { id: "novel.syncNow", title: "Sync now", group: "Sync", run: () => syncNow.mutate() },
       ...(conflict ? [{ id: "novel.resolve", title: "Resolve sync conflicts", group: "Sync", run: () => setResolving(true) }] : []),
       { id: "novel.checkpoints", title: "Checkpoints: make or restore one", group: "Checkpoints", run: () => setCheckpointsOpen(true) },
+      { id: "novel.bible", title: "Story bible", group: "Go to", run: () => void navigate(`/novels/${novelId}/bible`) },
+      ...(model?.entityTypes ?? []).map((t) => ({ id: `novel.newEntry.${t.key}`, title: `New ${t.label.toLowerCase()}`, group: "Story bible", run: () => setNewEntry(t.key) })),
+      ...(model?.entities ?? []).map((e) => ({
+        id: `novel.entry.${e.id}`,
+        title: `${model!.entityTypes.find((t) => t.key === e.type)?.label ?? e.type}: ${e.name}`,
+        group: "Go to",
+        keywords: e.aliases,
+        run: () => void navigate(`/novels/${novelId}/bible/${e.id}`),
+      })),
       ...(model?.chapters ?? []).flatMap((c): Command[] => [
         { id: `novel.chapter.${c.id}`, title: `Chapter: ${chapterTitle(model!, c)}`, group: "Go to", run: () => void navigate(`/novels/${novelId}/chapter/${c.id}`) },
         ...c.sceneIds.flatMap((id): Command[] => {
@@ -126,6 +140,19 @@ export function NovelPage() {
           <aside className="border-rule bg-panel p-3 md:overflow-y-auto md:border-r">
             <p className="mb-3 px-2 font-semibold">{book.config?.title ?? "Untitled"}</p>
             <Navigation novelId={novelId} novel={book} />
+            <nav aria-label="Story bible" className="mt-2 border-t border-rule pt-3 text-sm">
+              <NavLink to={`/novels/${novelId}/bible`} end className={({ isActive }) => `block rounded-md px-2 py-1 font-semibold hover:bg-paper ${isActive ? "bg-accent-soft" : ""}`}>
+                Story bible
+              </NavLink>
+              <ul className="mt-1 grid gap-0.5">
+                {book.entityTypes.map((t) => (
+                  <li key={t.key} className="flex justify-between px-2 py-0.5 text-muted">
+                    <span>{plural(t.label)}</span>
+                    <span className="tabular-nums">{book.entities.filter((e) => e.type === t.key).length}</span>
+                  </li>
+                ))}
+              </ul>
+            </nav>
           </aside>
         )}
         <div className="md:overflow-y-auto">
@@ -133,6 +160,8 @@ export function NovelPage() {
             <Route index element={book.chapters[0] ? <Navigate to={`/novels/${novelId}/chapter/${book.chapters[0].id}`} replace /> : <EmptyManuscript />} />
             <Route path="chapter/:chapterId" element={<ChapterRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
             <Route path="scene/:sceneId" element={<SceneRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
+            <Route path="bible" element={<BiblePage novelId={novelId} novel={book} />} />
+            <Route path="bible/:entityId" element={<EntryRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
             <Route path="*" element={<Missing what="page" />} />
           </Routes>
         </div>
@@ -140,6 +169,7 @@ export function NovelPage() {
       <SyncConflicts novelId={novelId} novel={book} workspace={workspace} open={resolving} onClose={() => setResolving(false)} />
       <SaveConflicts novel={book} workspace={workspace} />
       <NoticeBar />
+      <NewEntryDialog novelId={novelId} novel={book} type={newEntry ?? undefined} open={newEntry !== null} onOpenChange={(o) => !o && setNewEntry(null)} />
     </Shell>
   );
 }
@@ -150,6 +180,12 @@ function ChapterRoute(props: RouteProps) {
   const { chapterId } = useParams();
   const chapter = props.novel.chapters.find((c) => c.id === chapterId) ?? props.novel.allChapters.find((c) => c.id === chapterId);
   return chapter ? <WritingView {...props} view={{ chapter }} /> : <Missing what="chapter" />;
+}
+
+function EntryRoute(props: RouteProps) {
+  const { entityId } = useParams();
+  const entity = props.novel.entities.find((e) => e.id === entityId);
+  return entity ? <EntryPage {...props} entity={entity} /> : <Missing what="entry" />;
 }
 
 function SceneRoute(props: RouteProps) {

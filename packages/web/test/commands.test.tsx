@@ -42,3 +42,15 @@ describe("keyCaps", () => {
     expect(keyCaps("Mod-/")).toHaveLength(2);
   });
 });
+
+describe("palette ranking", async () => {
+  const { rank } = await import("../src/palette.tsx");
+  it("ranks the start of the title first, then anywhere in it, then every word anywhere", () => {
+    const score = (title: string, ...keywords: string[]) => (query: string) => rank(`${title} x`, query, [title, ...keywords]);
+    expect(score("New location")("new location")).toBe(1);
+    expect(score("Location: Tomas's Workshop", "Go to")("new location")).toBe(0);
+    expect(score("Scene: Ben's Ledger", "Go to", "Old Debts")("ledger")).toBe(0.8);
+    expect(score("Scene: Ben's Ledger", "Go to", "Old Debts")("debts ledger")).toBe(0.5);
+    expect(score("Sync now")("")).toBe(1);
+  });
+});

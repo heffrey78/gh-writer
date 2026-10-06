@@ -138,6 +138,7 @@ for (const [name, viewport] of [
     await expect(page.getByRole("status").filter({ hasText: "Restored the manuscript" })).toBeVisible();
     // Undo is in the notice, and a keystroke away in the palette.
     await palette(page, "undo");
+    await expect(page.getByRole("status").filter({ hasText: "Undone" })).toBeVisible({ timeout: 10_000 });
     await expect.poll(() => readFileSync(join(here, BRIDGE), "utf8")).toContain("Then more.");
 
     // Theme and the shortcut reference.

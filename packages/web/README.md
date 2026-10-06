@@ -46,6 +46,19 @@ If the server stops answering, a banner says so. The unsaved text stays in the t
 - **The list** is newest first, with date and word count, and the word change against the latest. Automatic checkpoints, the ones taken before a restore, are hidden unless asked for.
 - **Restore** the manuscript, or the scene being written (the open scene, or in a chapter the one holding the caret). A confirmation says what will change. Afterwards a notice offers **Undo**, which restores the automatic checkpoint; it stays until dismissed. Open editors show the restored text as the files change on disk.
 
+## The story bible
+
+`/novels/:id/bible` lists every entry by type: the built-in characters, locations, plotlines and themes, and any custom type. Each type has its count and a "New" button, and the page searches by name and alias. **New type** adds a custom type (name, ID prefix), and its list and entries work at once.
+
+An entry's page (`/novels/:id/bible/:entityId`) has:
+
+- **Details:** name, other names, summary, fields, tags and image, saved together as one change ("Bible: edit Ada Varn"). A new name moves the file to match and changes nothing else ("Bible: rename Ada Varn to Ada Kost").
+- **Notes:** the free-form text below the front matter, in the prose editor, autosaved like a scene.
+- **In the story:** every scene that refers to the entry, and how (point of view, present, set here, plotline, theme, mentioned), each linking to the scene; and its relationships, read from its side ("Rivals with Ben Varn, from “The Betrayal”").
+- **Delete:** if the story still refers to the entry, it lists every reference and asks first. Otherwise it simply goes ("Bible: remove …").
+
+The palette has "Story bible", "New character" (one for each type), and every entry by name or alias ("Character: Ada Varn").
+
 ## Commands
 
 Every action is a command in the palette (Mod+K, from anywhere). Type to search titles, groups and keywords; the commands used last come first. Choosing one closes the palette, puts focus back where it was (usually the text), then runs it. Mod+/ opens the shortcut reference: the palette's keys, the editor's formatting keys, and every command that has a shortcut.
