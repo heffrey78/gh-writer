@@ -74,6 +74,18 @@ The theme follows the OS. Choosing Light or Dark in the top bar sets `data-theme
 
 `npm run dev` starts Vite with a plugin that runs a gh-writer server in the same process, using the author's library (or `GH_WRITER_CONFIG_DIR`'s). The plugin proxies `/api` to it, with the session cookie attached. Host and Origin are rewritten to the server's own, so its security checks run as in production. Open http://localhost:5180; there's no token to copy. That convenience is the catch: any request to the dev server's `/api` gets the session, so keep `npm run dev` for development. Vite listens on localhost only, and its own host check stays on.
 
+## Resilience
+
+`e2e/resilience.spec.ts` checks #2's promises the way an author would meet them: the real app on real servers, git run by the tests only to look, and every check made on disk and in git history.
+
+| Promise | Test |
+|---|---|
+| Draft, close the app, reopen: all work is there, no git by hand | Close the tab straight after typing (it saves on the way out), quit gh-writer (it commits as it stops), start it again: the text is on disk, committed as "Draft: …", and in the editor. |
+| A crash loses at most the autosave interval | Type, let it save, type more, and SIGKILL the server about 0.1 s later. Only the last moment's typing is missing from disk. Starting gh-writer again on the same address and opening it in the same tab saves even that, from the tab's session storage. |
+| A session with the network down syncs once it's back | The remote is unreachable from the start ("Offline"). Write in two chapters, then bring the remote back and touch nothing: the retry syncs. The remote has both edits, and another clone pulls identical files. |
+| The same scene on two machines gives a resolvable conflict, not a corrupted file | Two servers on two clones, the same ending rewritten in both apps. One syncs, the other meets the conflict and keeps both in the resolver, then the first syncs again. One file, the same on both machines and the remote, with both endings, no conflict markers, one merge commit, and a novel that validates. |
+| Restoring a checkpoint can be undone | `e2e/checkpoints.spec.ts` |
+
 ## Keyboard and accessibility
 
 Everything in the app can be done from the keyboard. `e2e/a11y.spec.ts` walks the whole path mouse-free, once at a 13-inch laptop's 1280×800 and once at a 2560×1440 monitor:

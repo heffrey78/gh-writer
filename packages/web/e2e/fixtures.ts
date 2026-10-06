@@ -10,6 +10,14 @@ const repo = fileURLToPath(new URL("../../..", import.meta.url));
 export const sample = join(repo, "examples/sample-novel");
 const cli = join(repo, "packages/cli/src/main.ts");
 
+/** A running `gh-writer serve`. */
+export interface Server {
+  launchUrl: string;
+  url: string;
+  stop: () => Promise<void>;
+  kill: () => Promise<void>;
+}
+
 export interface App {
   /** A temp folder standing in for the author's home: config, clones and novels live here. */
   home: string;
@@ -22,6 +30,10 @@ export interface App {
   restart: (...args: string[]) => Promise<void>;
   /** Stop the server (SIGTERM, a clean shutdown). */
   stop: () => Promise<void>;
+  /** Kill the server outright (SIGKILL): no shutdown, no last commit, as in a crash. */
+  kill: () => Promise<void>;
+  /** Another gh-writer on this machine (another "computer" when given its own config dir), stopped after the test. */
+  serveAnother: (args: string[], env?: Record<string, string>) => Promise<Server>;
   /** A git repository holding a copy of the sample novel, committed. */
   novelRepo: (name?: string) => string;
   /** A bare repository with the sample novel, for cloning from. */
@@ -97,39 +109,52 @@ export const test = base.extend<{ app: App; csp: void }>({
       },
       restart: async (...args) => {
         await stop(child);
-        child = spawn("node", [cli, "serve", "--no-open", ...args], { cwd: home, env, stdio: ["ignore", "pipe", "pipe"] });
-        const launchUrl = await new Promise<string>((resolve, reject) => {
-          let out = "";
-          child!.stdout!.on("data", (chunk: Buffer) => {
-            out += chunk.toString();
-            log += chunk.toString();
-            const m = /(http:\/\/127\.0\.0\.1:\d+\/\S*\?token=\S+)/.exec(out);
-            if (m) resolve(m[1]!);
-          });
-          child!.stderr!.on("data", (chunk: Buffer) => {
-            out += chunk.toString();
-            log += chunk.toString();
-          });
-          child!.once("exit", (code, signal) => (log += `[gh-writer serve exited: ${code ?? signal}]\n`));
-          child!.once("exit", (code) => reject(new Error(`gh-writer serve exited (${code}):\n${out}`)));
-        });
-        app.launchUrl = launchUrl;
-        app.url = new URL(launchUrl).origin;
+        const started = await serve(args, env, (s) => (log += s));
+        child = started.child;
+        app.launchUrl = started.launchUrl;
+        app.url = new URL(started.launchUrl).origin;
       },
       stop: () => stop(child),
+      kill: () => stop(child, "SIGKILL"),
+      serveAnother: async (args, extra = {}) => {
+        const started = await serve(args, { ...env, ...extra }, (s) => (log += `[another] ${s}`));
+        others.push(started.child);
+        return { launchUrl: started.launchUrl, url: new URL(started.launchUrl).origin, stop: () => stop(started.child), kill: () => stop(started.child, "SIGKILL") };
+      },
     };
+    const others: ChildProcess[] = [];
     await app.restart();
     await use(app);
-    await stop(child);
+    await Promise.all([stop(child), ...others.map((o) => stop(o))]);
     if (testInfo.status !== testInfo.expectedStatus) await testInfo.attach("gh-writer serve output", { body: log, contentType: "text/plain" });
     rmSync(home, { recursive: true, force: true });
   },
 });
 
-async function stop(child: ChildProcess | undefined): Promise<void> {
-  if (!child || child.exitCode !== null) return;
+/** Start `gh-writer serve` and wait for its launch URL. */
+function serve(args: string[], env: NodeJS.ProcessEnv, log: (s: string) => void): Promise<{ child: ChildProcess; launchUrl: string }> {
+  const child = spawn("node", [cli, "serve", "--no-open", ...args], { cwd: env.HOME, env, stdio: ["ignore", "pipe", "pipe"] });
+  return new Promise((resolve, reject) => {
+    let out = "";
+    child.stdout!.on("data", (chunk: Buffer) => {
+      out += chunk.toString();
+      log(chunk.toString());
+      const m = /(http:\/\/127\.0\.0\.1:\d+\/\S*\?token=\S+)/.exec(out);
+      if (m) resolve({ child, launchUrl: m[1]! });
+    });
+    child.stderr!.on("data", (chunk: Buffer) => {
+      out += chunk.toString();
+      log(chunk.toString());
+    });
+    child.once("exit", (code, signal) => log(`[gh-writer serve exited: ${code ?? signal}]\n`));
+    child.once("exit", (code) => reject(new Error(`gh-writer serve exited (${code}):\n${out}`)));
+  });
+}
+
+async function stop(child: ChildProcess | undefined, signal: NodeJS.Signals = "SIGTERM"): Promise<void> {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
   const exited = new Promise((resolve) => child.once("exit", resolve));
-  child.kill("SIGTERM");
+  child.kill(signal);
   await exited;
 }
 
