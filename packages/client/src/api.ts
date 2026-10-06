@@ -305,7 +305,7 @@ export async function* serverEvents(body: ReadableStream<Uint8Array>): AsyncGene
 type Request = <T>(method: string, path: string, body?: unknown, options?: RequestOptions & { passing?: string }) => Promise<{ status: number; data: T }>;
 
 function bibleApi(root: (novelId: string) => string, request: Request) {
-  const call = async <T>(method: string, novelId: string, path: string, body: unknown = {}) => (await request<T>(method, `${root(novelId)}${path}`, body)).data;
+  const call = async <T>(method: string, novelId: string, path: string, body?: unknown) => (await request<T>(method, `${root(novelId)}${path}`, body)).data;
   return {
     createEntity: (novelId: string, type: string, fields: EntityFields & { name: string }, notes?: string) =>
       call<OperationResult & { id: string; file: string }>("POST", novelId, "/entities", { type, ...fields, ...(notes ? { notes } : {}) }),
@@ -341,7 +341,7 @@ function bibleApi(root: (novelId: string) => string, request: Request) {
 }
 
 function manuscriptApi(root: (novelId: string) => string, request: Request) {
-  const call = async <T>(method: string, novelId: string, path: string, body: unknown = {}) => (await request<T>(method, `${root(novelId)}${path}`, body)).data;
+  const call = async <T>(method: string, novelId: string, path: string, body?: unknown) => (await request<T>(method, `${root(novelId)}${path}`, body)).data;
   const item = (id: string) => `/items/${encodeURIComponent(id)}`;
   return {
     /** A new scene in a chapter, after `after` (null: first; omitted: last). */

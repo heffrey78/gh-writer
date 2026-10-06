@@ -25,7 +25,7 @@ Server state goes through TanStack Query, UI state through Zustand. Components a
 
 ## The writing workspace
 
-`/novels/:id` shows the manuscript on the left (parts, chapters with word counts, scenes) and the editor on the right: a chapter as one continuous text (`chapter/:chapterId`, the default is the first chapter) or one scene (`scene/:sceneId`). The top bar shows whether the text is saved, and the sync state. Focus mode (Mod+Shift+F) hides everything but the text.
+`/novels/:id` shows the manuscript tree on the left (below) and the editor on the right: a chapter as one continuous text (`chapter/:chapterId`, the default is the first chapter) or one scene (`scene/:sceneId`). The top bar shows whether the text is saved, and the sync state. Focus mode (Mod+Shift+F) hides everything but the text.
 
 `src/novel/workspace.ts` holds what isn't rendering, so it's tested headless against a real server (`test/workspace.test.ts`):
 
@@ -45,6 +45,25 @@ If the server stops answering, a banner says so. The unsaved text stays in the t
 - **Make a checkpoint** by naming it. Unsaved text is saved first, so it's included. A refusal shows the server's reason, such as no git identity or a merge in progress.
 - **The list** is newest first, with date and word count, and the word change against the latest. Automatic checkpoints, the ones taken before a restore, are hidden unless asked for.
 - **Restore** the manuscript, or the scene being written (the open scene, or in a chapter the one holding the caret). A confirmation says what will change. Afterwards a notice offers **Undo**, which restores the automatic checkpoint; it stays until dismissed. Open editors show the restored text as the files change on disk.
+
+## The manuscript tree
+
+The sidebar's tree (`role="tree"`) shows parts, chapters and scenes, each with its word count; the open chapter or scene is selected.
+
+| Keys | Does |
+|---|---|
+| ↑ ↓, Home, End | Move between items |
+| → ← | Open or close a part or chapter; go into it or up to its parent |
+| letters | Jump to the next item starting with them |
+| Enter | Open the chapter or scene |
+| F2 | Rename |
+| Delete | Delete; the notice offers Undo |
+| Alt+↑ Alt+↓ | Move the item up or down; a scene at either end of its chapter moves into the next or previous one |
+| Shift+F10, the Menu key, right-click | The item's menu: open, rename, new scene or chapter, move up or down, move to a chapter or part, merge with the next scene, delete |
+
+Items can also be dragged: before or after an item of the same kind, or onto a chapter (a scene) or part (a chapter) to go at its end. A line or ring shows where it will land, and the result is announced. The toolbar above adds a scene or chapter next to the current one and opens **Recently deleted**, where any deleted scene, chapter or part can be restored to its place.
+
+**Split the scene at the caret** (palette) asks for the new scene's title. The paragraph holding the caret and everything after it become that scene. Every action saves unsaved text first, and open editors follow moves and renames. Moves, renames, merges, deletes and the rest are also in the palette.
 
 ## The story bible
 

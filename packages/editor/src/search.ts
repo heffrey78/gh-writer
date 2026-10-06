@@ -389,3 +389,18 @@ export const SearchHighlightExtension = Extension.create({
     ];
   },
 });
+
+/**
+ * Where the caret is, as the scene it's in (its ID; "scene" or the sceneId option for a single-scene
+ * editor) and the index of its top-level block in that scene: the paragraph a split would start.
+ */
+export function caretBlock(editor: Editor): { sceneId: string; block: number } | undefined {
+  const { doc, selection } = editor.state;
+  const $head = selection.$head;
+  if (doc.type.name === "chapter") {
+    if ($head.depth < 2) return undefined;
+    return { sceneId: doc.child($head.index(0)).attrs.id as string, block: $head.index(1) };
+  }
+  const sceneId = [...editorScenes(editor).keys()][0];
+  return sceneId === undefined || $head.depth < 1 ? undefined : { sceneId, block: $head.index(0) };
+}

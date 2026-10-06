@@ -106,7 +106,7 @@ test("a whole drafting session with the network down syncs by itself once it's b
   // Writing goes on: one chapter, then a scene in another.
   await typeAtEnd(page, " Written offline, first.");
   await expect.poll(() => read(here, BRIDGE), { timeout: 10_000 }).toContain("Written offline, first.");
-  await page.getByRole("link", { name: "Ben's Ledger" }).click();
+  await page.getByRole("treeitem", { name: /^Ben's Ledger,/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Ben's Ledger" })).toBeVisible();
   await typeAtEnd(page, " Written offline, second.");
   await expect.poll(() => read(here, LEDGER), { timeout: 10_000 }).toContain("Written offline, second.");

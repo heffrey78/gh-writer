@@ -1,15 +1,17 @@
 import type { Chapter, Novel, Scene } from "@gh-writer/core";
 import { countWords } from "@gh-writer/core";
-import { caretScene, findCommands, getMarkdown, liveCounts, serializeProse, sessionCommands, spellCommands, writingModeCommands, type EditorCommand, type Manuscript } from "@gh-writer/editor";
+import { caretBlock, caretScene, findCommands, getMarkdown, liveCounts, serializeProse, sessionCommands, spellCommands, writingModeCommands, type EditorCommand, type Manuscript } from "@gh-writer/editor";
 import { ChapterEditor, FindReplace, SceneEditor, WordCount, type SpellService } from "@gh-writer/editor/react";
 import type { Editor } from "@tiptap/core";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useStore } from "zustand";
 import { joinSceneFile, splitSceneFile } from "@gh-writer/editor";
 import { api } from "../api.ts";
 import { useCommands } from "../commands.ts";
 import { useCurrentScene } from "./current.ts";
+import { useStructure } from "./structure.ts";
+import { TitleDialog } from "./structure-dialogs.tsx";
 import { chapterTitle } from "./navigation.tsx";
 import type { Workspace } from "./workspace.ts";
 
@@ -33,6 +35,17 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
     [view, byId],
   );
   const paths = scenes.map((s) => s.file);
+  // Focus goes to the text when a chapter or scene is opened, not when it reloads (files renamed by a move).
+  const viewId = "scene" in view ? view.scene.id : view.chapter.id;
+  const focusedView = useRef<string | undefined>(undefined);
+  const autofocus = focusedView.current !== viewId;
+  useEffect(() => {
+    if (!editor) return;
+    const mark = () => void (focusedView.current = viewId);
+    if (editor.isFocused) mark();
+    editor.on("focus", mark);
+    return () => void editor.off("focus", mark);
+  }, [editor, viewId]);
   const loaded = paths.every((p) => files[p]);
 
   useEffect(() => {
@@ -69,6 +82,25 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
       setCurrent(undefined);
     };
   }, [editor, view, scenes, setCurrent]);
+
+  // Split the scene at the caret: the paragraph holding it starts the new scene.
+  const structure = useStructure(novelId, novel, workspace);
+  const [splitting, setSplitting] = useState<{ scene: string; block: number }>();
+  useCommands(
+    () => [
+      {
+        id: "writing.split",
+        title: "Split the scene at the caret",
+        group: "Manuscript",
+        run: () => {
+          const at = editor && !editor.isDestroyed ? caretBlock(editor) : undefined;
+          const scene = at && scenes.find((s) => s.file === at.sceneId);
+          if (scene && at.block > 0) setSplitting({ scene: scene.id, block: at.block });
+        },
+      },
+    ],
+    [editor, scenes],
+  );
 
   // The editor's own commands, run on this editor; their shortcuts work in the text.
   useCommands(() => {
@@ -126,6 +158,15 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
         <h1 className="text-xl font-semibold">{heading}</h1>
         <WordCount chapterWords={chapterWords} />
       </div>
+      {splitting && (
+        <TitleDialog
+          title="Split the scene here"
+          label="Title of the new scene"
+          action="Split"
+          submit={(title) => structure.split(splitting.scene, splitting.block, title)}
+          onClose={() => setSplitting(undefined)}
+        />
+      )}
       <FindReplace manuscript={manuscript} editor={editor ?? null} onReplace={replaceClosed} onOpenScene={openScene} />
       {!loaded ? (
         <p role="status" className="text-muted">
@@ -138,7 +179,7 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
           markdown={files[view.scene.file]!.body}
           onChange={(md) => workspace.change(view.scene.file, md)}
           onReady={setEditor}
-          autofocus
+          autofocus={autofocus}
           {...(spell ? { spell } : {})}
         />
       ) : (
@@ -147,7 +188,7 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
           scenes={scenes.map((s) => ({ id: s.file, title: s.title, markdown: files[s.file]!.body }))}
           onChange={(changed) => changed.forEach((c) => workspace.change(c.id, c.markdown))}
           onReady={setEditor}
-          autofocus
+          autofocus={autofocus}
           {...(spell ? { spell } : {})}
         />
       )}

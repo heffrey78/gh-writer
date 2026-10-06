@@ -82,7 +82,7 @@ test("lists every scene that refers to a character, and asks before deleting one
   for (const title of naming) await expect(listed.filter({ hasText: title })).toHaveCount(1);
   await expect(page.getByRole("list", { name: "All relationships" })).toContainText("Rivals with Ben Varn, from “The Betrayal”");
 
-  await page.getByRole("button", { name: "Delete" }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
   const ask = page.getByRole("alertdialog");
   await expect(ask).toContainText("The story still refers to it");
   await expect(ask).toContainText("The Station");
@@ -97,7 +97,7 @@ test("deletes an entry nobody refers to", async ({ page, app }) => {
   await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("The Old Mill");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 1, name: "The Old Mill" })).toBeVisible();
-  await page.getByRole("button", { name: "Delete" }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Story bible" })).toBeVisible();
   expect(existsSync(join(novel.dir, "bible/locations/the-old-mill.md"))).toBe(false);
   expect(novel.lastCommit()).toBe("Bible: remove The Old Mill");

@@ -99,7 +99,7 @@ test("a conflict with another machine is resolved by keyboard, and the merge rea
 test("a save that meets newer text on disk in the same paragraph asks, and keeps what the author chooses", async ({ page, app }) => {
   const m = machines(app);
   await open(page, app, m.here);
-  await page.getByRole("link", { name: "Walking the Span" }).click();
+  await page.getByRole("treeitem", { name: /^Walking the Span,/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Walking the Span" })).toBeVisible();
   await text(page).click();
   await page.keyboard.press("Control+End");
@@ -122,9 +122,9 @@ test("a save that meets newer text on disk in the same paragraph asks, and keeps
 test("moves around the manuscript by keyboard, and focus mode hides everything but the text", async ({ page, app }) => {
   const m = machines(app);
   await open(page, app, m.here);
-  const nav = page.getByRole("navigation", { name: "Manuscript" });
-  await expect(nav.getByRole("link", { name: /^Arrival/ })).toHaveAttribute("aria-current", "page");
-  await nav.getByRole("link", { name: "Ben's Ledger" }).focus();
+  const nav = page.getByRole("tree", { name: "Manuscript" });
+  await expect(nav.getByRole("treeitem", { name: /^Arrival,/ })).toHaveAttribute("aria-selected", "true");
+  await nav.getByRole("treeitem", { name: /^Ben's Ledger,/ }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 1, name: "Ben's Ledger" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Scene text" })).toBeFocused();

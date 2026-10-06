@@ -84,6 +84,8 @@ export function CommandPalette() {
   const [search, setSearch] = useState("");
   const [recent, setRecent] = useState<string[]>([]);
   const returnTo = useRef<HTMLElement | null>(null);
+  /** The text selection when the palette opened: focusing a contenteditable again would put the caret at its start. */
+  const returnRange = useRef<Range | null>(null);
   const pending = useRef<Command | undefined>(undefined);
 
   useEffect(() => {
@@ -97,7 +99,11 @@ export function CommandPalette() {
       const state = useOverlay.getState();
       if (state.open === which) state.set(undefined);
       else {
-        if (!state.open) returnTo.current = document.activeElement as HTMLElement | null;
+        if (!state.open) {
+          returnTo.current = document.activeElement as HTMLElement | null;
+          const sel = window.getSelection();
+          returnRange.current = returnTo.current?.isContentEditable && sel?.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+        }
         state.set(which);
       }
     };
@@ -128,8 +134,16 @@ export function CommandPalette() {
   /** Focus back where it was; if that's gone (the view changed) or was nowhere, the text, else the page's main area. */
   const restoreFocus = () => {
     const before = returnTo.current;
-    const target = before?.isConnected && before !== document.body ? before : (document.querySelector<HTMLElement>(".ghw-prose") ?? document.getElementById("main"));
+    const back = before?.isConnected && before !== document.body;
+    const target = back ? before : (document.querySelector<HTMLElement>(".ghw-prose") ?? document.getElementById("main"));
     target?.focus({ preventScroll: true });
+    // Put the caret back where it was, in the same frame, before the editor reads the selection.
+    const range = returnRange.current;
+    if (back && range && target?.contains(range.startContainer)) {
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    }
   };
 
   /** After closing: focus back where it was, then the command (which may move focus itself). */

@@ -41,6 +41,7 @@ export {
 } from "./wordcount.ts";
 export {
   applyReplacements,
+  caretBlock,
   caretScene,
   compileQuery,
   editorScenes,

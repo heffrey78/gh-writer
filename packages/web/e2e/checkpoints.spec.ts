@@ -41,7 +41,7 @@ test("brings one scene back from a checkpoint, and undoes it", async ({ page, ap
   await makeCheckpoint(page, "Before the big cut");
   await page.keyboard.press("Escape");
 
-  await page.getByRole("link", { name: "The Station" }).click();
+  await page.getByRole("treeitem", { name: /^The Station,/ }).click();
   await typeAtEnd(page, " Cut later.", () => novel.read(STATION));
 
   await page.getByRole("button", { name: "Checkpoints" }).click();

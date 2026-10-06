@@ -6,6 +6,7 @@ import { Editor } from "@tiptap/core";
 import { UndoRedo } from "@tiptap/extensions";
 import { afterEach, describe, expect, test } from "vitest";
 import {
+  caretBlock,
   chapterContent,
   compileQuery,
   expandReplacement,
@@ -135,6 +136,17 @@ describe("with an open editor", () => {
     loadChapter(editor, manuscript[0]!.scenes);
     return editor;
   }
+
+  test("caretBlock gives the caret's scene and its block in that scene", () => {
+    open();
+    const doc = editor!.state.doc;
+    // The start of the second scene's text, then somewhere in the first scene's first block.
+    const secondScene = doc.child(0).nodeSize + 2;
+    editor!.commands.setTextSelection(secondScene);
+    expect(caretBlock(editor!)).toEqual({ sceneId: "sc_b", block: 0 });
+    editor!.commands.setTextSelection(3);
+    expect(caretBlock(editor!)).toEqual({ sceneId: "sc_a", block: 0 });
+  });
 
   test("open scenes are searched live, in the editor's positions", () => {
     open();

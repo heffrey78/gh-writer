@@ -21,13 +21,13 @@ async function run(page: Page, query: string) {
 test("runs a writing command from the palette and returns to the text", async ({ page, app }) => {
   await open(page, app);
   await run(page, "focus mode");
-  await expect(page.getByRole("navigation", { name: "Manuscript" })).toBeHidden();
+  await expect(page.getByRole("tree", { name: "Manuscript" })).toBeHidden();
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
   await page.keyboard.press("ControlOrMeta+k");
   await page.keyboard.type("focus mode");
   await expect(palette(page).getByRole("option", { name: /Focus mode/ })).toContainText("On");
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("navigation", { name: "Manuscript" })).toBeVisible();
+  await expect(page.getByRole("tree", { name: "Manuscript" })).toBeVisible();
 });
 
 test("opens a scene by its title, and lists recent commands first", async ({ page, app }) => {

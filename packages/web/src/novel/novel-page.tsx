@@ -15,7 +15,8 @@ import { plural } from "../bible/types.ts";
 import { CheckpointsButton } from "./checkpoints.tsx";
 import { SaveConflicts, SyncConflicts } from "./conflicts.tsx";
 import { useNovelEvents } from "./events.ts";
-import { chapterTitle, Navigation } from "./navigation.tsx";
+import { ManuscriptSidebar } from "./manuscript-tree.tsx";
+import { chapterTitle } from "./navigation.tsx";
 import { NoticeBar } from "./notice.tsx";
 import { SaveStatus } from "./save-status.tsx";
 import { useSpell } from "./spell.ts";
@@ -139,7 +140,7 @@ export function NovelPage() {
         {!focus && (
           <aside className="border-rule bg-panel p-3 md:overflow-y-auto md:border-r">
             <p className="mb-3 px-2 font-semibold">{book.config?.title ?? "Untitled"}</p>
-            <Navigation novelId={novelId} novel={book} />
+            <ManuscriptSidebar novelId={novelId} novel={book} workspace={workspace} />
             <nav aria-label="Story bible" className="mt-2 border-t border-rule pt-3 text-sm">
               <NavLink to={`/novels/${novelId}/bible`} end className={({ isActive }) => `block rounded-md px-2 py-1 font-semibold hover:bg-paper ${isActive ? "bg-accent-soft" : ""}`}>
                 Story bible
