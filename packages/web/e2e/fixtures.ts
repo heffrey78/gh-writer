@@ -36,8 +36,18 @@ export async function launch(page: Page, app: App, path = "/") {
   await expect(page).not.toHaveURL(/token=/);
 }
 
-export const test = base.extend<{ app: App }>({
-  app: async ({}, use) => {
+export const test = base.extend<{ app: App; csp: void }>({
+  // Every test fails on a Content Security Policy violation: the page must work within its own policy.
+  csp: [
+    async ({ page }, use) => {
+      const violations: string[] = [];
+      page.on("console", (m) => /Content Security Policy/i.test(m.text()) && violations.push(m.text().slice(0, 300)));
+      await use();
+      expect(violations, "Content Security Policy violations").toEqual([]);
+    },
+    { auto: true },
+  ],
+  app: async ({}, use, testInfo) => {
     const home = mkdtempSync(join(tmpdir(), "gh-writer-web-"));
     writeFileSync(join(home, ".gitconfig"), "[user]\n\tname = Test Author\n\temail = author@example.com\n[init]\n\tdefaultBranch = main\n");
     const env: NodeJS.ProcessEnv = {
@@ -51,6 +61,8 @@ export const test = base.extend<{ app: App }>({
     const gitHere = (dir: string, ...args: string[]) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8", env, stdio: ["ignore", "pipe", "pipe"] });
     let n = 0;
     let child: ChildProcess | undefined;
+    /** Everything the servers printed, for a failed test's report. */
+    let log = "";
     const app: App = {
       home,
       launchUrl: "",
@@ -80,10 +92,15 @@ export const test = base.extend<{ app: App }>({
           let out = "";
           child!.stdout!.on("data", (chunk: Buffer) => {
             out += chunk.toString();
+            log += chunk.toString();
             const m = /(http:\/\/127\.0\.0\.1:\d+\/\S*\?token=\S+)/.exec(out);
             if (m) resolve(m[1]!);
           });
-          child!.stderr!.on("data", (chunk: Buffer) => (out += chunk.toString()));
+          child!.stderr!.on("data", (chunk: Buffer) => {
+            out += chunk.toString();
+            log += chunk.toString();
+          });
+          child!.once("exit", (code, signal) => (log += `[gh-writer serve exited: ${code ?? signal}]\n`));
           child!.once("exit", (code) => reject(new Error(`gh-writer serve exited (${code}):\n${out}`)));
         });
         app.launchUrl = launchUrl;
@@ -94,6 +111,7 @@ export const test = base.extend<{ app: App }>({
     await app.restart();
     await use(app);
     await stop(child);
+    if (testInfo.status !== testInfo.expectedStatus) await testInfo.attach("gh-writer serve output", { body: log, contentType: "text/plain" });
     rmSync(home, { recursive: true, force: true });
   },
 });

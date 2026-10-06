@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { AxeBuilder } from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
@@ -50,8 +50,8 @@ test("writes in a chapter: saved to disk, then committed and pushed with Sync no
   await expect(page.getByRole("heading", { level: 1, name: "Arrival" })).toBeVisible();
   await page.keyboard.press("Control+End");
   await page.keyboard.type(" Then the rain came.");
-  await expect(saveStatus(page)).toHaveText("Saved", { timeout: 10_000 });
-  await expect.poll(() => m.read(m.here, BRIDGE)).toMatch(/Then the rain came\.\n$/);
+  await expect.poll(() => m.read(m.here, BRIDGE), { timeout: 10_000 }).toMatch(/Then the rain came\.\n$/);
+  await expect(saveStatus(page)).toHaveText("Saved");
 
   await syncNow(page);
   await expect.poll(() => app.git(m.remote, "show", `main:${BRIDGE}`)).toMatch(/Then the rain came\.\n$/);
@@ -74,7 +74,7 @@ test("a conflict with another machine is resolved by keyboard, and the merge rea
   // Both machines rewrite the chapter's last paragraph.
   await page.keyboard.press("Control+End");
   await page.keyboard.type(" Mine.");
-  await expect(saveStatus(page)).toHaveText("Saved", { timeout: 10_000 });
+  await expect.poll(() => m.read(m.here, BRIDGE), { timeout: 10_000 }).toMatch(/ Mine\.\n$/);
   m.pushFromOther(BRIDGE, "The other machine's ending.");
 
   await syncNow(page);
@@ -136,6 +136,19 @@ test("moves around the manuscript by keyboard, and focus mode hides everything b
   await expect(page.getByRole("banner")).toBeHidden();
   await page.keyboard.press("ControlOrMeta+Shift+F");
   await expect(nav).toBeVisible();
+});
+
+test("checks spelling, knowing the story's names, and adds words to dictionary.txt", async ({ page, app }) => {
+  const m = machines(app);
+  await open(page, app, m.here);
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type(" Mirela saw the brigde.");
+  const wrong = text(page).locator('[aria-invalid="spelling"]');
+  await expect(wrong).toHaveText(["brigde"], { timeout: 15_000 });
+  await wrong.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Add “brigde” to dictionary" }).click();
+  await expect(wrong).toHaveCount(0);
+  await expect.poll(() => (existsSync(join(m.here, "dictionary.txt")) ? m.read(m.here, "dictionary.txt").split("\n") : [])).toContain("brigde");
 });
 
 test("says when gh-writer stops answering", async ({ page, app }) => {

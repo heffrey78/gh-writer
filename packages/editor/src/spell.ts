@@ -250,7 +250,13 @@ export function openSpellingMenu(editor: Editor, pos = editor.state.selection.he
   menu.setAttribute("aria-label", `Spelling of “${word}”`);
   const coords = view.coordsAtPos(range.from);
   menu.style.left = `${Math.max(8, Math.min(coords.left, window.innerWidth - 260))}px`;
-  menu.style.top = `${coords.bottom + 6}px`;
+  // Below the word, or above it when there isn't room (the menu grows when suggestions arrive).
+  const place = () => {
+    const height = menu.offsetHeight;
+    const below = coords.bottom + 6;
+    const above = coords.top - 6 - height;
+    menu.style.top = `${below + height <= window.innerHeight - 8 || above < 8 ? below : above}px`;
+  };
 
   const item = (label: string, action?: () => void) => {
     const button = document.createElement("button");
@@ -308,6 +314,7 @@ export function openSpellingMenu(editor: Editor, pos = editor.state.selection.he
   item("Ignore", accept(false));
 
   document.body.append(menu);
+  place();
   document.addEventListener("pointerdown", outside, true);
   openMenu = { element: menu, close };
   const first = items()[0];
@@ -316,6 +323,7 @@ export function openSpellingMenu(editor: Editor, pos = editor.state.selection.he
   void service.suggest(word).then((suggestions) => {
     if (openMenu?.element !== menu) return;
     pendingItem.replaceWith(...(suggestions.length ? suggestions.map((s) => item(s, replace(s))) : [item("No suggestions")]));
+    place();
     // Suggestions come first: focus the best one, unless the writer has already moved on.
     if (document.activeElement === first) items()[0]?.focus();
   });

@@ -39,5 +39,11 @@ function ghWriterServer(): Plugin {
 export default defineConfig({
   plugins: [react(), tailwindcss(), ghWriterServer()],
   server: { port: 5180, strictPort: true },
-  build: { outDir: "dist", emptyOutDir: true, sourcemap: true },
+  build: {
+    outDir: "dist",
+    emptyOutDir: true,
+    sourcemap: true,
+    // Dictionaries are fetched: a data: URL would be refused by the page's Content Security Policy (connect-src 'self').
+    assetsInlineLimit: (file) => (/\.(aff|dic)$/.test(file) ? false : undefined),
+  },
 });
