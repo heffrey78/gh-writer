@@ -362,3 +362,4 @@ export function WordCount({ chapterWords, className }: WordCountProps) {
 
 export { FindReplace, type FindReplaceProps } from "./find-panel.tsx";
 export type { SpellService } from "./spell.ts";
+export { ConflictResolver, type ConflictFileView, type ConflictResolverProps, type ResolvedFile } from "./conflict-resolver.tsx";

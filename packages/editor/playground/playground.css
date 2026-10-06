@@ -176,3 +176,16 @@ main .find {
   margin: 0.5rem 0;
   box-shadow: 0 6px 18px rgb(0 0 0 / 0.08);
 }
+
+.resolver-demo {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+}
+
+.resolver-demo pre {
+  white-space: pre-wrap;
+  background: var(--pg-panel);
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+}

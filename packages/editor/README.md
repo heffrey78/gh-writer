@@ -128,9 +128,39 @@ The headless pieces are `chapterContent` (the extensions, with `chapter` as the 
 
 **Performance:** the target is under 50 ms from keystroke to render on a 10,000-word chapter. `e2e/latency.spec.ts` types into the middle of a generated 10,600-word chapter in the dev build and fails if the 95th percentile reaches 50 ms. Measured: p50 4.4 ms and p95 18.6 ms, or p50 14.3 ms and p95 22.4 ms with the CPU throttled 4×. Opening a chapter parses every scene (about 140 ms for 10,000 words), and serializing happens only after typing pauses, only for touched scenes.
 
+### Conflict resolver
+
+```tsx
+import { ConflictResolver } from "@gh-writer/editor/react";
+
+// After a sync conflict (server: GET /conflicts):
+<ConflictResolver
+  files={conflicts.files.map((f) => ({ ...f, title: titleOf(f.path) }))}
+  onResolve={(outcome) => api.resolveConflicts(novelId, conflicts.upstream, mapValues(outcome, (r, path) => ({ ...r, ours: hashOf(path) })))}
+  onCancel={close}
+/>;
+
+// After a save refused because the file changed on disk (autosave's onConflict):
+const { chunks } = merge2(conflict.mine, conflict.disk?.content ?? ""); // from @gh-writer/core
+<ConflictResolver files={[{ path: conflict.path, chunks }]} onResolve={(o) => autosave.resolve(conflict.path, (o[conflict.path] as { content: string }).content)} />;
+```
+
+`ConflictResolver` walks through every conflict in `files` one at a time. It shows both versions side by side, "Mine" and "Theirs" (`labels` renames them), with the agreed paragraph before and after for context. Prose is rendered with the editor's schema, so italics and mentions look as they will in the scene. A front matter conflict names its field and shows the YAML.
+
+| Keys | Does |
+|---|---|
+| 1, 2 | Keep mine, keep theirs |
+| 3 | Keep both, mine first, as separate paragraphs (not for a field or a whole file) |
+| E | Edit: a text box starting from the current choice; Mod+Enter uses it, Escape goes back |
+| ←, → | Previous and next conflict |
+| Mod+Enter | Finish, once every conflict has a choice |
+| Escape | Not now (`onCancel`) |
+
+A choice moves on to the next open conflict, and any choice can be changed before finishing. Every button carries its key in `aria-keyshortcuts`, and the status line ("Conflict 2 of 3 · 1 resolved") is a live region. `onResolve` receives each file's outcome by path: `{ content }`, the merged text from core's `resolveMerge` (`null` deletes the file), or `{ keep: "ours" | "theirs" }` for a file one side deleted or that isn't text.
+
 ### Playground
 
-`npm run playground -w @gh-writer/editor` serves a test page with every sample-novel scene and chapter, a formatting sampler and a generated 10,000-word chapter, beside a live view of each file as it would be saved. `npm run test:e2e` runs the Playwright tests against it, including an axe accessibility audit. Run `npx playwright install chromium` in this package once first.
+`npm run playground -w @gh-writer/editor` serves a test page with every sample-novel scene and chapter, a formatting sampler and a generated 10,000-word chapter, beside a live view of each file as it would be saved. `/?resolve` shows the conflict resolver on two versions of The Station. `npm run test:e2e` runs the Playwright tests against it, including an axe accessibility audit. Run `npx playwright install chromium` in this package once first.
 
 ## Headless API
 

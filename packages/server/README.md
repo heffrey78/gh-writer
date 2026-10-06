@@ -29,6 +29,8 @@ await server.close();
 | `GET /api/novels/:id/checkpoints` | yes | `{ checkpoints }`, newest first |
 | `POST /api/novels/:id/checkpoints` | yes | `{ name }` → `201 { checkpoint }` |
 | `POST /api/novels/:id/checkpoints/:checkpoint/restore` | yes | `{ sceneId? }` → `{ undo, commit, files }` |
+| `GET /api/novels/:id/conflicts` | yes | `{ conflicts }`: what a sync conflict leaves to settle, or `null` |
+| `POST /api/novels/:id/conflicts/resolve` | yes | `{ upstream, files }` → the sync status, or `409 STALE { conflicts }` |
 
 Routes added to `server.app` (before its first request) or in `createApp` sit behind the same security middleware.
 
@@ -110,7 +112,10 @@ Each novel with a remote is kept in step with it: once when it's opened, every 5
 
 1. **Commits** saved work (the [committer](#background-commits) above, without waiting for its timer).
 2. **Fetches** from the remote. It's the branch's upstream remote, or `origin`, or the only remote. With none, the state is `local` and nothing else happens.
-3. **Brings remote changes in.** Writes to the novel wait for this step, and saves made during the fetch are committed first. With no local commits to keep, it fast-forwards. Otherwise it rebases them onto the remote's, so a solo author's history stays linear. The merge is tried in memory first (`git merge-tree`). If the same lines changed on both sides, nothing in the work tree is touched: the state is `conflict`, with the files, for the resolver (#47). A rebase that conflicts commit by commit is aborted, with the same result. Local commits are always kept.
+3. **Brings remote changes in.** Writes to the novel wait for this step, and saves made during the fetch are committed first. With no local commits to keep, it fast-forwards. Otherwise the merge is tried in memory first (`git merge-tree`):
+   - **Clean:** local commits are rebased onto the remote's, so a solo author's history stays linear. If the rebase stops on a commit, it's aborted and the two tips are merged instead.
+   - **Conflicts for git:** each file git couldn't merge is merged again by core's `merge3`, paragraph by paragraph and front matter field by field. If that settles every file, the result is committed as a merge (both sides as parents), with a message naming the files.
+   - **Real conflicts**, the same paragraph or field changed on both sides: nothing in the work tree is touched. The state is `conflict`, with the files, until the author [resolves](#conflicts) it. Local commits are always kept.
 4. **Pushes** to the branch's upstream, setting it up on the first push. If the remote moved during the sync, its changes are brought in and the push is tried again, up to three times.
 
 [Checkpoint](#checkpoints) tags are fetched with the branch every time. They're pushed with it on the first sync of a session and after a checkpoint is made, even when there are no commits to push.
@@ -125,10 +130,29 @@ The work tree changes in step 3 reach the editor as `file` events, like any outs
 | `local` | there's no remote |
 | `offline` | the remote couldn't be reached. Writing and committing go on, and the sync is retried after 15 s, doubling up to the interval. |
 | `needs-sign-in` | the remote refused the credentials (`AUTH`, with what to do). Retried at the normal interval. |
-| `conflict` | the remote changed the same lines; `conflict.files` lists them |
+| `conflict` | the same paragraph or field changed on both sides; `conflict.files` lists the files |
 | `error` | anything else, in `error`: `DETACHED` (not on a branch), `BUSY` (a merge or rebase of the author's is in progress), or a [git code](#git-and-credentials) |
 
 `ahead` and `behind` are always counted, whatever the state. `lastSync` is when the last sync finished cleanly. `createServer({ sync: { intervalMs, retryMs } })` changes the timing. `intervalMs: 0` syncs only on demand (`gh-writer serve --sync-every 0`), and `sync: false` turns syncing off: the state is then `off`.
+
+## Conflicts
+
+While the state is `conflict`, `GET /conflicts` merges again, against the remote as last fetched, and returns what's left to settle:
+
+```json
+{ "upstream": "<remote commit>", "files": [{ "path": "manuscript/…/01-the-station.md", "ours": "<hash>", "inOurs": true, "inTheirs": true, "binary": false, "chunks": [] }] }
+```
+
+`chunks` is core's `merge3` result: `same` text, and `conflict` chunks with `base`, `ours` and `theirs` (and `field` for a front matter field). `ours` is the hash of this copy's file, as the files API reports it. A file one side deleted, or one that isn't text, has a single whole-file conflict. The editor's `ConflictResolver` shows them.
+
+`POST /conflicts/resolve` takes `{ upstream, files }`, with a resolution for every file listed, by path:
+
+- `{ ours, content }`: the file's new text (core's `resolveMerge(chunks, choices)`), or `null` to delete it.
+- `{ ours, keep: "ours" | "theirs" }`: one side's file as it is, deleted if that side deleted it. The only choice for a binary file.
+
+The merge is committed with both sides as parents, the branch and work tree move to it, and a sync pushes it. The answer is the sync status. Nothing happens if things changed since the conflicts were read. That covers the remote moving on, or a listed file changing because the author kept writing. The answer is then `409 STALE` with the fresh `conflicts`, to show again. Other answers: `400 BAD_RESOLUTION` (a file missing or extra, text for a binary file) and `409 NO_CONFLICT`.
+
+Leaving a conflict alone is safe: local work stays committed, the remote's is in the remote-tracking branch, and every sync checks again. Writing goes on meanwhile; files outside the conflict sync as soon as it's resolved.
 
 ## Checkpoints
 

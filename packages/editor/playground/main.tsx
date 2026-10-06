@@ -18,6 +18,7 @@ import {
 } from "../src/index.ts";
 import { ChapterEditor, FindReplace, SceneEditor, useWritingModes, WordCount } from "../src/react.tsx";
 import { generatedChapter } from "./generated.ts";
+import { ResolverDemo } from "./resolver.tsx";
 import aff from "../../../node_modules/dictionary-en/index.aff?raw";
 import dic from "../../../node_modules/dictionary-en/index.dic?raw";
 import "../src/styles.css";
@@ -261,7 +262,5 @@ function App() {
 }
 
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
+  <StrictMode>{new URLSearchParams(location.search).has("resolve") ? <ResolverDemo /> : <App />}</StrictMode>,
 );

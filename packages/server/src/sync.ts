@@ -1,5 +1,6 @@
 import { CHECKPOINT_PREFIX } from "./checkpoints.ts";
 import { operationInProgress, type Committer } from "./committer.ts";
+import { commitMerge, ConflictError, openConflicts, prepareMerge, type Conflicts, type FileResolution, type PreparedMerge } from "./conflicts.ts";
 import { classifyGitError, git, GitFailure } from "./git.ts";
 
 export interface SyncerOptions {
@@ -88,8 +89,10 @@ export interface SyncerDeps {
 /**
  * Keeps a novel in step with its remote: every `intervalMs` and on demand it commits saved work, fetches,
  * brings remote changes in (fast-forward, or rebasing local commits onto them for a linear history), and
- * pushes. One sync runs at a time. When the remote changed the same lines, nothing in the work tree is
- * touched: the status is `conflict`, with the files, and local commits are kept.
+ * pushes. One sync runs at a time. Files git can't merge are merged again paragraph by paragraph
+ * (core's merge3) into a merge commit. When the same paragraph or field changed on both sides, nothing
+ * in the work tree is touched: the status is `conflict`, with the files, and local commits are kept
+ * until the author settles it (`conflicts()`, `resolve()`).
  */
 export class Syncer {
   readonly root: string;
@@ -140,6 +143,30 @@ export class Syncer {
   /** A checkpoint was made: the next sync pushes it, even with no commits to push. */
   tagsChanged(): void {
     this.#tagsMade++;
+  }
+
+  /** What the author has to settle, merged afresh against the remote as last fetched; null without a conflict. */
+  async conflicts(): Promise<Conflicts | null> {
+    const target = this.#target;
+    if (this.#outcome?.kind !== "conflict" || !target) return null;
+    return openConflicts(await prepareMerge(this.root, target.tracking));
+  }
+
+  /**
+   * Settle the conflicts shown for remote commit `upstream`: commit the merge with `resolutions` (by
+   * path in the novel), then sync to push it. Refused as STALE when the remote has moved, or a file
+   * changed, since the conflicts were read.
+   */
+  async resolve(upstream: string, resolutions: Record<string, FileResolution>): Promise<SyncStatus> {
+    const target = this.#target;
+    if (this.#outcome?.kind !== "conflict" || !target) throw new ConflictError("NO_CONFLICT", "There's no conflict to resolve.");
+    await this.#exclusive(async () => {
+      await this.#committer?.commit();
+      const prepared = await prepareMerge(this.root, target.tracking);
+      if (prepared.upstream !== upstream) throw new ConflictError("STALE", "The remote has changed again since the conflict was shown.");
+      await commitMerge(this.root, prepared, resolutions, mergeMessage(target.remote, prepared, "resolved"));
+    });
+    return this.sync();
   }
 
   /** Called when the status may have changed. Returns a function that removes it. */
@@ -245,18 +272,23 @@ export class Syncer {
       await g.raw(["merge", "--ff-only", "--quiet", target.tracking]);
       return undefined;
     }
-    // Try the merge in memory first, so that a conflict leaves the work tree (and the editor) untouched.
-    const merged = await g.raw(["merge-tree", "--write-tree", "--name-only", "--no-messages", "HEAD", target.tracking]);
-    const conflicted = merged.split("\n").filter(Boolean).slice(1);
-    if (conflicted.length) return this.#novelPaths(conflicted);
+    // Merge in memory first, so that a conflict leaves the work tree (and the editor) untouched.
+    const prepared = await prepareMerge(this.root, target.tracking);
+    if (prepared.files.length) {
+      const open = openConflicts(prepared).files;
+      if (open.length) return open.map((f) => f.path);
+      // merge3 settled what git couldn't: a merge commit, since a rebase would stop at git's conflict.
+      await commitMerge(this.root, prepared, {}, mergeMessage(target.remote, prepared, "merged paragraph by paragraph"));
+      return undefined;
+    }
     try {
       await g.raw(["rebase", "--quiet", "--no-verify", target.tracking]);
     } catch (e) {
-      // A clean merge of the tips can still conflict commit by commit.
+      // A clean merge of the tips can still conflict commit by commit: merge the tips instead.
       const unmerged = (await g.raw(["diff", "--name-only", "--diff-filter=U"]).catch(() => "")).split("\n").filter(Boolean);
       await g.raw(["rebase", "--abort"]).catch(() => {});
-      if (unmerged.length) return this.#novelPaths(unmerged);
-      throw e;
+      if (!unmerged.length) throw e;
+      await commitMerge(this.root, prepared, {}, mergeMessage(target.remote, prepared, "merged"));
     }
     return undefined;
   }
@@ -287,12 +319,6 @@ export class Syncer {
     return { ahead: ahead ?? 0, behind: behind ?? 0 };
   }
 
-  /** Repository-relative paths as paths in the novel's folder. */
-  async #novelPaths(paths: string[]): Promise<string[]> {
-    const prefix = (await git(this.root).raw(["rev-parse", "--show-prefix"])).trim();
-    return paths.map((p) => (prefix && p.startsWith(prefix) ? p.slice(prefix.length) : p));
-  }
-
   #offline(): boolean {
     return this.#outcome?.kind === "failed" && this.#outcome.state === "offline";
   }
@@ -312,4 +338,10 @@ export class Syncer {
   #changed(): void {
     for (const listener of this.#listeners) listener();
   }
+}
+
+/** "Merge changes from origin", with each file git couldn't merge and how it was settled. */
+function mergeMessage(remote: string, prepared: PreparedMerge, how: string): string {
+  const files = prepared.files.map((f) => `- ${f.path}: ${f.merged !== undefined ? "merged paragraph by paragraph" : how}`);
+  return `Merge changes from ${remote}\n${files.length ? `\n${files.join("\n")}\n` : ""}`;
 }

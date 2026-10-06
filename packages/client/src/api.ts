@@ -61,6 +61,21 @@ export interface RestoreResult {
   files: string[];
 }
 
+/** A paragraph-level merge chunk (core's MergeChunk). */
+export type MergeChunk = { type: "same"; text: string } | { type: "conflict"; base: string; ours: string; theirs: string; field?: string };
+
+/** What a sync conflict leaves to settle (server: GET /conflicts). */
+export interface Conflicts {
+  /** The remote commit being merged: send it back with the resolution. */
+  upstream: string;
+  files: { path: string; ours: string | null; inOurs: boolean; inTheirs: boolean; binary: boolean; chunks: MergeChunk[] }[];
+}
+
+/** A file's resolution: its text (null deletes it) or one side kept, with the `ours` hash from the conflict. */
+export type FileResolution = { ours: string | null } & ({ content: string | null } | { keep: "ours" | "theirs" });
+
+export type ResolveResult = { ok: true; status: SyncStatus } | { ok: false; conflicts: Conflicts | null };
+
 export type WriteResult = { ok: true; hash: string } | { ok: false; current: TextFile | null };
 
 /** A non-2xx answer other than a write conflict. `status` 0 means the server couldn't be reached. */
@@ -100,7 +115,13 @@ export type Api = ReturnType<typeof createApi>;
 const KEEPALIVE_LIMIT = 60_000;
 
 export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch.bind(globalThis) }: ApiOptions = {}) {
-  async function request<T>(method: string, path: string, body?: unknown, { keepalive = false }: RequestOptions = {}): Promise<{ status: number; data: T }> {
+  /** `passing` names the 409 code the caller handles itself (a stale write or resolution); any other failure throws. */
+  async function request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    { keepalive = false, passing }: RequestOptions & { passing?: string } = {},
+  ): Promise<{ status: number; data: T }> {
     const text = body === undefined ? undefined : JSON.stringify(body);
     let res: Response;
     try {
@@ -115,7 +136,7 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
       throw new ApiError(0, "UNREACHABLE", `Couldn't reach gh-writer: ${e instanceof Error ? e.message : String(e)}`);
     }
     const data = (res.status === 204 ? undefined : await res.json().catch(() => undefined)) as T & { code?: string; error?: string };
-    if (!res.ok && res.status !== 409) throw new ApiError(res.status, data?.code ?? "HTTP", data?.error ?? `${method} ${path}: HTTP ${res.status}`);
+    if (!res.ok && !(res.status === 409 && passing !== undefined && data?.code === passing)) throw new ApiError(res.status, data?.code ?? "HTTP", data?.error ?? `${method} ${path}: HTTP ${res.status}`);
     return { status: res.status, data };
   }
 
@@ -131,7 +152,7 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
     readFile: async (novelId: string, path: string) => (await request<TextFile & { path: string }>("GET", file(novelId, path))).data,
     /** Write if the file on disk still has hash `base` (null: doesn't exist); otherwise the current file comes back. */
     writeFile: async (novelId: string, path: string, content: string, base: string | null, options?: RequestOptions): Promise<WriteResult> => {
-      const { status, data } = await request<{ hash: string; current: TextFile | null }>("PUT", file(novelId, path), { content, base }, options);
+      const { status, data } = await request<{ hash: string; current: TextFile | null }>("PUT", file(novelId, path), { content, base }, { ...options, passing: "CONFLICT" });
       return status === 409 ? { ok: false, current: data.current } : { ok: true, hash: data.hash };
     },
     sync: async (id: string) => (await request<SyncStatus>("GET", `/api/novels/${encodeURIComponent(id)}/sync`)).data,
@@ -148,6 +169,21 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
           sceneId === undefined ? {} : { sceneId },
         )
       ).data,
+    /** The conflicts a sync left to settle, or null. */
+    conflicts: async (id: string) => (await request<{ conflicts: Conflicts | null }>("GET", `/api/novels/${encodeURIComponent(id)}/conflicts`)).data.conflicts,
+    /**
+     * Settle the conflicts: the merge is committed and pushed. If they changed since they were read
+     * (the remote moved, or a file changed), nothing happens and the fresh conflicts come back.
+     */
+    resolveConflicts: async (id: string, upstream: string, files: Record<string, FileResolution>): Promise<ResolveResult> => {
+      const { status, data } = await request<SyncStatus & { conflicts?: Conflicts | null }>(
+        "POST",
+        `/api/novels/${encodeURIComponent(id)}/conflicts/resolve`,
+        { upstream, files },
+        { passing: "STALE" },
+      );
+      return status === 409 ? { ok: false, conflicts: data.conflicts ?? null } : { ok: true, status: data };
+    },
     /** Sync with the remote now; resolves with the status once it's done. */
     syncNow: async (id: string) => (await request<SyncStatus>("POST", `/api/novels/${encodeURIComponent(id)}/sync`)).data,
   };

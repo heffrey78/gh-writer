@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { simpleGit, type SimpleGit, type SimpleGitProgressEvent } from "simple-git";
 
 /** Stable codes for what went wrong, so the UI can say what to do. */
@@ -85,8 +86,7 @@ export function repoName(url: string): string {
  * missing credential fails fast as AUTH. Credentials come from the author's git setup.
  */
 export function git(dir?: string, onProgress?: (e: SimpleGitProgressEvent) => void, signal?: AbortSignal): SimpleGit {
-  const env: Record<string, string | undefined> = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
-  if (!env.GIT_SSH_COMMAND && !env.GIT_SSH) env.GIT_SSH_COMMAND = "ssh -o BatchMode=yes";
+  const env = gitEnv();
   return simpleGit({
     ...(dir ? { baseDir: dir } : {}),
     ...(onProgress ? { progress: onProgress } : {}),
@@ -109,4 +109,26 @@ export function git(dir?: string, onProgress?: (e: SimpleGitProgressEvent) => vo
       allowUnsafeDiffExternal: true,
     },
   }).env(env);
+}
+
+function gitEnv(): Record<string, string | undefined> {
+  const env: Record<string, string | undefined> = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
+  if (!env.GIT_SSH_COMMAND && !env.GIT_SSH) env.GIT_SSH_COMMAND = "ssh -o BatchMode=yes";
+  return env;
+}
+
+/**
+ * git plumbing that simple-git doesn't cover: text on stdin, extra environment (a temporary index),
+ * raw bytes out. Same environment rules as `git()`. Rejects with git's stderr on a non-zero exit.
+ */
+export function gitPlumbing(dir: string, args: string[], { input, env }: { input?: string | Buffer; env?: Record<string, string> } = {}): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const child = execFile(
+      "git",
+      args,
+      { cwd: dir, env: { ...gitEnv(), ...env }, encoding: "buffer", maxBuffer: 64 * 1024 * 1024 },
+      (error, stdout, stderr) => (error ? reject(Object.assign(new Error(`${error.message}\n${stderr.toString()}`.trim()), { stdout })) : resolve(stdout)),
+    );
+    child.stdin?.end(input ?? "");
+  });
 }

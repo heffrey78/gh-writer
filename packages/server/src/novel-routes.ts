@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
 import { CheckpointError } from "./checkpoints.ts";
+import { ConflictError, type FileResolution } from "./conflicts.ts";
 import { FileError, MAX_FILE_BYTES } from "./files.ts";
 import type { Library } from "./library.ts";
 import type { NovelWorkspace, Workspaces } from "./workspace.ts";
@@ -21,6 +22,9 @@ type NovelEnv = { Variables: { ws: NovelWorkspace } };
  * GET /api/novels/:id/checkpoints   { checkpoints }, newest first
  * POST /api/novels/:id/checkpoints  { name } → 201 { checkpoint }
  * POST /api/novels/:id/checkpoints/:checkpoint/restore  { sceneId? } → { undo, commit, files }
+ * GET /api/novels/:id/conflicts     { conflicts }: what a sync conflict leaves to settle, or null
+ * POST /api/novels/:id/conflicts/resolve  { upstream, files: { <path>: resolution } } → the sync status,
+ *                                   or 409 STALE { conflicts } when they changed since they were read
  */
 export function novelRoutes(library: Library, workspaces: Workspaces): Hono<NovelEnv> {
   const routes = new Hono<NovelEnv>();
@@ -101,6 +105,33 @@ export function novelRoutes(library: Library, workspaces: Workspaces): Hono<Nove
     }
   });
 
+  routes.get("/:id/conflicts", async (c) => c.json({ conflicts: (await c.var.ws.syncer?.conflicts()) ?? null }));
+
+  routes.post(
+    "/:id/conflicts/resolve",
+    bodyLimit({ maxSize: 16 * MAX_FILE_BYTES, onError: (c) => c.json({ code: "TOO_LARGE", error: "The resolution is too large." }, 413) }),
+    async (c) => {
+      const body = ((await c.req.json().catch(() => undefined)) ?? {}) as { upstream?: unknown; files?: unknown };
+      const files = parseResolutions(body.files);
+      if (typeof body.upstream !== "string" || !files) {
+        return c.json(
+          { code: "BAD_REQUEST", error: "Send { upstream, files }: the conflicts' upstream, and for each file { ours, content } (null deletes it) or { ours, keep: \"ours\" | \"theirs\" }." },
+          400,
+        );
+      }
+      const syncer = c.var.ws.syncer;
+      try {
+        if (!syncer) throw new ConflictError("NO_CONFLICT", "Sync is off.");
+        await syncer.resolve(body.upstream, files);
+        return c.json(await c.var.ws.syncStatus());
+      } catch (e) {
+        if (!(e instanceof ConflictError)) throw e;
+        if (e.code === "BAD_RESOLUTION") return c.json({ code: e.code, error: e.message }, 400);
+        return c.json({ code: e.code, error: e.message, conflicts: (await syncer?.conflicts()) ?? null }, 409);
+      }
+    },
+  );
+
   routes.get("/:id/events", (c) =>
     streamSSE(c, async (stream) => {
       const ws = c.var.ws;
@@ -146,6 +177,20 @@ function filePath(c: Context): string {
 }
 
 const STATUS = { BAD_PATH: 400, NOT_FOUND: 404, NOT_TEXT: 415, TOO_LARGE: 413, NOT_WRITABLE: 400 } as const;
+
+function parseResolutions(value: unknown): Record<string, FileResolution> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const out: Record<string, FileResolution> = {};
+  for (const [path, r] of Object.entries(value as Record<string, unknown>)) {
+    if (!r || typeof r !== "object") return undefined;
+    const { ours, content, keep } = r as { ours?: unknown; content?: unknown; keep?: unknown };
+    if (ours !== null && typeof ours !== "string") return undefined;
+    if (keep === "ours" || keep === "theirs") out[path] = { ours, keep };
+    else if (content === null || (typeof content === "string" && content.isWellFormed())) out[path] = { ours, content };
+    else return undefined;
+  }
+  return out;
+}
 
 const CHECKPOINT_STATUS = { BAD_NAME: 400, NOT_FOUND: 404, SCENE_NOT_FOUND: 404, BLOCKED: 409 } as const;
 
