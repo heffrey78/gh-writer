@@ -1,8 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { AxeBuilder } from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { expect, test, type App } from "./fixtures.ts";
+import { axe, expect, test, type App } from "./fixtures.ts";
 
 const STATION = "manuscript/01-return/01-arrival/01-the-station.md";
 const BRIDGE = "manuscript/01-return/01-arrival/02-the-bridge.md";
@@ -10,7 +9,6 @@ const BRIDGE = "manuscript/01-return/01-arrival/02-the-bridge.md";
 const text = (page: Page) => page.getByRole("textbox", { name: /^(Chapter|Scene) text$/ });
 const badge = (page: Page) => page.getByRole("button", { name: /^Sync: / });
 const saveStatus = (page: Page) => page.getByRole("banner").getByRole("status");
-const axe = async (page: Page) => expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
 /** This machine's clone (served), and another machine's, of one remote. */
 function machines(app: App) {

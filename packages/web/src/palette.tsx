@@ -111,10 +111,17 @@ export function CommandPalette() {
     set(undefined);
   };
 
+  /** Focus back where it was; if that's gone (the view changed) or was nowhere, the text, else the page's main area. */
+  const restoreFocus = () => {
+    const before = returnTo.current;
+    const target = before?.isConnected && before !== document.body ? before : (document.querySelector<HTMLElement>(".ghw-prose") ?? document.getElementById("main"));
+    target?.focus({ preventScroll: true });
+  };
+
   /** After closing: focus back where it was, then the command (which may move focus itself). */
   const onCloseAutoFocus = (e: Event) => {
     e.preventDefault();
-    if (returnTo.current?.isConnected) returnTo.current.focus({ preventScroll: true });
+    restoreFocus();
     const c = pending.current;
     pending.current = undefined;
     if (c) requestAnimationFrame(() => c.run());
@@ -192,7 +199,7 @@ export function CommandPalette() {
           <Dialog.Content
             onCloseAutoFocus={(e) => {
               e.preventDefault();
-              returnTo.current?.focus({ preventScroll: true });
+              restoreFocus();
             }}
             aria-describedby={undefined}
             className="fixed top-1/2 left-1/2 z-[70] max-h-[85vh] w-[min(40rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-rule bg-raised p-5 text-ink shadow-2xl"

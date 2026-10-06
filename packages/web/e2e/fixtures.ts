@@ -3,6 +3,7 @@ import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { AxeBuilder } from "@axe-core/playwright";
 import { test as base, expect, type Page } from "@playwright/test";
 
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
@@ -29,6 +30,15 @@ export interface App {
 }
 
 export const git = (dir: string, ...args: string[]) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+
+/**
+ * No axe violations on the page as it settles: colour transitions (a theme switch, a hover) finish
+ * first, or axe would measure the colours halfway.
+ */
+export async function axe(page: Page) {
+  await page.waitForFunction(() => document.getAnimations().every((a) => !(a instanceof CSSTransition) || a.playState !== "running"));
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+}
 
 /** Open the app with its launch URL, and wait until it has traded the token for a session. */
 export async function launch(page: Page, app: App, path = "/") {

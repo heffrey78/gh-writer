@@ -1,10 +1,8 @@
-import { AxeBuilder } from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { expect, test, type App } from "./fixtures.ts";
+import { axe, expect, test, type App } from "./fixtures.ts";
 
 const palette = (page: Page) => page.getByRole("dialog", { name: "Command palette" });
 const search = (page: Page) => palette(page).getByRole("combobox");
-const axe = async (page: Page) => expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
 async function open(page: Page, app: App) {
   await app.restart(app.novelRepo("varn"));
@@ -36,6 +34,7 @@ test("opens a scene by its title, and lists recent commands first", async ({ pag
   await open(page, app);
   await run(page, "ledger");
   await expect(page.getByRole("heading", { level: 1, name: "Ben's Ledger" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Scene text" })).toBeFocused();
   await page.keyboard.press("ControlOrMeta+k");
   await expect(palette(page).getByRole("group", { name: "Recent" }).getByRole("option")).toHaveText(["Scene: Ben's Ledger"]);
   await axe(page);

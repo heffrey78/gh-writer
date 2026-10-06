@@ -1,8 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { AxeBuilder } from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { expect, test, type App } from "./fixtures.ts";
+import { axe, expect, test, type App } from "./fixtures.ts";
 
 const STATION = "manuscript/01-return/01-arrival/01-the-station.md";
 const BRIDGE = "manuscript/01-return/01-arrival/02-the-bridge.md";
@@ -10,7 +9,6 @@ const BRIDGE = "manuscript/01-return/01-arrival/02-the-bridge.md";
 const panel = (page: Page) => page.getByRole("dialog", { name: "Checkpoints" });
 const notice = (page: Page) => page.getByRole("status").filter({ has: page.getByRole("button", { name: "Dismiss" }) });
 const saved = (page: Page) => expect(page.getByRole("banner").getByRole("status")).toHaveText("Saved", { timeout: 10_000 });
-const axe = async (page: Page) => expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
 async function open(page: Page, app: App) {
   const dir = app.novelRepo("varn");

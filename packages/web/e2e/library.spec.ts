@@ -2,11 +2,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
-import { AxeBuilder } from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { expect, launch, test } from "./fixtures.ts";
+import { axe, expect, launch, test } from "./fixtures.ts";
 
-const axe = async (page: Page) => expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 const novels = (page: Page) => page.getByRole("region", { name: "Novels" }).getByRole("listitem");
 
 test("the launch URL opens the app and trades its token for a session", async ({ page, app }) => {
