@@ -45,7 +45,7 @@ test("adds a character, fills in the details and notes, all saved to its file", 
   await expect.poll(() => novel.read(file)).toContain("summary: Ada's aunt, who never left.");
   expect(novel.read(file)).toMatch(/aliases:\n {2}- Ilse\n {2}- the Aunt\n/);
   expect(novel.read(file)).toMatch(/fields:\n {2}age: "67"\n/);
-  expect(novel.lastCommit()).toBe("Bible: edit Ilse Varn");
+  await expect.poll(() => novel.lastCommit()).toBe("Bible: edit Ilse Varn");
 
   const notes = page.getByRole("textbox", { name: "Notes on Ilse Varn" });
   await notes.click();
