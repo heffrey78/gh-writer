@@ -7,9 +7,11 @@ import { Link, Navigate, Route, Routes, useParams } from "react-router";
 import { api, keys } from "../api.ts";
 import { Shell } from "../layout.tsx";
 import { ErrorAlert } from "../ui/alert.tsx";
+import { CheckpointsButton } from "./checkpoints.tsx";
 import { SaveConflicts, SyncConflicts } from "./conflicts.tsx";
 import { useNovelEvents } from "./events.ts";
 import { Navigation } from "./navigation.tsx";
+import { NoticeBar } from "./notice.tsx";
 import { SaveStatus } from "./save-status.tsx";
 import { useSpell } from "./spell.ts";
 import { SyncBadge } from "./sync-badge.tsx";
@@ -24,6 +26,7 @@ export function NovelPage() {
   const sync = useQuery({ queryKey: keys.sync(novelId), queryFn: () => api.sync(novelId) });
   const [workspace, setWorkspace] = useState<Workspace>();
   const [resolving, setResolving] = useState(false);
+  const [checkpointsOpen, setCheckpointsOpen] = useState(false);
   const focus = useWritingModes((m) => m.focus);
   const spell = useSpell(api, novelId, novel.data?.novel);
 
@@ -61,6 +64,7 @@ export function NovelPage() {
   const actions = workspace && (
     <>
       <SaveStatus autosave={workspace.autosave} />
+      <CheckpointsButton novelId={novelId} workspace={workspace} open={checkpointsOpen} onOpenChange={setCheckpointsOpen} />
       <SyncBadge status={sync.data} onSyncNow={() => syncNow.mutate()} syncing={syncNow.isPending} onResolve={() => setResolving(true)} />
     </>
   );
@@ -113,6 +117,7 @@ export function NovelPage() {
       </div>
       <SyncConflicts novelId={novelId} novel={model} workspace={workspace} open={resolving} onClose={() => setResolving(false)} />
       <SaveConflicts novel={model} workspace={workspace} />
+      <NoticeBar />
     </Shell>
   );
 }

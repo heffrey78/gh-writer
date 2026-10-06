@@ -15,4 +15,5 @@ export const keys = {
   library: ["library"] as const,
   novel: (id: string) => ["novel", id] as const,
   sync: (id: string) => ["sync", id] as const,
+  checkpoints: (id: string) => ["checkpoints", id] as const,
 };

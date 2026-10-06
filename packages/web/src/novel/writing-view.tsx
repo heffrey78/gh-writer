@@ -1,6 +1,6 @@
 import type { Chapter, Novel, Scene } from "@gh-writer/core";
 import { countWords } from "@gh-writer/core";
-import { getMarkdown, liveCounts, serializeProse, type Manuscript } from "@gh-writer/editor";
+import { caretScene, getMarkdown, liveCounts, serializeProse, type Manuscript } from "@gh-writer/editor";
 import { ChapterEditor, FindReplace, SceneEditor, WordCount, type SpellService } from "@gh-writer/editor/react";
 import type { Editor } from "@tiptap/core";
 import { useEffect, useMemo, useState } from "react";
@@ -8,6 +8,7 @@ import { useNavigate } from "react-router";
 import { useStore } from "zustand";
 import { joinSceneFile, splitSceneFile } from "@gh-writer/editor";
 import { api } from "../api.ts";
+import { useCurrentScene } from "./current.ts";
 import { chapterTitle } from "./navigation.tsx";
 import type { Workspace } from "./workspace.ts";
 
@@ -51,6 +52,22 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
     );
     return () => offs.forEach((off) => off());
   }, [editor, workspace, paths.join("\n")]);
+
+  // The scene the author is in, for "restore this scene": the open one, or the caret's in a chapter.
+  const setCurrent = useCurrentScene((s) => s.set);
+  useEffect(() => {
+    const byPath = (path: string | undefined) => scenes.find((s) => s.file === path);
+    const update = () => {
+      const s = "scene" in view ? view.scene : editor && !editor.isDestroyed ? byPath(caretScene(editor)) : scenes[0];
+      setCurrent(s ? { id: s.id, title: s.title, path: s.file } : undefined);
+    };
+    update();
+    editor?.on("selectionUpdate", update);
+    return () => {
+      editor?.off("selectionUpdate", update);
+      setCurrent(undefined);
+    };
+  }, [editor, view, scenes, setCurrent]);
 
   // For the single-scene view, the chapter's count is the other scenes' plus this one's live count.
   const liveScene = useStore(liveCounts, (c) => c.scene);

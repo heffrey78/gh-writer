@@ -39,6 +39,12 @@ If the server stops answering, a banner says so. The unsaved text stays in the t
 
 **Spell check** uses the English Hunspell dictionary, fetched on first use and checked in a worker, the bible's names, and the novel's `dictionary.txt`. "Add to dictionary" writes that file. **Find and replace** searches the open chapter live and every other scene from the model; replacements in closed scenes are written to their files.
 
+**Checkpoints.** The Checkpoints button opens a panel:
+
+- **Make a checkpoint** by naming it. Unsaved text is saved first, so it's included. A refusal shows the server's reason, such as no git identity or a merge in progress.
+- **The list** is newest first, with date and word count, and the word change against the latest. Automatic checkpoints, the ones taken before a restore, are hidden unless asked for.
+- **Restore** the manuscript, or the scene being written (the open scene, or in a chapter the one holding the caret). A confirmation says what will change. Afterwards a notice offers **Undo**, which restores the automatic checkpoint; it stays until dismissed. Open editors show the restored text as the files change on disk.
+
 ## Theming
 
 One palette for the app and the editor. The editor's stylesheet defines the `--ghw-*` custom properties (ink, paper, muted, accent, rule…) for light and dark, and `src/styles.css` adds the app's few (panel, raised, danger, ok, warn) in the same three places: the light defaults, the `prefers-color-scheme: dark` block, and `[data-theme="dark"]`. Tailwind's theme maps onto them (`bg-paper`, `text-muted`, `border-rule`…), so every utility follows the theme and there are no `dark:` variants.
@@ -75,3 +81,5 @@ The workspace tests (`e2e/workspace.spec.ts`) use two clones of a local bare rem
 - keyboard navigation and focus mode
 - the banner when the server stops
 - axe audits while writing and with the sync details open, light and dark
+
+`e2e/checkpoints.spec.ts` covers making a checkpoint, restoring a scene and undoing it, and restoring the whole manuscript with unsaved text kept in the automatic checkpoint. Every app test also fails on a Content Security Policy violation in the console, and attaches the server's output when it fails.
