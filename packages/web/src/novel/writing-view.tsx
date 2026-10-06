@@ -1,6 +1,6 @@
 import type { Chapter, Novel, Scene } from "@gh-writer/core";
 import { countWords } from "@gh-writer/core";
-import { caretScene, getMarkdown, liveCounts, serializeProse, type Manuscript } from "@gh-writer/editor";
+import { caretScene, findCommands, getMarkdown, liveCounts, serializeProse, sessionCommands, spellCommands, writingModeCommands, type EditorCommand, type Manuscript } from "@gh-writer/editor";
 import { ChapterEditor, FindReplace, SceneEditor, WordCount, type SpellService } from "@gh-writer/editor/react";
 import type { Editor } from "@tiptap/core";
 import { useEffect, useMemo, useState } from "react";
@@ -8,6 +8,7 @@ import { useNavigate } from "react-router";
 import { useStore } from "zustand";
 import { joinSceneFile, splitSceneFile } from "@gh-writer/editor";
 import { api } from "../api.ts";
+import { useCommands } from "../commands.ts";
 import { useCurrentScene } from "./current.ts";
 import { chapterTitle } from "./navigation.tsx";
 import type { Workspace } from "./workspace.ts";
@@ -68,6 +69,19 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
       setCurrent(undefined);
     };
   }, [editor, view, scenes, setCurrent]);
+
+  // The editor's own commands, run on this editor; their shortcuts work in the text.
+  useCommands(() => {
+    const group = (c: EditorCommand) => (findCommands.includes(c) ? "Find" : "Writing");
+    return [...writingModeCommands, ...sessionCommands, ...findCommands, ...spellCommands].map((c: EditorCommand) => ({
+      id: c.id,
+      title: c.title,
+      group: group(c),
+      ...(c.keys ? { keys: c.keys } : {}),
+      ...(c.isActive ? { isActive: () => c.isActive!() } : {}),
+      run: () => c.run(editor),
+    }));
+  }, [editor]);
 
   // For the single-scene view, the chapter's count is the other scenes' plus this one's live count.
   const liveScene = useStore(liveCounts, (c) => c.scene);

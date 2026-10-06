@@ -3,14 +3,15 @@ import type { Novel } from "@gh-writer/core";
 import { useWritingModes } from "@gh-writer/editor/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Link, Navigate, Route, Routes, useParams } from "react-router";
+import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router";
 import { api, keys } from "../api.ts";
+import { useCommands, type Command } from "../commands.ts";
 import { Shell } from "../layout.tsx";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { CheckpointsButton } from "./checkpoints.tsx";
 import { SaveConflicts, SyncConflicts } from "./conflicts.tsx";
 import { useNovelEvents } from "./events.ts";
-import { Navigation } from "./navigation.tsx";
+import { chapterTitle, Navigation } from "./navigation.tsx";
 import { NoticeBar } from "./notice.tsx";
 import { SaveStatus } from "./save-status.tsx";
 import { useSpell } from "./spell.ts";
@@ -61,6 +62,27 @@ export function NovelPage() {
     onSuccess: (status: SyncStatus) => queryClient.setQueryData(keys.sync(novelId), status),
   });
 
+  const navigate = useNavigate();
+  const model = novel.data?.novel;
+  const conflict = sync.data?.state === "conflict";
+  useCommands(
+    (): Command[] => [
+      { id: "novel.syncNow", title: "Sync now", group: "Sync", run: () => syncNow.mutate() },
+      ...(conflict ? [{ id: "novel.resolve", title: "Resolve sync conflicts", group: "Sync", run: () => setResolving(true) }] : []),
+      { id: "novel.checkpoints", title: "Checkpoints: make or restore one", group: "Checkpoints", run: () => setCheckpointsOpen(true) },
+      ...(model?.chapters ?? []).flatMap((c): Command[] => [
+        { id: `novel.chapter.${c.id}`, title: `Chapter: ${chapterTitle(model!, c)}`, group: "Go to", run: () => void navigate(`/novels/${novelId}/chapter/${c.id}`) },
+        ...c.sceneIds.flatMap((id): Command[] => {
+          const s = model!.allScenes.find((x) => x.id === id);
+          return s
+            ? [{ id: `novel.scene.${s.id}`, title: `Scene: ${s.title}`, group: "Go to", keywords: [chapterTitle(model!, c)], run: () => void navigate(`/novels/${novelId}/scene/${s.id}`) }]
+            : [];
+        }),
+      ]),
+    ],
+    [model, conflict, novelId, navigate],
+  );
+
   const actions = workspace && (
     <>
       <SaveStatus autosave={workspace.autosave} />
@@ -91,9 +113,9 @@ export function NovelPage() {
     );
   }
 
-  const model = novel.data.novel;
+  const book = novel.data.novel;
   return (
-    <Shell wide actions={actions} chrome={!focus} title={model.config?.title ?? "Untitled"}>
+    <Shell wide actions={actions} chrome={!focus} title={book.config?.title ?? "Untitled"}>
       {!connected && (
         <p role="alert" className="border-b border-warn/40 bg-warn-soft px-4 py-2 text-sm">
           gh-writer isn't answering. Your unsaved text is kept in this tab; start gh-writer again and it will be saved.
@@ -102,21 +124,21 @@ export function NovelPage() {
       <div className={focus ? "h-full" : "grid h-full md:grid-cols-[16rem_minmax(0,1fr)]"}>
         {!focus && (
           <aside className="border-rule bg-panel p-3 md:overflow-y-auto md:border-r">
-            <p className="mb-3 px-2 font-semibold">{model.config?.title ?? "Untitled"}</p>
-            <Navigation novelId={novelId} novel={model} />
+            <p className="mb-3 px-2 font-semibold">{book.config?.title ?? "Untitled"}</p>
+            <Navigation novelId={novelId} novel={book} />
           </aside>
         )}
         <div className="md:overflow-y-auto">
           <Routes>
-            <Route index element={model.chapters[0] ? <Navigate to={`/novels/${novelId}/chapter/${model.chapters[0].id}`} replace /> : <EmptyManuscript />} />
-            <Route path="chapter/:chapterId" element={<ChapterRoute novelId={novelId} novel={model} workspace={workspace} spell={spell} />} />
-            <Route path="scene/:sceneId" element={<SceneRoute novelId={novelId} novel={model} workspace={workspace} spell={spell} />} />
+            <Route index element={book.chapters[0] ? <Navigate to={`/novels/${novelId}/chapter/${book.chapters[0].id}`} replace /> : <EmptyManuscript />} />
+            <Route path="chapter/:chapterId" element={<ChapterRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
+            <Route path="scene/:sceneId" element={<SceneRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
             <Route path="*" element={<Missing what="page" />} />
           </Routes>
         </div>
       </div>
-      <SyncConflicts novelId={novelId} novel={model} workspace={workspace} open={resolving} onClose={() => setResolving(false)} />
-      <SaveConflicts novel={model} workspace={workspace} />
+      <SyncConflicts novelId={novelId} novel={book} workspace={workspace} open={resolving} onClose={() => setResolving(false)} />
+      <SaveConflicts novel={book} workspace={workspace} />
       <NoticeBar />
     </Shell>
   );

@@ -16,6 +16,7 @@ npm run test:e2e -w @gh-writer/web   # build, then Playwright against real serve
 | `src/layout.tsx` | The frame: skip link, top bar, theme choice |
 | `src/library/` | The library page: novels, open a folder, clone from GitHub |
 | `src/novel/` | A novel's workspace: navigation, the writing view, save and sync state, conflicts, spell check |
+| `src/commands.ts`, `src/palette.tsx` | The command registry, the palette (Mod+K) and the shortcut reference (Mod+/) |
 | `src/ui/` | Shared controls (button, field, alert, confirmation dialog), in the shadcn/ui manner |
 | `src/api.ts` | The `@gh-writer/client` API on the page's origin, and the TanStack Query client and keys |
 | `e2e/` | Playwright tests; `fixtures.ts` starts `gh-writer serve` for each test |
@@ -44,6 +45,24 @@ If the server stops answering, a banner says so. The unsaved text stays in the t
 - **Make a checkpoint** by naming it. Unsaved text is saved first, so it's included. A refusal shows the server's reason, such as no git identity or a merge in progress.
 - **The list** is newest first, with date and word count, and the word change against the latest. Automatic checkpoints, the ones taken before a restore, are hidden unless asked for.
 - **Restore** the manuscript, or the scene being written (the open scene, or in a chapter the one holding the caret). A confirmation says what will change. Afterwards a notice offers **Undo**, which restores the automatic checkpoint; it stays until dismissed. Open editors show the restored text as the files change on disk.
+
+## Commands
+
+Every action is a command in the palette (Mod+K, from anywhere). Type to search titles, groups and keywords; the commands used last come first. Choosing one closes the palette, puts focus back where it was (usually the text), then runs it. Mod+/ opens the shortcut reference: the palette's keys, the editor's formatting keys, and every command that has a shortcut.
+
+Views own their commands. `useCommands(() => [...], deps)` offers them for as long as the component is mounted, and a later view's command replaces an earlier one with the same id:
+
+```tsx
+useCommands(() => [{ id: "novel.syncNow", title: "Sync now", group: "Sync", run: () => syncNow.mutate() }], [syncNow]);
+```
+
+A command has an `id`, `title` and `group`, and optionally `keys` (TipTap style, shown but not bound: the owner binds them), `keywords` and `isActive` (for toggles, shown as On or Off). Today these views register commands:
+
+- **The root:** your novels, open each novel, theme, keyboard shortcuts.
+- **The workspace:** Sync now, resolve conflicts (during one), checkpoints, and go to every chapter and scene by title.
+- **The writing view:** the editor's commands (writing modes, session, find, spelling) run on the open editor.
+
+The outline, bible and mention views (#3, #5, #6) add theirs the same way.
 
 ## Theming
 
