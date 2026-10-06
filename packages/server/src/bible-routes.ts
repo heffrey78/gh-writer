@@ -3,7 +3,7 @@ import type { Hono } from "hono";
 import { OperationError } from "./operations.ts";
 import type { NovelWorkspace } from "./workspace.ts";
 
-type Env = { Variables: { ws: NovelWorkspace } };
+export type Env = { Variables: { ws: NovelWorkspace } };
 
 const STATUS = { BAD_REQUEST: 400, NOT_FOUND: 404, STALE: 409, REFERENCED: 409, BLOCKED: 409 } as const;
 
@@ -17,7 +17,7 @@ export async function operation(c: Context, run: () => Promise<object>, status: 
   }
 }
 
-async function body(c: Context): Promise<Record<string, unknown>> {
+export async function body(c: Context): Promise<Record<string, unknown>> {
   const data: unknown = await c.req.json().catch(() => ({}));
   return data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {};
 }

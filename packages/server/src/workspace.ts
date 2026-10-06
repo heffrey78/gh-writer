@@ -5,6 +5,7 @@ import { nodeSource } from "@gh-writer/core/node";
 import { watch, type FSWatcher } from "chokidar";
 import { BibleOperations } from "./bible.ts";
 import { Checkpoints } from "./checkpoints.ts";
+import { ManuscriptOperations } from "./manuscript.ts";
 import { Committer, type CommitStatus, type CommitterOptions } from "./committer.ts";
 import { atomicWrite, hashText, isVisible, readText, writablePath, type TextFile, type WriteHooks } from "./files.ts";
 import type { Library } from "./library.ts";
@@ -42,6 +43,8 @@ export class NovelWorkspace {
   readonly checkpoints: Checkpoints;
   /** Story bible changes, one commit each. */
   readonly bible: BibleOperations;
+  /** Manuscript structure changes, one commit each. */
+  readonly manuscript: ManuscriptOperations;
   /** Resolves when the workspace stops: event streams end then. */
   readonly stopped: Promise<void>;
   #stop!: () => void;
@@ -68,6 +71,7 @@ export class NovelWorkspace {
       onCreate: () => this.syncer?.tagsChanged(),
     });
     this.bible = new BibleOperations(root, (fn) => this.exclusive(fn));
+    this.manuscript = new ManuscriptOperations(root, (fn) => this.exclusive(fn));
     this.stopped = new Promise((resolve) => (this.#stop = resolve));
     this.syncer?.start();
   }

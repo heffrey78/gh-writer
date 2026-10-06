@@ -12,6 +12,7 @@ export {
   type PreparedMerge,
 } from "./conflicts.ts";
 export { BibleOperations, type EntityFields, type EntityTypeFields, type RelationshipFields, type RelationshipTypeFields } from "./bible.ts";
+export { ManuscriptOperations, type DeletedItem } from "./manuscript.ts";
 export { OperationError, transaction, type FileWrite, type OperationErrorCode, type OperationResult } from "./operations.ts";
 export { commitMessage, type FileChange } from "./commit-message.ts";
 export { Committer, hasGitIdentity, operationInProgress, type BlockedCode, type CommitResult, type CommitStatus, type CommitterOptions, type LastCommit } from "./committer.ts";

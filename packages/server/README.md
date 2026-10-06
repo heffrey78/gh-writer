@@ -195,6 +195,22 @@ Operations run in the workspace's exclusive section, so saves wait for them. The
 
 All are under `/api/novels/:id`. Other refusals are `400 BAD_REQUEST` (with what's wrong) and `404 NOT_FOUND`.
 
+### Manuscript
+
+| Endpoint | Does | Commit |
+|---|---|---|
+| `POST /manuscript/scenes` `{ chapter, title, after? }` | A new scene (status `idea`) after `after` (`null`: first; omitted: last) | `Manuscript: add scene “…”` |
+| `POST /manuscript/chapters` `{ part, title?, after? }`, `POST /manuscript/parts` `{ title, after? }` | A new, empty chapter (in a part, or at the top of a book in chapters) or part | `Manuscript: add chapter “…”` |
+| `POST /manuscript/items/:id/rename` `{ title }` | A new title; the file or folder name follows (its number stays) | `Manuscript: rename scene to “…”` |
+| `POST /manuscript/items/:id/move` `{ to?, index }` | To position `index` in a chapter (a scene), a part (a chapter), or among parts; `to` omitted: a reorder in place | `Manuscript: move scene “…”` |
+| `POST /manuscript/scenes/:id/split` `{ paragraph, title }` | Before paragraph `paragraph` (0-based): the rest becomes a new scene right after, keeping status, point of view, people, places, plotlines, themes and tags | `Manuscript: split “…”, the rest as “…”` |
+| `POST /manuscript/scenes/:id/merge` | With the next scene in its chapter: its prose follows, its people and places join, and relationships that started or ended at it move to the merged scene | `Manuscript: merge “…” into “…”` |
+| `POST /manuscript/items/:id/delete` | Deletes a scene, or a chapter or part with everything in it | `Manuscript: delete scene “…”` |
+| `GET /manuscript/deleted` | `{ deleted }`: scenes, chapters and parts deleted from the manuscript (by any commit), newest first, that aren't back already | |
+| `POST /manuscript/deleted/restore` `{ commit, id }` | Brings one back, from just before `commit` deleted it, after the sibling it followed (if that's still there) | `Manuscript: restore scene “…”` |
+
+IDs never change, so references never break. Order files are edited in place. After each operation, the numbered names of the files and folders involved follow the order. Only the number changes, except for a renamed item, which takes its new slug. So moving a scene to another chapter edits two order files, and every other change is a pure rename (git's similarity 100%). Reading order (core's `novel.scenes`) is the order files' order; that's the order a compiled manuscript (#19) will use.
+
 ## Security model
 
 The server can read and write the author's files, and a git push from it reaches GitHub. Its job is to answer only the author's own gh-writer tab. The threats are other web pages open in the same browser and other machines on the network. Local processes are out of scope: they can read the files directly.

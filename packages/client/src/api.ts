@@ -122,6 +122,16 @@ export type Reference =
   | { kind: "relationship"; id: string; type: string; other: string }
   | { kind: "event"; id: string; title: string };
 
+/** A scene, chapter or part that was deleted and can be brought back. */
+export interface DeletedItem {
+  commit: string;
+  date: string;
+  kind: "scene" | "chapter" | "part";
+  id: string;
+  title: string;
+  path: string;
+}
+
 export type DeleteResult = ({ ok: true } & OperationResult) | { ok: false; references: Reference[] };
 
 export type WriteResult = { ok: true; hash: string } | { ok: false; current: TextFile | null };
@@ -266,6 +276,8 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
     },
     /** The story bible's changes: each is one commit; refusals throw ApiError with the server's code (STALE, BAD_REQUEST, BLOCKED…). */
     bible: bibleApi((id) => `/api/novels/${encodeURIComponent(id)}/bible`, request),
+    /** Reshaping the manuscript: each is one commit; IDs never change. */
+    manuscript: manuscriptApi((id) => `/api/novels/${encodeURIComponent(id)}/manuscript`, request),
     /** Sync with the remote now; resolves with the status once it's done. */
     syncNow: async (id: string) => (await request<SyncStatus>("POST", `/api/novels/${encodeURIComponent(id)}/sync`)).data,
   };
@@ -325,5 +337,28 @@ function bibleApi(root: (novelId: string) => string, request: Request) {
       call<OperationResult>("POST", novelId, "/relationship-types", fields),
     updateRelationshipType: (novelId: string, key: string, changes: { label?: string; inverse_label?: string; symmetric?: boolean; from_types?: string[]; to_types?: string[] }) =>
       call<OperationResult>("PATCH", novelId, `/relationship-types/${encodeURIComponent(key)}`, changes),
+  };
+}
+
+function manuscriptApi(root: (novelId: string) => string, request: Request) {
+  const call = async <T>(method: string, novelId: string, path: string, body: unknown = {}) => (await request<T>(method, `${root(novelId)}${path}`, body)).data;
+  const item = (id: string) => `/items/${encodeURIComponent(id)}`;
+  return {
+    /** A new scene in a chapter, after `after` (null: first; omitted: last). */
+    createScene: (novelId: string, chapter: string, title: string, after?: string | null) =>
+      call<OperationResult & { id: string }>("POST", novelId, "/scenes", { chapter, title, ...(after !== undefined ? { after } : {}) }),
+    createChapter: (novelId: string, part: string | null, title?: string, after?: string | null) =>
+      call<OperationResult & { id: string }>("POST", novelId, "/chapters", { part, ...(title ? { title } : {}), ...(after !== undefined ? { after } : {}) }),
+    createPart: (novelId: string, title: string, after?: string | null) => call<OperationResult & { id: string }>("POST", novelId, "/parts", { title, ...(after !== undefined ? { after } : {}) }),
+    rename: (novelId: string, id: string, title: string) => call<OperationResult>("POST", novelId, `${item(id)}/rename`, { title }),
+    /** To position `index` in container `to` (a chapter for a scene, a part for a chapter; omitted: where it is). */
+    move: (novelId: string, id: string, index: number, to?: string | null) => call<OperationResult>("POST", novelId, `${item(id)}/move`, { index, ...(to !== undefined ? { to } : {}) }),
+    delete: (novelId: string, id: string) => call<OperationResult>("POST", novelId, `${item(id)}/delete`),
+    /** Before paragraph `paragraph` (0-based); the rest becomes a new scene titled `title`. */
+    split: (novelId: string, scene: string, paragraph: number, title: string) => call<OperationResult & { id: string }>("POST", novelId, `/scenes/${encodeURIComponent(scene)}/split`, { paragraph, title }),
+    /** With the next scene in its chapter. */
+    merge: (novelId: string, scene: string) => call<OperationResult>("POST", novelId, `/scenes/${encodeURIComponent(scene)}/merge`),
+    recentlyDeleted: async (novelId: string) => (await call<{ deleted: DeletedItem[] }>("GET", novelId, "/deleted", undefined)).deleted,
+    restore: (novelId: string, commit: string, id: string) => call<OperationResult>("POST", novelId, "/deleted/restore", { commit, id }),
   };
 }
