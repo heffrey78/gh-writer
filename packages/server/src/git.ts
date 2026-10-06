@@ -129,6 +129,9 @@ export function gitPlumbing(dir: string, args: string[], { input, env }: { input
       { cwd: dir, env: { ...gitEnv(), ...env }, encoding: "buffer", maxBuffer: 64 * 1024 * 1024 },
       (error, stdout, stderr) => (error ? reject(Object.assign(new Error(`${error.message}\n${stderr.toString()}`.trim()), { stdout })) : resolve(stdout)),
     );
-    child.stdin?.end(input ?? "");
+    // git may exit without reading its input (or never read it at all): a broken pipe is git's answer,
+    // reported through the callback, and must not become an unhandled error that stops the server.
+    child.stdin?.on("error", () => {});
+    child.stdin?.end(input);
   });
 }

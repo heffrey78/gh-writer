@@ -238,3 +238,15 @@ describe("through the server", () => {
     }
   });
 });
+
+describe("gitPlumbing", () => {
+  it("survives git exiting without reading its input", async () => {
+    const { gitPlumbing } = await import("../src/git.ts");
+    const dir = novelRepo(fresh("plumbing"));
+    // Many commands that don't read stdin, given a large input: the pipe breaks while it's written.
+    const input = "x".repeat(4 * 1024 * 1024);
+    const results = await Promise.allSettled(Array.from({ length: 20 }, () => gitPlumbing(dir, ["rev-parse", "HEAD"], { input })));
+    expect(results.every((r) => r.status === "fulfilled" || r.reason instanceof Error)).toBe(true);
+    expect((await gitPlumbing(dir, ["rev-parse", "HEAD"])).toString().trim()).toMatch(/^[0-9a-f]{40}$/);
+  });
+});
