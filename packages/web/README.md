@@ -74,6 +74,26 @@ The theme follows the OS. Choosing Light or Dark in the top bar sets `data-theme
 
 `npm run dev` starts Vite with a plugin that runs a gh-writer server in the same process, using the author's library (or `GH_WRITER_CONFIG_DIR`'s). The plugin proxies `/api` to it, with the session cookie attached. Host and Origin are rewritten to the server's own, so its security checks run as in production. Open http://localhost:5180; there's no token to copy. That convenience is the catch: any request to the dev server's `/api` gets the session, so keep `npm run dev` for development. Vite listens on localhost only, and its own host check stays on.
 
+## Keyboard and accessibility
+
+Everything in the app can be done from the keyboard. `e2e/a11y.spec.ts` walks the whole path mouse-free, once at a 13-inch laptop's 1280×800 and once at a 2560×1440 monitor:
+
+1. The skip link, then the library's controls.
+2. Clone a novel.
+3. Write in it.
+4. Sync into a conflict with another machine.
+5. Resolve it.
+6. Make a checkpoint, restore it, and undo.
+7. Switch the theme, open the shortcut reference, and return to the library.
+
+At each stop it checks:
+
+- **No axe violations**, in light and dark. The audits wait for colour transitions to settle, and axe covers WCAG 2.2 AA text contrast.
+- **Visible focus.** Every element Tab reaches shows it, through the accent outline from `:focus-visible`. The writing surface is the one exception: its caret shows focus.
+- **No sideways scrolling.**
+
+Actions that live in a passing notice (Undo after a restore) are also palette commands, so they're never a long Tab away.
+
 ## Performance
 
 The target (#7) is a 150,000-word novel editable within 2 seconds of opening, and typing within the editor's budget, 50 ms from keystroke to paint at the 95th percentile. `e2e/big-novel.ts` writes a full-length test novel: 3 parts, 60 chapters, 240 scenes and 153,080 words of prose cycled from the sample novel, plus a 49-entry bible. It validates cleanly. `e2e/performance.spec.ts` runs as its own Playwright project, after the other tests, so nothing competes for the CPU:

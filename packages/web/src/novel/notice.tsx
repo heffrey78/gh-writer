@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { create } from "zustand";
+import { useCommands } from "../commands.ts";
 import { Button } from "../ui/button.tsx";
 
 export interface Notice {
@@ -15,6 +16,25 @@ export const useNotice = create<{ notice: Notice | undefined; show: (n: Notice |
 
 export function NoticeBar() {
   const { notice, show } = useNotice();
+  // The notice's action (Undo) is also a command, so it's a keystroke away wherever focus is.
+  useCommands(
+    () =>
+      notice?.action
+        ? [
+            {
+              id: "notice.action",
+              title: `${notice.action.label}: ${notice.message}`,
+              group: "Checkpoints",
+              run: () => {
+                const run = notice.action!.run;
+                show(undefined);
+                run();
+              },
+            },
+          ]
+        : [],
+    [notice],
+  );
   return (
     <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-4 z-30 flex justify-center px-4">
       {notice && (
