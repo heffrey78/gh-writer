@@ -74,6 +74,18 @@ The theme follows the OS. Choosing Light or Dark in the top bar sets `data-theme
 
 `npm run dev` starts Vite with a plugin that runs a gh-writer server in the same process, using the author's library (or `GH_WRITER_CONFIG_DIR`'s). The plugin proxies `/api` to it, with the session cookie attached. Host and Origin are rewritten to the server's own, so its security checks run as in production. Open http://localhost:5180; there's no token to copy. That convenience is the catch: any request to the dev server's `/api` gets the session, so keep `npm run dev` for development. Vite listens on localhost only, and its own host check stays on.
 
+## Performance
+
+The target (#7) is a 150,000-word novel editable within 2 seconds of opening, and typing within the editor's budget, 50 ms from keystroke to paint at the 95th percentile. `e2e/big-novel.ts` writes a full-length test novel: 3 parts, 60 chapters, 240 scenes and 153,080 words of prose cycled from the sample novel, plus a 49-entry bible. It validates cleanly. `e2e/performance.spec.ts` runs as its own Playwright project, after the other tests, so nothing competes for the CPU:
+
+| Measured (dev machine, Chromium) | Result |
+|---|---|
+| Open the novel, app files cached: launch URL to the first chapter focused and editable | about 745 ms (the novel's model: about 335 ms, 1.9 MB) |
+| First launch, nothing cached | about 865 ms |
+| Typing in a chapter of that novel | p50 4 ms, p95 16–19 ms |
+
+The tests fail at 2 s and 50 ms. The time is spent mostly on the server reading the novel. Loading the workspace's code on demand was tried: it made the library lighter but opening a novel about 300 ms slower, because the code and the novel then load one after the other, so the app stays one bundle.
+
 ## Security
 
 The server answers the page only with its session cookie (see the server's security model). It serves the page with a Content Security Policy allowing only its own scripts, styles, workers and connections (`CONTENT_SECURITY_POLICY` in the server). Hashed files under `/assets/` are cached for good, and `index.html` is never cached.

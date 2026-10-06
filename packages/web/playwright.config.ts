@@ -7,5 +7,9 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? [["github"], ["list"]] : "list",
   use: { trace: "retain-on-failure" },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: /performance/ },
+    // The benchmarks run alone, after the rest, so other tests don't compete for the CPU.
+    { name: "performance", use: { ...devices["Desktop Chrome"] }, testMatch: /performance/, dependencies: ["chromium"], fullyParallel: false },
+  ],
 });
