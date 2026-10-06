@@ -10,6 +10,7 @@ import { joinSceneFile, splitSceneFile } from "@gh-writer/editor";
 import { api } from "../api.ts";
 import { useCommands } from "../commands.ts";
 import { useCurrentScene } from "./current.ts";
+import { SceneDetails, useSceneDetails } from "./scene-details.tsx";
 import { useStructure } from "./structure.ts";
 import { TitleDialog } from "./structure-dialogs.tsx";
 import { chapterTitle } from "./navigation.tsx";
@@ -83,6 +84,14 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
     };
   }, [editor, view, scenes, setCurrent]);
 
+  // The details panel follows the scene the author is in.
+  const current = useCurrentScene((s) => s.scene);
+  const details = useSceneDetails();
+  useCommands(
+    () => [{ id: "writing.details", title: details.open ? "Hide scene details" : "Show scene details", group: "Writing", keywords: ["scene details", "panel"], run: details.toggle }],
+    [details.open, details.toggle],
+  );
+
   // Split the scene at the caret: the paragraph holding it starts the new scene.
   const structure = useStructure(novelId, novel, workspace);
   const [splitting, setSplitting] = useState<{ scene: string; block: number }>();
@@ -152,46 +161,51 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
 
   const heading = "scene" in view ? view.scene.title : chapterTitle(novel, view.chapter);
 
+  const detailsScene = current && scenes.find((s) => s.id === current.id);
+
   return (
-    <div className="mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] gap-3 px-6 py-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="text-xl font-semibold">{heading}</h1>
-        <WordCount chapterWords={chapterWords} />
+    <div className={details.open ? "grid min-h-full lg:grid-cols-[minmax(0,1fr)_20rem]" : "min-h-full"}>
+      <div className="mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] content-start gap-3 px-6 py-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h1 className="text-xl font-semibold">{heading}</h1>
+          <WordCount chapterWords={chapterWords} />
+        </div>
+        {splitting && (
+          <TitleDialog
+            title="Split the scene here"
+            label="Title of the new scene"
+            action="Split"
+            submit={(title) => structure.split(splitting.scene, splitting.block, title)}
+            onClose={() => setSplitting(undefined)}
+          />
+        )}
+        <FindReplace manuscript={manuscript} editor={editor ?? null} onReplace={replaceClosed} onOpenScene={openScene} />
+        {!loaded ? (
+          <p role="status" className="text-muted">
+            Opening…
+          </p>
+        ) : "scene" in view ? (
+          <SceneEditor
+            key={view.scene.file}
+            sceneId={view.scene.file}
+            markdown={files[view.scene.file]!.body}
+            onChange={(md) => workspace.change(view.scene.file, md)}
+            onReady={setEditor}
+            autofocus={autofocus}
+            {...(spell ? { spell } : {})}
+          />
+        ) : (
+          <ChapterEditor
+            key={view.chapter.id}
+            scenes={scenes.map((s) => ({ id: s.file, title: s.title, markdown: files[s.file]!.body }))}
+            onChange={(changed) => changed.forEach((c) => workspace.change(c.id, c.markdown))}
+            onReady={setEditor}
+            autofocus={autofocus}
+            {...(spell ? { spell } : {})}
+          />
+        )}
       </div>
-      {splitting && (
-        <TitleDialog
-          title="Split the scene here"
-          label="Title of the new scene"
-          action="Split"
-          submit={(title) => structure.split(splitting.scene, splitting.block, title)}
-          onClose={() => setSplitting(undefined)}
-        />
-      )}
-      <FindReplace manuscript={manuscript} editor={editor ?? null} onReplace={replaceClosed} onOpenScene={openScene} />
-      {!loaded ? (
-        <p role="status" className="text-muted">
-          Opening…
-        </p>
-      ) : "scene" in view ? (
-        <SceneEditor
-          key={view.scene.file}
-          sceneId={view.scene.file}
-          markdown={files[view.scene.file]!.body}
-          onChange={(md) => workspace.change(view.scene.file, md)}
-          onReady={setEditor}
-          autofocus={autofocus}
-          {...(spell ? { spell } : {})}
-        />
-      ) : (
-        <ChapterEditor
-          key={view.chapter.id}
-          scenes={scenes.map((s) => ({ id: s.file, title: s.title, markdown: files[s.file]!.body }))}
-          onChange={(changed) => changed.forEach((c) => workspace.change(c.id, c.markdown))}
-          onReady={setEditor}
-          autofocus={autofocus}
-          {...(spell ? { spell } : {})}
-        />
-      )}
+      {details.open && loaded && detailsScene && <SceneDetails key={detailsScene.file} novel={novel} workspace={workspace} path={detailsScene.file} title={detailsScene.title} />}
     </div>
   );
 }

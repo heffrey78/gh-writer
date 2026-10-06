@@ -65,6 +65,12 @@ Items can also be dragged: before or after an item of the same kind, or onto a c
 
 **Split the scene at the caret** (palette) asks for the new scene's title. The paragraph holding the caret and everything after it become that scene. Every action saves unsaved text first, and open editors follow moves and renames. Moves, renames, merges, deletes and the rest are also in the palette.
 
+## Planning: outline, corkboard and scene details
+
+- **Outline** (`/novels/:id/outline`): every scene in reading order under its part and chapter, with synopsis, status, point of view, characters, plotlines and words. Synopsis (saved on Enter or leaving the field) and status are edited in place; a row's handle moves it with Alt+↑/↓ or by dragging.
+- **Corkboard** (`/novels/:id/corkboard`): scenes as cards by chapter, filtered by point of view, character, plotline and status. Filters combine and live in the address, so a filtered board can be bookmarked. A card dropped beside another lands right beside it in the whole book (scenes the filter hides keep their places); Alt+←/→ on a card's handle steps it past its visible neighbour.
+- **Scene details** (palette: *Show scene details*): a panel beside the editor for the scene being written (in a chapter, the one holding the caret): synopsis, status, point of view, characters, locations, plotlines (weight, beat), themes (strength), story time (a day and time, or a date), duration and tags. People, places, plotlines and themes are picked by name or alias. Each change rewrites only the front-matter lines it touches and goes through the open file's autosave, so it merges with changes on disk like typing does. Whether the panel is open is remembered in this browser.
+
 ## The story bible
 
 `/novels/:id/bible` lists every entry by type: the built-in characters, locations, plotlines and themes, and any custom type. Each type has its count and a "New" button, and the page searches by name and alias. **New type** adds a custom type (name, ID prefix), and its list and entries work at once.
