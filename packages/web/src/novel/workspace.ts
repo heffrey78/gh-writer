@@ -1,5 +1,5 @@
 import { createAutosave, type Api, type Autosave, type Conflict, type StorageLike } from "@gh-writer/client";
-import { merge2, merge3, type MergeChunk } from "@gh-writer/core";
+import { editFrontMatter, merge2, merge3, type MergeChunk, type YamlEdit } from "@gh-writer/core";
 import { joinSceneFile, splitSceneFile } from "@gh-writer/editor";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
@@ -58,6 +58,12 @@ export interface Workspace {
    * disk never replaces it. Returns a function that removes it.
    */
   live(path: string, body: () => string | undefined): () => void;
+  /**
+   * Change fields of a scene's front matter, leaving the rest byte for byte: through the editor's
+   * autosave if the file is open, otherwise read, edited and written with its hash (once more if it
+   * changed meanwhile).
+   */
+  editFrontMatter(path: string, edits: YamlEdit[]): Promise<void>;
   /** A file changed on disk. Returns whether it was an open file (otherwise the model may need reloading). */
   fileChanged(e: FileEvent): Promise<boolean>;
   /** Settle the oldest save conflict: the merged text, or null to accept the deletion on disk. */
@@ -163,6 +169,22 @@ export function createWorkspace({ api, novelId, interval, storage }: WorkspaceOp
       const next = { ...f, body };
       setFile(path, next);
       autosave.change(path, joinSceneFile(next));
+    },
+
+    async editFrontMatter(path, edits) {
+      const f = file(path);
+      if (f) {
+        const next = splitSceneFile(editFrontMatter(joinSceneFile(f), edits));
+        setFile(path, { ...f, frontMatter: next.frontMatter });
+        autosave.change(path, joinSceneFile({ ...f, frontMatter: next.frontMatter }));
+        return;
+      }
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { content, hash } = await api.readFile(novelId, path);
+        const result = await api.writeFile(novelId, path, editFrontMatter(content, edits), hash);
+        if (result.ok) return;
+      }
+      throw new Error(`“${path}” keeps changing on disk; try again.`);
     },
 
     live(path, body) {

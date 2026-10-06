@@ -18,6 +18,7 @@ import { useNovelEvents } from "./events.ts";
 import { ManuscriptSidebar } from "./manuscript-tree.tsx";
 import { chapterTitle } from "./navigation.tsx";
 import { NoticeBar } from "./notice.tsx";
+import { OutlinePage } from "./outline.tsx";
 import { SaveStatus } from "./save-status.tsx";
 import { useSpell } from "./spell.ts";
 import { SyncBadge } from "./sync-badge.tsx";
@@ -77,6 +78,7 @@ export function NovelPage() {
       ...(conflict ? [{ id: "novel.resolve", title: "Resolve sync conflicts", group: "Sync", run: () => setResolving(true) }] : []),
       { id: "novel.checkpoints", title: "Checkpoints: make or restore one", group: "Checkpoints", run: () => setCheckpointsOpen(true) },
       { id: "novel.bible", title: "Story bible", group: "Go to", run: () => void navigate(`/novels/${novelId}/bible`) },
+      { id: "novel.outline", title: "Outline", group: "Go to", run: () => void navigate(`/novels/${novelId}/outline`) },
       ...(model?.entityTypes ?? []).map((t) => ({ id: `novel.newEntry.${t.key}`, title: `New ${t.label.toLowerCase()}`, group: "Story bible", run: () => setNewEntry(t.key) })),
       ...(model?.entities ?? []).map((e) => ({
         id: `novel.entry.${e.id}`,
@@ -140,6 +142,15 @@ export function NovelPage() {
         {!focus && (
           <aside className="border-rule bg-panel p-3 md:overflow-y-auto md:border-r">
             <p className="mb-3 px-2 font-semibold">{book.config?.title ?? "Untitled"}</p>
+            <nav aria-label="Views" className="mb-3 flex gap-1 text-sm">
+              {[
+                ["outline", "Outline"],
+              ].map(([path, label]) => (
+                <NavLink key={path} to={`/novels/${novelId}/${path}`} className={({ isActive }) => `rounded-md px-2 py-1 hover:bg-paper ${isActive ? "bg-accent-soft font-medium" : ""}`}>
+                  {label}
+                </NavLink>
+              ))}
+            </nav>
             <ManuscriptSidebar novelId={novelId} novel={book} workspace={workspace} />
             <nav aria-label="Story bible" className="mt-2 border-t border-rule pt-3 text-sm">
               <NavLink to={`/novels/${novelId}/bible`} end className={({ isActive }) => `block rounded-md px-2 py-1 font-semibold hover:bg-paper ${isActive ? "bg-accent-soft" : ""}`}>
@@ -161,6 +172,7 @@ export function NovelPage() {
             <Route index element={book.chapters[0] ? <Navigate to={`/novels/${novelId}/chapter/${book.chapters[0].id}`} replace /> : <EmptyManuscript />} />
             <Route path="chapter/:chapterId" element={<ChapterRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
             <Route path="scene/:sceneId" element={<SceneRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
+            <Route path="outline" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
             <Route path="bible" element={<BiblePage novelId={novelId} novel={book} />} />
             <Route path="bible/:entityId" element={<EntryRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
             <Route path="*" element={<Missing what="page" />} />
