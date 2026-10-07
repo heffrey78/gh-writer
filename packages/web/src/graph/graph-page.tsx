@@ -3,16 +3,21 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../api.ts";
 import { sceneItems } from "../bible/pickers.ts";
+import { NewEntryDialog } from "../bible/new-entry.tsx";
+import { AddRelationshipDialog, RelationshipAtSceneDialog } from "../bible/relationships.tsx";
 import { plural } from "../bible/types.ts";
 import { chapterTitle } from "../novel/navigation.tsx";
 import { useNotice } from "../novel/notice.tsx";
 import { useTheme } from "../theme.ts";
 import { Button } from "../ui/button.tsx";
 import { Picker } from "../ui/picker.tsx";
+import { EdgeDialog } from "./edge-dialog.tsx";
 import { GraphCanvas } from "./graph-canvas.tsx";
 import { graphAt, RELATIONSHIP_GRAPH, type GraphFilter } from "./graph-model.ts";
 
 const list = (v: string | null) => (v ? v.split(",").filter(Boolean) : undefined);
+
+type Editing = { kind: "add"; from: string; to?: string } | { kind: "edge" | "change" | "end"; id: string } | { kind: "entry" };
 
 /**
  * Who is connected to whom, at a point in the story: entities as nodes (characters, unless the
@@ -77,12 +82,24 @@ export function GraphPage({ novelId, novel }: { novelId: string; novel: Novel })
   const plotlines = novel.entities.filter((e) => e.type === "plotline").sort((a, b) => a.name.localeCompare(b.name));
   const sceneList = useMemo(() => sceneItems(novel), [novel]);
   const shownList = selected ? view.list.filter((r) => view.edges.some((e) => e.id === r.id && (e.source === selected.id || e.target === selected.id))) : view.list;
+  const [editing, setEditing] = useState<Editing>();
+  const close = () => setEditing(undefined);
+  const editedRel = editing && "id" in editing ? novel.relationships.find((r) => r.id === editing.id) : undefined;
+  const entityOf = (entityId: string) => novel.entities.find((e) => e.id === entityId);
+  // A relationship drawn on the graph starts at the scene the graph is at (none: the beginning).
+  const since = index > 0 ? scene?.id : undefined;
+
   const appears = useMemo(() => (selected ? backlinks(novel, selected.id).scenes.filter((s) => s.scene.position >= 0) : []), [novel, selected]);
 
   return (
     <div className="grid h-full grid-rows-[auto_minmax(24rem,1fr)] gap-3 px-6 py-6">
       <div className="grid gap-3">
-        <h1 className="text-xl font-semibold">Relationships</h1>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h1 className="text-xl font-semibold">Relationships</h1>
+          <Button size="sm" onClick={() => setEditing({ kind: "entry" })}>
+            New entry
+          </Button>
+        </div>
         {scene ? (
           <div className="flex flex-wrap items-end gap-4">
             <div className="grid min-w-64 flex-1 gap-1.5">
@@ -181,6 +198,8 @@ export function GraphPage({ novelId, novel }: { novelId: string; novel: Novel })
               colorMode={theme}
               selected={selected?.id}
               onSelect={(sel) => set({ sel })}
+              onConnect={(from, to) => setEditing({ kind: "add", from, to })}
+              onEdgeOpen={(relId) => setEditing({ kind: "edge", id: relId })}
             />
           ) : (
             <p className="p-6 text-muted">{filtered ? "Nothing matches these filters." : "No characters yet. Add some in the story bible to see how they relate."}</p>
@@ -201,7 +220,12 @@ export function GraphPage({ novelId, novel }: { novelId: string; novel: Novel })
           {shownList.length ? (
             <ul className="grid gap-1.5" aria-label="Relationships">
               {shownList.map((r) => (
-                <li key={r.id}>{r.text}</li>
+                <li key={r.id} className="flex items-start justify-between gap-2">
+                  <span>{r.text}</span>
+                  <button type="button" onClick={() => setEditing({ kind: "edge", id: r.id })} aria-label={`Edit “${r.text}”`} className="shrink-0 text-xs text-accent underline underline-offset-2">
+                    Edit
+                  </button>
+                </li>
               ))}
             </ul>
           ) : (
@@ -223,13 +247,43 @@ export function GraphPage({ novelId, novel }: { novelId: string; novel: Novel })
               ) : (
                 <p className="text-muted">No scenes yet.</p>
               )}
-              <Link to={`/novels/${novelId}/bible/${selected.id}`} className="text-accent underline-offset-2 hover:underline">
-                Open the entry
-              </Link>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => setEditing({ kind: "add", from: selected.id })}>
+                  Add a relationship
+                </Button>
+                <Link to={`/novels/${novelId}/bible/${selected.id}`} className="self-center text-accent underline-offset-2 hover:underline">
+                  Open the entry
+                </Link>
+              </div>
             </>
           )}
         </section>
       </div>
+      {editing?.kind === "add" && entityOf(editing.from) && (
+        <AddRelationshipDialog novelId={novelId} novel={novel} entity={entityOf(editing.from)!} other={editing.to} since={since} onClose={close} />
+      )}
+      {editing?.kind === "edge" && editedRel && (
+        <EdgeDialog
+          novelId={novelId}
+          novel={novel}
+          relationship={editedRel}
+          sceneTitle={index > 0 ? scene?.title : undefined}
+          onChange={() => setEditing({ kind: "change", id: editedRel.id })}
+          onEnd={() => setEditing({ kind: "end", id: editedRel.id })}
+          onClose={close}
+        />
+      )}
+      {(editing?.kind === "change" || editing?.kind === "end") && editedRel && entityOf(editedRel.from) && (
+        <RelationshipAtSceneDialog novelId={novelId} novel={novel} entity={entityOf(editedRel.from)!} kind={editing.kind} relationship={editedRel} at={index > 0 ? scene?.id : undefined} onClose={close} />
+      )}
+      <NewEntryDialog
+        novelId={novelId}
+        novel={novel}
+        type={undefined}
+        open={editing?.kind === "entry"}
+        onOpenChange={(o) => !o && close()}
+        onCreated={(newId, type) => set({ sel: newId, types: types.includes(type) ? params.get("types") ?? undefined : [...types, type].join(",") })}
+      />
     </div>
   );
 }

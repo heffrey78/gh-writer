@@ -110,7 +110,8 @@ test("selecting a character brings out their relationships and lists their scene
   await open(page, app);
   await page.locator('.react-flow__node[aria-label="Tomas Hale, Character"]').click();
   const panel = page.getByRole("region", { name: "Tomas Hale" });
-  await expect(panel.getByRole("list", { name: "Relationships" })).toHaveText(["Tomas Hale: Mentor of Ada Varn"]);
+  await expect(panel.getByRole("list", { name: "Relationships" }).getByRole("listitem")).toHaveCount(1);
+  await expect(panel.getByRole("list", { name: "Relationships" })).toContainText("Tomas Hale: Mentor of Ada Varn");
   await expect(panel.getByRole("list", { name: "Scenes with Tomas Hale" }).getByRole("link")).toContainText(["Tomas's Workshop"]);
   await expect(edge(page, "Ada Varn, Allied with, Ben Varn")).toHaveCSS("opacity", "0.2");
   await expect(page).toHaveURL(/sel=char_t0ma5h/);
@@ -122,4 +123,60 @@ test("selecting a character brings out their relationships and lists their scene
   await page.getByRole("button", { name: "Show everyone" }).click();
   await expect(page.getByRole("region", { name: /^At “/ })).toBeVisible();
   await panel.getByRole("link").first().isVisible();
+});
+
+const RELS = "bible/relationships.yaml";
+
+test("drawing a line between two characters adds a relationship, shown in both entries", async ({ page, app }) => {
+  const novel = await open(page, app);
+  const from = page.locator('.react-flow__node[aria-label="Tomas Hale, Character"] .react-flow__handle.source');
+  const to = page.locator('.react-flow__node[aria-label="Mirela Kost, Character"] .react-flow__handle.target');
+  await from.dragTo(to);
+  const dialog = page.getByRole("dialog", { name: "New relationship for Tomas Hale" });
+  await expect(dialog.getByRole("button", { name: /^With/ })).toHaveAccessibleName("With Mirela Kost");
+  await dialog.getByRole("combobox", { name: "Relationship" }).selectOption({ label: "Rivals with" });
+  await axe(page);
+  await dialog.getByRole("button", { name: "Add relationship" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect.poll(() => novel.read(RELS)).toMatch(/- id: rel_[0-9a-z]{6}\n {4}from: char_t0ma5h\n {4}to: char_m1re1a\n {4}type: rivals\n/);
+  await expect(edge(page, "Tomas Hale, Rivals with, Mirela Kost")).toHaveCount(1);
+
+  await page.getByRole("tree", { name: "Manuscript" }).isVisible();
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.keyboard.type("character: mirela");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("region", { name: "Relationships" }).first()).toContainText("Rivals with Tomas Hale");
+});
+
+test("an edge is ended at the graph's scene, or removed, from its dialog; new entries start here too", async ({ page, app }) => {
+  const novel = await open(page, app);
+  const slider = page.getByRole("slider", { name: "Story position" });
+  await slider.focus();
+  for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("heading", { name: "At “The Betrayal”" })).toBeVisible();
+
+  // End Tomas's mentoring at The Betrayal, through the list's Edit (the keyboard path to an edge).
+  await page.getByRole("button", { name: "Edit “Tomas Hale: Mentor of Ada Varn”" }).click();
+  const dialog = page.getByRole("dialog", { name: "Relationship" });
+  await axe(page);
+  await dialog.getByRole("button", { name: "End it at “The Betrayal”…" }).click();
+  const end = page.getByRole("dialog", { name: "End this relationship" });
+  await expect(end.getByRole("button", { name: /^It no longer holds from/ })).toHaveAccessibleName("It no longer holds from The Betrayal");
+  await end.getByRole("button", { name: "End it" }).click();
+  await expect.poll(() => novel.read(RELS)).toContain("  - id: rel_m3nt0r\n    from: char_t0ma5h\n    to: char_7f3k2q\n    type: mentor\n    until: sc_0d9wm4\n");
+  await expect(edge(page, "Tomas Hale, Mentor of, Ada Varn")).toHaveCount(0);
+
+  // Remove the siblings outright, by clicking the edge.
+  await edge(page, "Ada Varn, Sibling of, Ben Varn").locator(".react-flow__edge-textbg").click();
+  await page.getByRole("dialog", { name: "Relationship" }).getByRole("button", { name: "Remove" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Remove" }).click();
+  await expect.poll(() => novel.read(RELS)).not.toContain("rel_q2m9xa");
+
+  // A new character joins the graph, selected.
+  await page.getByRole("button", { name: "New entry" }).click();
+  await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("Ilse Varn");
+  await page.keyboard.press("Enter");
+  await expect(page.locator('.react-flow__node[aria-label="Ilse Varn, Character"]')).toBeVisible();
+  await expect(page.getByRole("region", { name: "Ilse Varn" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Relationships" })).toBeVisible();
 });

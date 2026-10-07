@@ -121,17 +121,32 @@ export function RelationshipsPanel({ novelId, novel, entity }: { novelId: string
         <p className="text-sm text-muted">{asOf ? "None hold at that point." : "No relationships yet."}</p>
       )}
       {remove.isError && <ErrorAlert title="Couldn't remove it">{remove.error.message}</ErrorAlert>}
-      {dialog?.kind === "add" && <AddDialog novelId={novelId} novel={novel} entity={entity} onClose={() => setDialog(undefined)} />}
-      {dialog && dialog.kind !== "add" && <AtSceneDialog novelId={novelId} novel={novel} entity={entity} kind={dialog.kind} relationship={dialog.relationship} onClose={() => setDialog(undefined)} />}
+      {dialog?.kind === "add" && <AddRelationshipDialog novelId={novelId} novel={novel} entity={entity} onClose={() => setDialog(undefined)} />}
+      {dialog && dialog.kind !== "add" && <RelationshipAtSceneDialog novelId={novelId} novel={novel} entity={entity} kind={dialog.kind} relationship={dialog.relationship} onClose={() => setDialog(undefined)} />}
     </section>
   );
 }
 
-function AddDialog({ novelId, novel, entity, onClose }: { novelId: string; novel: Novel; entity: Entity; onClose: () => void }) {
+/** A new relationship for `entity`, with `other` and a starting scene (`since`) filled in when given. */
+export function AddRelationshipDialog({
+  novelId,
+  novel,
+  entity,
+  onClose,
+  other: initialOther,
+  since: initialSince,
+}: {
+  novelId: string;
+  novel: Novel;
+  entity: Entity;
+  onClose: () => void;
+  other?: string | undefined;
+  since?: string | undefined;
+}) {
   const queryClient = useQueryClient();
-  const [other, setOther] = useState<string>();
+  const [other, setOther] = useState<string | undefined>(initialOther);
   const [role, setRole] = useState("");
-  const [since, setSince] = useState<string>();
+  const [since, setSince] = useState<string | undefined>(initialSince);
   const [until, setUntil] = useState<string>();
   const [note, setNote] = useState("");
   const otherType = novel.entities.find((e) => e.id === other)?.type;
@@ -176,10 +191,26 @@ function AddDialog({ novelId, novel, entity, onClose }: { novelId: string; novel
   );
 }
 
-/** Change a relationship from a scene on (a new type or note), or end it at a scene. */
-function AtSceneDialog({ novelId, novel, entity, kind, relationship, onClose }: { novelId: string; novel: Novel; entity: Entity; kind: "change" | "end"; relationship: Relationship; onClose: () => void }) {
+/** Change a relationship from a scene on (a new type or note), or end it at a scene; `at` fills in the scene. */
+export function RelationshipAtSceneDialog({
+  novelId,
+  novel,
+  entity,
+  kind,
+  relationship,
+  onClose,
+  at: initialAt,
+}: {
+  novelId: string;
+  novel: Novel;
+  entity: Entity;
+  kind: "change" | "end";
+  relationship: Relationship;
+  onClose: () => void;
+  at?: string | undefined;
+}) {
   const queryClient = useQueryClient();
-  const [at, setAt] = useState<string>();
+  const [at, setAt] = useState<string | undefined>(initialAt);
   const forward = relationship.from === entity.id;
   const otherType = novel.entities.find((e) => e.id === (forward ? relationship.to : relationship.from))?.type;
   const options = roles(novel, entity.type, otherType).filter((r) => r.forward === forward || novel.relationshipTypes.find((t) => t.key === r.type)?.symmetric);

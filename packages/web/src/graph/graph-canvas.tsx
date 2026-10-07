@@ -1,4 +1,4 @@
-import { Background, Controls, Handle, MarkerType, Position, ReactFlow, useNodesState, type ColorMode, type Edge, type Node, type NodeChange, type NodeProps } from "@xyflow/react";
+import { Background, BaseEdge, ConnectionMode, Controls, Handle, MarkerType, Position, ReactFlow, useNodesState, type ColorMode, type Edge, type EdgeChange, type EdgeProps, type Node, type NodeChange, type NodeProps } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
@@ -38,6 +38,10 @@ export interface GraphCanvasProps {
   selected?: string | undefined;
   /** The author selected a node (click, or Enter on a focused one), or cleared the selection. */
   onSelect?: (id: string | undefined) => void;
+  /** A line was drawn from one node to another: a new relationship. */
+  onConnect?: (from: string, to: string) => void;
+  /** An edge was clicked, or Enter pressed on a focused one. */
+  onEdgeOpen?: (id: string) => void;
 }
 
 type EntityData = { label: string; type: string };
@@ -54,11 +58,48 @@ const EntityNode = memo(function EntityNode({ data }: NodeProps<Node<EntityData>
   );
 });
 
+/**
+ * An edge that bows to one side by `offset` pixels, so several relationships between the same two
+ * entities (siblings and rivals, say) are drawn apart, each with its own label, rather than on top
+ * of each other. The side is fixed by the pair, not the direction, so a→b and b→a fan out together.
+ */
+function ParallelEdge({ sourceX, sourceY, targetX, targetY, source, target, data, label, style, markerEnd, labelStyle, labelBgStyle, interactionWidth }: EdgeProps<Edge<{ offset: number }>>) {
+  const offset = data?.offset ?? 0;
+  const dx = targetX - sourceX;
+  const dy = targetY - sourceY;
+  const length = Math.hypot(dx, dy) || 1;
+  const side = source < target ? 1 : -1;
+  // The curve's peak is half the control point's distance from the line.
+  const cx = (sourceX + targetX) / 2 + ((-dy / length) * offset * 2 * side);
+  const cy = (sourceY + targetY) / 2 + ((dx / length) * offset * 2 * side);
+  const labelX = 0.25 * sourceX + 0.5 * cx + 0.25 * targetX;
+  const labelY = 0.25 * sourceY + 0.5 * cy + 0.25 * targetY;
+  return (
+    <BaseEdge
+      path={`M ${sourceX},${sourceY} Q ${cx},${cy} ${targetX},${targetY}`}
+      label={label}
+      labelX={labelX}
+      labelY={labelY}
+      labelStyle={labelStyle}
+      labelBgStyle={labelBgStyle}
+      labelShowBg
+      labelBgPadding={LABEL_PADDING}
+      style={style}
+      markerEnd={markerEnd}
+      interactionWidth={interactionWidth}
+    />
+  );
+}
+
 const nodeTypes = { entity: EntityNode };
+const edgeTypes = { parallel: ParallelEdge };
+const SPACING = 28;
+// Constant: the label measures itself again whenever its padding changes.
+const LABEL_PADDING: [number, number] = [4, 2];
 const DASH = { solid: undefined, dashed: "6 4", dotted: "2 4" } as const;
 
 /** Entities as nodes and relationships as labelled edges, on a pannable, zoomable canvas. */
-export function GraphCanvas({ nodes, edges, label, onNodesMoved, colorMode = "system", selected, onSelect }: GraphCanvasProps) {
+export function GraphCanvas({ nodes, edges, label, onNodesMoved, colorMode = "system", selected, onSelect, onConnect, onEdgeOpen }: GraphCanvasProps) {
   const initial = useMemo(() => nodes.map(toFlowNode), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(initial);
 
@@ -85,6 +126,18 @@ export function GraphCanvas({ nodes, edges, label, onNodesMoved, colorMode = "sy
     [flowNodes, near, selected],
   );
 
+  // Relationships between the same two entities, spread around the straight line between them.
+  const offsets = useMemo(() => {
+    const groups = new Map<string, string[]>();
+    for (const e of edges) {
+      const key = [e.source, e.target].sort().join(" ");
+      groups.set(key, [...(groups.get(key) ?? []), e.id]);
+    }
+    const out = new Map<string, number>();
+    for (const ids of groups.values()) ids.forEach((id, i) => out.set(id, (i - (ids.length - 1) / 2) * SPACING));
+    return out;
+  }, [edges]);
+
   const flowEdges: Edge[] = useMemo(
     () =>
       edges.map((e) => {
@@ -92,6 +145,8 @@ export function GraphCanvas({ nodes, edges, label, onNodesMoved, colorMode = "sy
         const faint = selected && e.source !== selected && e.target !== selected;
         return {
           id: e.id,
+          type: "parallel",
+          data: { offset: offsets.get(e.id) ?? 0 },
           source: e.source,
           target: e.target,
           label: e.label,
@@ -103,7 +158,7 @@ export function GraphCanvas({ nodes, edges, label, onNodesMoved, colorMode = "sy
           ...(e.ariaLabel ? { ariaLabel: e.ariaLabel } : {}),
         };
       }),
-    [edges, selected],
+    [edges, selected, offsets],
   );
 
   // Moves are reported once they settle: a drag when it ends, arrow-key steps after a pause.
@@ -138,14 +193,26 @@ export function GraphCanvas({ nodes, edges, label, onNodesMoved, colorMode = "sy
     [onNodesChange],
   );
 
+  const openEdge = useRef(onEdgeOpen);
+  openEdge.current = onEdgeOpen;
+  const onEdgesChange = useCallback((changes: EdgeChange[]) => {
+    const picked = changes.find((c) => c.type === "select" && c.selected);
+    if (picked && "id" in picked) openEdge.current?.(picked.id);
+  }, []);
+
   return (
     <div className="h-full min-h-96 w-full" role="region" aria-label={label}>
       <ReactFlow
         nodes={shownNodes}
         edges={flowEdges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={onChange}
         onPaneClick={() => onSelect?.(undefined)}
+        onEdgesChange={onEdgesChange}
+        onEdgeClick={(_, edge) => onEdgeOpen?.(edge.id)}
+        onConnect={(c) => c.source && c.target && c.source !== c.target && onConnect?.(c.source, c.target)}
+        connectionMode={ConnectionMode.Loose}
         fitView
         minZoom={0.2}
         proOptions={{ hideAttribution: true }}

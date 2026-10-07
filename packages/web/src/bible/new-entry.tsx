@@ -27,8 +27,22 @@ function Frame({ open, onOpenChange, title, children }: { open: boolean; onOpenC
   );
 }
 
-/** Name a new entry of a type; it opens once made. */
-export function NewEntryDialog({ novelId, novel, type, open, onOpenChange }: { novelId: string; novel: Novel; type: string | undefined; open: boolean; onOpenChange: (o: boolean) => void }) {
+/** Name a new entry of a type; it opens once made, unless `onCreated` takes it. */
+export function NewEntryDialog({
+  novelId,
+  novel,
+  type,
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  novelId: string;
+  novel: Novel;
+  type: string | undefined;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onCreated?: (id: string, type: string) => void;
+}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
@@ -41,7 +55,8 @@ export function NewEntryDialog({ novelId, novel, type, open, onOpenChange }: { n
       await queryClient.invalidateQueries({ queryKey: keys.novel(novelId) });
       setName("");
       onOpenChange(false);
-      void navigate(`/novels/${novelId}/bible/${id}`);
+      if (onCreated) onCreated(id, kind);
+      else void navigate(`/novels/${novelId}/bible/${id}`);
     },
   });
   const submit = (e: FormEvent) => {
