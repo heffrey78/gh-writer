@@ -84,6 +84,8 @@ test("adds, renames and deletes a scene, and Undo brings it back", async ({ page
   await page.getByRole("dialog").getByRole("textbox", { name: "Title" }).fill("On the Platform");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 1, name: "On the Platform" })).toBeVisible();
+  // The dialog closes once the change is done and the tree has it; keys go to the tree only then.
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(novel.read(`${ARRIVAL}/_chapter.yaml`)).toMatch(/scenes: \[sc_5tat1n, sc_br1dg3, sc_[0-9a-z]{6}\]/);
 
   await item(page, "On the Platform").focus();
@@ -91,6 +93,7 @@ test("adds, renames and deletes a scene, and Undo brings it back", async ({ page
   await page.getByRole("dialog").getByRole("textbox", { name: "Title" }).fill("The Platform");
   await page.keyboard.press("Enter");
   await expect(item(page, "The Platform")).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(novel.has(`${ARRIVAL}/03-the-platform.md`)).toBe(true);
 
   const station = novel.read(`${ARRIVAL}/01-the-station.md`);
