@@ -21,6 +21,8 @@ import { ChapterEditor, FindReplace, SceneEditor, WordCount, type SpellService }
 import type { Editor } from "@tiptap/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import { Plus } from "lucide-react";
+import { Button } from "../ui/button.tsx";
 import { useStore } from "zustand";
 import { joinSceneFile, splitSceneFile } from "@gh-writer/editor";
 import { api } from "../api.ts";
@@ -253,7 +255,9 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
           />
         )}
         <FindReplace manuscript={manuscript} editor={editor ?? null} onReplace={replaceClosed} onOpenScene={openScene} />
-        {!loaded ? (
+        {!("scene" in view) && scenes.length === 0 ? (
+          <EmptyChapter autofocus={autofocus} onAdd={(title) => structure.createScene(view.chapter.id, title)} />
+        ) : !loaded ? (
           <p role="status" className="text-muted">
             Opening…
           </p>
@@ -285,6 +289,20 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
       {showDetails && detailsScene && <SceneDetails key={detailsScene.file} novel={novel} workspace={workspace} path={detailsScene.file} title={detailsScene.title} />}
       <EntryPanel novelId={novelId} novel={novel} workspace={workspace} spell={spell} />
       <MentionCard novel={novel} />
+    </div>
+  );
+}
+
+/** A chapter with no scenes yet: there's nothing to write in until it has one. */
+function EmptyChapter({ autofocus, onAdd }: { autofocus: boolean; onAdd: (title: string) => Promise<unknown> }) {
+  const [adding, setAdding] = useState(false);
+  return (
+    <div className="grid justify-items-start gap-3 rounded-lg border border-dashed border-rule px-5 py-6">
+      <p>This chapter has no scenes yet.</p>
+      <Button autoFocus={autofocus} onClick={() => setAdding(true)}>
+        <Plus className="size-4" aria-hidden /> Add a scene
+      </Button>
+      {adding && <TitleDialog title="New scene" action="Add scene" submit={onAdd} onClose={() => setAdding(false)} />}
     </div>
   );
 }

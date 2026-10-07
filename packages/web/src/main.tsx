@@ -9,6 +9,7 @@ import { LibraryPage } from "./library/library-page.tsx";
 import { NovelPage } from "./novel/novel-page.tsx";
 import { NotFound } from "./not-found.tsx";
 import { apply } from "./theme.ts";
+import { ErrorBoundary } from "./ui/error-boundary.tsx";
 import "./styles.css";
 
 apply();
@@ -19,11 +20,13 @@ createRoot(document.getElementById("root")!).render(
       <BrowserRouter>
         <GlobalCommands />
         <CommandPalette />
-        <Routes>
-          <Route path="/" element={<LibraryPage />} />
-          <Route path="/novels/:novelId/*" element={<NovelPage />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <ErrorBoundary what="this page">
+          <Routes>
+            <Route path="/" element={<LibraryPage />} />
+            <Route path="/novels/:novelId/*" element={<NovelPage />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </ErrorBoundary>
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,

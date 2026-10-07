@@ -8,6 +8,7 @@ import { api, keys } from "../api.ts";
 import { useCommands, type Command } from "../commands.ts";
 import { Shell } from "../layout.tsx";
 import { ErrorAlert } from "../ui/alert.tsx";
+import { ErrorBoundary } from "../ui/error-boundary.tsx";
 import { BiblePage } from "../bible/bible-page.tsx";
 import { EntryPage } from "../bible/entry-page.tsx";
 import { NewEntryDialog } from "../bible/new-entry.tsx";
@@ -171,16 +172,18 @@ export function NovelPage() {
           </aside>
         )}
         <div className="md:overflow-y-auto">
-          <Routes>
-            <Route index element={book.chapters[0] ? <Navigate to={`/novels/${novelId}/chapter/${book.chapters[0].id}`} replace /> : <EmptyManuscript />} />
-            <Route path="chapter/:chapterId" element={<ChapterRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
-            <Route path="scene/:sceneId" element={<SceneRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
-            <Route path="corkboard" element={<CorkboardPage novelId={novelId} novel={book} workspace={workspace} />} />
-            <Route path="outline" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
-            <Route path="bible" element={<BiblePage novelId={novelId} novel={book} />} />
-            <Route path="bible/:entityId" element={<EntryRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
-            <Route path="*" element={<Missing what="page" />} />
-          </Routes>
+          <ErrorBoundary what="this view">
+            <Routes>
+              <Route index element={book.chapters[0] ? <Navigate to={`/novels/${novelId}/chapter/${book.chapters[0].id}`} replace /> : <EmptyManuscript />} />
+              <Route path="chapter/:chapterId" element={<ChapterRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
+              <Route path="scene/:sceneId" element={<SceneRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
+              <Route path="corkboard" element={<CorkboardPage novelId={novelId} novel={book} workspace={workspace} />} />
+              <Route path="outline" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
+              <Route path="bible" element={<BiblePage novelId={novelId} novel={book} />} />
+              <Route path="bible/:entityId" element={<EntryRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
+              <Route path="*" element={<Missing what="page" />} />
+            </Routes>
+          </ErrorBoundary>
         </div>
       </div>
       <SyncConflicts novelId={novelId} novel={book} workspace={workspace} open={resolving} onClose={() => setResolving(false)} />
