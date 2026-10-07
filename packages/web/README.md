@@ -79,6 +79,10 @@ Items can also be dragged: before or after an item of the same kind, or onto a c
 
 On a 120-scene book with 12 plotlines (the performance project), the swimlanes render in about 200 ms, re-shade every cell for a new threshold in about 55 ms, scroll and hover at a steady 60 fps, and show a cell edit (saved, model reloaded) in about 0.4 s. Cells are memoised, word counts are taken once per model, and the sidebar's tree doesn't re-render when only a view's query changes.
 
+## Presence matrix
+
+**Presence** (`/novels/:id/presence`, also in the palette) puts the entries of a type (characters by default; locations, themes, plotlines or a custom type under **Rows**) against every scene in reading order. A filled dot means the scene's metadata lists it (for a character: its characters, or ringed, its point of view; for a theme, larger for a stronger one); a dashed ring means the prose mentions it without the metadata listing it. Custom types have no list in a scene, so for them presence is mentions alone. It shares the swimlanes' grid: the same keyboard navigation, column moves, **Show** (zoom) and **Size**, all kept in the address.
+
 ## Relationship graph
 
 **Graph** (`/novels/:id/graph`, also in the palette) shows characters as nodes and the relationships between them as labelled edges, coloured and dashed by their type's `style` (or a colour of their own when a type has none; symmetric types have no arrow). The **Story position** slider, or the scene picker beside it, moves through the book in reading order, and the edges are the relationships holding at that scene, so Ada and Ben are allies at "The Station" and rivals from "The Betrayal". The scene is kept in the address (`?at=sc_…`). Beside the graph, the same relationships are listed as sentences, which is also what a screen reader gets.

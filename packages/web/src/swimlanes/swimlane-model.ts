@@ -1,5 +1,5 @@
 import { countWords, type Chapter, type Entity, type Novel, type Part, type Scene } from "@gh-writer/core";
-import { chapterTitle } from "../novel/navigation.tsx";
+import { gridKey, sceneColumns } from "../diagrams/columns.ts";
 
 export interface Mark {
   weight: "major" | "minor";
@@ -20,7 +20,7 @@ export interface Swimlanes {
   words: number[];
 }
 
-export const cellKey = (plotline: string, scene: string) => `${plotline}|${scene}`;
+export const cellKey = gridKey;
 
 /** The book as plotline lanes against scene columns, from the scenes' plotlines. */
 export function swimlanes(novel: Novel, scenes: Scene[] = novel.scenes): Swimlanes {
@@ -28,20 +28,7 @@ export function swimlanes(novel: Novel, scenes: Scene[] = novel.scenes): Swimlan
   for (const scene of scenes) for (const p of scene.plotlines) marks.set(cellKey(p.id, scene.id), { weight: p.weight, ...(p.beat ? { beat: p.beat } : {}) });
   const lanes = novel.entities.filter((e) => e.type === "plotline").sort((a, b) => a.name.localeCompare(b.name));
 
-  const chapters: Swimlanes["chapters"] = [];
-  const parts: Swimlanes["parts"] = [];
-  for (const scene of scenes) {
-    const chapter = novel.chapters.find((c) => c.id === scene.chapterId);
-    if (!chapter) continue;
-    const last = chapters.at(-1);
-    if (last?.chapter.id === chapter.id) last.span++;
-    else chapters.push({ chapter, title: chapterTitle(novel, chapter), span: 1 });
-    const part = novel.parts.find((p) => p.id === chapter.partId);
-    if (!part) continue;
-    const lastPart = parts.at(-1);
-    if (lastPart?.part.id === part.id) lastPart.span++;
-    else parts.push({ part, span: 1 });
-  }
+  const { chapters, parts } = sceneColumns(novel, scenes);
   return { lanes, scenes, chapters, parts, marks, words: scenes.map((scene) => countWords(scene.body)) };
 }
 
@@ -65,7 +52,7 @@ export interface Gap {
  * Where each plotline goes quiet for longer than the threshold: the stretches between two of its
  * beats, and after its last beat to the end of the book. (Before its first beat it hasn't started.)
  */
-export function gaps(s: Swimlanes, threshold: GapThreshold): Gap[] {
+export function gaps(s: { lanes: { id: string }[]; scenes: Scene[]; marks: Map<string, unknown>; words: number[] }, threshold: GapThreshold): Gap[] {
   const { words } = s;
   const out: Gap[] = [];
   for (const lane of s.lanes) {

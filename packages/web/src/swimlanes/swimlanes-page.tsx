@@ -2,28 +2,18 @@ import { editYaml, readFrontMatter, type Entity, type Novel, type Scene } from "
 import { joinSceneFile } from "@gh-writer/editor";
 import { useQueryClient } from "@tanstack/react-query";
 import { Popover } from "radix-ui";
-import { GripHorizontal } from "lucide-react";
-import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent } from "react";
-import { Link } from "react-router";
+import { useId, useMemo, useState } from "react";
 import { api, keys } from "../api.ts";
+import { readSize, SceneGrid, SizeSelect, type GridMark } from "../diagrams/scene-grid.tsx";
 import { useNotice } from "../novel/notice.tsx";
 import { plotlineEdits, type PlotlineChange } from "../novel/plotline-edits.ts";
-import { dropMove, useStructure } from "../novel/structure.ts";
 import type { Workspace } from "../novel/workspace.ts";
 import { Button } from "../ui/button.tsx";
-import { cn } from "../ui/cn.ts";
 import { useViewParams } from "../ui/view-params.ts";
 import { cellKey, DEFAULT_GAP, gaps, swimlanes, zoomed, type Gap, type GapThreshold, type Mark } from "./swimlane-model.ts";
 
 const number = new Intl.NumberFormat();
 
-/** How big the grid is drawn: its cells and its type scale together (markers are in em). */
-const SIZES = {
-  small: { cell: "2.25rem", font: "0.8125rem" },
-  medium: { cell: "2.75rem", font: "0.9375rem" },
-  large: { cell: "3.375rem", font: "1.0625rem" },
-} as const;
-type Size = keyof typeof SIZES;
 const amount = (t: GapThreshold) => ("scenes" in t ? `${t.scenes} scene${t.scenes === 1 ? "" : "s"}` : `${number.format(t.words)} words`);
 /** The threshold in the address: "3" scenes, or "5000w" words. */
 const readGap = (v: string | null): GapThreshold | undefined => {
@@ -47,7 +37,7 @@ function cellLabel(scene: string, plotline: string, mark: Mark | undefined, gap?
 export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; novel: Novel; workspace: Workspace }) {
   const [params, setParams] = useViewParams();
   const zoom = params.get("zoom") ?? undefined;
-  const size: Size = (params.get("size") as Size | null) && params.get("size")! in SIZES ? (params.get("size") as Size) : "medium";
+  const size = readSize(params.get("size"));
   const saved = novel.config?.plotline_gap ?? DEFAULT_GAP;
   const threshold = readGap(params.get("gap")) ?? saved;
   // Gaps are found in the whole book (a quiet stretch can cross the zoom's edge); the grid shows the zoom.
@@ -103,91 +93,15 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
     if (s.marks.has(cellKey(lane.id, scene.id))) setEditing({ lane: lane.id, scene: scene.id, el });
     else void change(scene, lane, { link: true }, `“${scene.title}” now advances ${lane.name}.`);
   };
-  const [focused, setFocused] = useState<{ lane: string; scene: string }>();
-  const table = useRef<HTMLTableElement>(null);
   const rows = s.lanes.length;
   const cols = s.scenes.length;
-
-  // Columns move like the outline's rows: Alt+Left/Right steps a scene through the book, a drag puts
-  // it beside the column it's dropped on. A moved column keeps focus, even in another chapter.
-  const structure = useStructure(novelId, novel, workspace);
-  const dragging = useRef<string | undefined>(undefined);
-  const [drop, setDrop] = useState<{ id: string; after: boolean }>();
-  const refocus = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    const id = refocus.current;
-    if (id && (document.activeElement === document.body || !document.activeElement?.isConnected)) document.querySelector<HTMLElement>(`[data-col-handle="${id}"]`)?.focus();
-  }, [novel]);
-  const onHandleKey = (e: KeyboardEvent, scene: Scene) => {
-    if (!e.altKey || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
-    e.preventDefault();
-    refocus.current = scene.id;
-    void Promise.resolve(structure.step(scene.id, e.key === "ArrowLeft" ? -1 : 1)).then(() =>
-      requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-col-handle="${scene.id}"]`)?.focus()),
-    );
-  };
-  const onDragOver = (e: DragEvent, scene: Scene) => {
-    if (!dragging.current || dragging.current === scene.id) return;
-    e.preventDefault();
-    const rect = e.currentTarget.getBoundingClientRect();
-    setDrop({ id: scene.id, after: e.clientX > rect.left + rect.width / 2 });
-  };
-  const onDrop = (e: DragEvent) => {
-    e.preventDefault();
-    const id = dragging.current;
-    const target = drop;
-    dragging.current = undefined;
-    setDrop(undefined);
-    const move = id && target ? dropMove(novel, id, target.id, target.after) : undefined;
-    if (id && move) void structure.move(id, move.index, move.to);
-  };
-
-  // Stable for the memoised cells: they read the latest page state through refs.
-  const latest = useRef({ choose: (_l: Entity, _s: Scene, _e: HTMLElement) => {}, s });
-  latest.current = { choose, s };
-  const onChoose = useCallback((laneId: string, sceneId: string, el: HTMLElement) => {
-    const { choose: pick, s: now } = latest.current;
-    const lane = now.lanes.find((l) => l.id === laneId);
-    const scene = now.scenes.find((x) => x.id === sceneId);
-    if (lane && scene) pick(lane, scene, el);
-  }, []);
-  const onFocusCell = useCallback((lane: string, scene: string) => setFocused({ lane, scene }), []);
-
-  const cellEl = (lane: string, scene: string) => table.current?.querySelector<HTMLElement>(`[data-cell="${cellKey(lane, scene)}"]`);
-  // The focused cell's place now: where its lane and scene are (the first cell if they're gone).
-  const focusRow = Math.max(0, s.lanes.findIndex((l) => l.id === focused?.lane));
-  const focusCol = Math.max(0, s.scenes.findIndex((x) => x.id === focused?.scene));
-  const moveTo = (r: number, c: number) => {
-    const lane = s.lanes[Math.max(0, Math.min(rows - 1, r))]!;
-    const scene = s.scenes[Math.max(0, Math.min(cols - 1, c))]!;
-    setFocused({ lane: lane.id, scene: scene.id });
-    cellEl(lane.id, scene.id)?.focus();
-  };
-  const onKey = (e: KeyboardEvent) => {
-    // Only the cells' own keys: the column handles above them (Alt+arrows) are in the table too.
-    if ((e.target as HTMLElement).getAttribute("role") !== "gridcell" || e.altKey) return;
-    const [row, col] = [focusRow, focusCol];
-    const moves: Record<string, [number, number]> = {
-      ArrowLeft: [row, col - 1],
-      ArrowRight: [row, col + 1],
-      ArrowUp: [row - 1, col],
-      ArrowDown: [row + 1, col],
-      Home: e.ctrlKey ? [0, 0] : [row, 0],
-      End: e.ctrlKey ? [rows - 1, cols - 1] : [row, cols - 1],
-    };
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      const lane = s.lanes[row]!;
-      const scene = s.scenes[col]!;
-      const el = cellEl(lane.id, scene.id);
-      if (el) choose(lane, scene, el);
-      return;
-    }
-    const to = moves[e.key];
-    if (!to) return;
-    e.preventDefault();
-    moveTo(...to);
-  };
+  const shaded = useMemo(() => new Set(inGap.keys()), [inGap]);
+  const gridMarks = useMemo(() => {
+    const out = new Map<string, GridMark>();
+    for (const [key, m] of s.marks) out.set(key, { size: m.weight === "major" ? 0.95 : 0.7, style: m.weight === "major" ? "filled" : "hollow", ...(m.beat ? { note: m.beat } : {}) });
+    return out;
+  }, [s]);
+  const cellEl = (lane: string, scene: string) => document.querySelector<HTMLElement>(`[data-cell="${cellKey(lane, scene)}"]`);
 
   const editingLane = editing && s.lanes.find((l) => l.id === editing.lane);
   const editingScene = editing && s.scenes.find((x) => x.id === editing.scene);
@@ -221,14 +135,7 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
             ))}
           </select>
         </label>
-        <label className="grid gap-1 font-medium">
-          Size
-          <select value={size} onChange={(e) => setParams({ size: e.target.value === "medium" ? undefined : e.target.value })} className="h-8 rounded-md border border-rule bg-raised px-2 font-normal">
-            <option value="small">Small</option>
-            <option value="medium">Medium</option>
-            <option value="large">Large</option>
-          </select>
-        </label>
+        <SizeSelect value={size} onChange={(v) => setParams({ size: v })} />
         <fieldset className="flex items-end gap-2">
           <legend className="mb-1 font-medium">A plotline goes quiet after</legend>
           <input
@@ -262,112 +169,24 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
         Each column is a scene, in reading order. <span className="inline-block size-3 rounded-full bg-accent align-middle" aria-hidden /> a major beat,{" "}
         <span className="inline-block size-2 rounded-full border border-accent bg-accent-soft align-middle" aria-hidden /> a minor one; shaded, a plotline gone quiet for more than {amount(threshold)}.
       </p>
-      <div className="w-fit max-w-full overflow-x-auto rounded-lg border border-rule">
-        <table
-          ref={table}
-          role="grid"
-          aria-label="Plotlines by scene"
-          onKeyDown={onKey}
-          style={{ "--cell": SIZES[size].cell, fontSize: SIZES[size].font } as CSSProperties}
-          className="border-collapse"
-        >
-          <thead>
-            {s.parts.length > 0 && (
-              <tr>
-                <td className="sticky left-0 z-10 bg-paper" />
-                {s.parts.map(({ part, span }) => (
-                  <th key={part.id} scope="colgroup" colSpan={span} className="border-b border-l border-rule px-2 py-1 text-left text-xs font-semibold tracking-wide text-muted uppercase">
-                    {part.title}
-                  </th>
-                ))}
-              </tr>
-            )}
-            <tr>
-              <td className="sticky left-0 z-10 bg-paper" />
-              {s.chapters.map(({ chapter, title, span }) => (
-                <th key={chapter.id} scope="colgroup" colSpan={span} className="border-b border-l border-rule px-2 py-1 text-left font-semibold">
-                  <Link to={`/novels/${novelId}/chapter/${chapter.id}`} tabIndex={-1} className="underline-offset-2 hover:underline">
-                    {title}
-                  </Link>
-                </th>
-              ))}
-            </tr>
-            <tr>
-              <th scope="col" className="sticky left-0 z-10 bg-paper px-3 py-1 text-left text-xs font-medium text-muted">
-                Plotline
-              </th>
-              {s.scenes.map((scene) => (
-                <th
-                  key={scene.id}
-                  scope="col"
-                  onDragOver={(e) => onDragOver(e, scene)}
-                  onDrop={onDrop}
-                  className={cn(
-                    "h-[calc(var(--cell)*3.6)] w-[var(--cell)] border-l border-rule align-bottom",
-                    drop?.id === scene.id && (drop.after ? "shadow-[inset_-3px_0_0_var(--ghw-accent)]" : "shadow-[inset_3px_0_0_var(--ghw-accent)]"),
-                  )}
-                >
-                  <button
-                    type="button"
-                    data-col-handle={scene.id}
-                    draggable
-                    onDragStart={(e) => {
-                      dragging.current = scene.id;
-                      e.dataTransfer.effectAllowed = "move";
-                      e.dataTransfer.setData("text/plain", scene.title);
-                    }}
-                    onDragEnd={() => {
-                      dragging.current = undefined;
-                      setDrop(undefined);
-                    }}
-                    onKeyDown={(e) => onHandleKey(e, scene)}
-                    aria-label={`Move “${scene.title}”`}
-                    aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
-                    className="mx-auto block cursor-grab rounded p-0.5 text-muted hover:bg-panel"
-                  >
-                    <GripHorizontal className="size-4" aria-hidden />
-                  </button>
-                  <Link
-                    to={`/novels/${novelId}/scene/${scene.id}`}
-                    tabIndex={-1}
-                    title={scene.title}
-                    className="mx-auto block max-h-[calc(var(--cell)*3.2)] truncate px-1 py-1 text-[0.85em] font-normal underline-offset-2 [writing-mode:vertical-rl] hover:underline"
-                  >
-                    {scene.title}
-                  </Link>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {s.lanes.map((lane, row) => (
-              <tr key={lane.id}>
-                <th scope="row" className="sticky left-0 z-10 max-w-[14em] truncate border-t border-rule bg-paper px-3 py-2 text-left font-medium">
-                  {lane.name}
-                </th>
-                {s.scenes.map((scene, col) => {
-                  const mark = s.marks.get(cellKey(lane.id, scene.id));
-                  const gap = inGap.get(cellKey(lane.id, scene.id));
-                  const active = row === focusRow && col === focusCol;
-                  return (
-                    <Cell
-                      key={scene.id}
-                      lane={lane.id}
-                      scene={scene.id}
-                      label={cellLabel(scene.title, lane.name, mark, gap)}
-                      mark={mark}
-                      quiet={gap !== undefined}
-                      active={active}
-                      onChoose={onChoose}
-                      onFocusCell={onFocusCell}
-                    />
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <SceneGrid
+        novelId={novelId}
+        novel={novel}
+        workspace={workspace}
+        label="Plotlines by scene"
+        rowHeading="Plotline"
+        rows={s.lanes}
+        scenes={s.scenes}
+        marks={gridMarks}
+        shaded={shaded}
+        cellLabel={(lane, scene) => cellLabel(scene.title, s.lanes.find((l) => l.id === lane)?.name ?? lane, s.marks.get(cellKey(lane, scene.id)), inGap.get(cellKey(lane, scene.id)))}
+        hasPopup={(lane, scene) => s.marks.has(cellKey(lane, scene))}
+        onChoose={(lane, scene, el) => {
+          const entity = s.lanes.find((l) => l.id === lane);
+          if (entity) choose(entity, scene, el);
+        }}
+        size={size}
+      />
       <section aria-labelledby="quiet-heading" className="grid gap-1 text-sm">
         <h2 id="quiet-heading" className="font-semibold">
           Quiet stretches
@@ -488,61 +307,3 @@ function CellEditor({
     </Popover.Root>
   );
 }
-
-/**
- * One cell of the grid: memoised, so a change that touches a few cells (an edit, a new gap
- * threshold) re-renders those, not all of them.
- */
-const Cell = memo(function Cell({
-  lane,
-  scene,
-  label,
-  mark,
-  quiet,
-  active,
-  onChoose,
-  onFocusCell,
-}: {
-  lane: string;
-  scene: string;
-  label: string;
-  mark: Mark | undefined;
-  quiet: boolean;
-  active: boolean;
-  onChoose: (lane: string, scene: string, el: HTMLElement) => void;
-  onFocusCell: (lane: string, scene: string) => void;
-}) {
-  return (
-    <td
-      role="gridcell"
-      data-cell={cellKey(lane, scene)}
-      tabIndex={active ? 0 : -1}
-      onFocus={() => !active && onFocusCell(lane, scene)}
-      onClick={(e) => onChoose(lane, scene, e.currentTarget)}
-      aria-label={label}
-      aria-haspopup={mark ? "dialog" : undefined}
-      className={cn(
-        "group relative h-[var(--cell)] w-[var(--cell)] cursor-pointer border-t border-l border-rule p-0 text-center outline-none hover:bg-panel focus-visible:bg-accent-soft",
-        quiet && "bg-warn-soft",
-      )}
-    >
-      <span className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-rule" aria-hidden />
-      {mark && (
-        <>
-          <span
-            aria-hidden
-            className={cn("relative inline-block rounded-full align-middle", mark.weight === "major" ? "size-[0.95em] bg-accent" : "size-[0.7em] border border-accent bg-accent-soft")}
-          />
-          {mark.beat && (
-            <span
-              aria-hidden
-              className="pointer-events-none absolute top-full left-1/2 z-20 mt-1 hidden w-56 -translate-x-1/2 rounded-md border border-rule bg-raised px-2 py-1 text-left text-[0.85em] shadow-md group-hover:block group-focus:block"
-            >
-              {mark.beat}
-            </span>
-          )}
-        </>
-      )}
-    </td>
-  );
-});
