@@ -78,3 +78,4 @@ export {
 } from "./spell.ts";
 export { SpellEngine, type Misspellings } from "./spell-engine.ts";
 export { mentionSuggestKey, MentionSuggestExtension, suggestMentions, type MentionEntity, type MentionSuggestion, type MentionSuggestOptions } from "./mention-suggest.ts";
+export { MENTION_INFO_KEYS, mentionAtCaret, MentionInfoExtension, type MentionInfoOptions, type MentionTarget } from "./mention-info.ts";

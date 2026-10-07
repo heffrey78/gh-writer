@@ -75,6 +75,8 @@ Items can also be dragged: before or after an item of the same kind, or onto a c
 
 Typing `@` in any editor (chapters, scenes, an entry's notes) suggests the bible's entries by name or alias; see the [editor's README](../editor/README.md) for the keys. A mention keeps the words it was written with and refers to its entry by ID, so renaming the entry never changes the prose, and the entry's **In the story** still finds the scene.
 
+Hovering a mention, or Alt+Enter with the caret beside one, shows a card: the entry's current name, summary, a few of its fields, and its relationships as they stand at the scene holding the mention (so Ada and Ben are allies in “The Station” and rivals in “The Betrayal”). By pointer the card stays while it's pointed at; by keyboard it takes focus, and Escape closes it and puts the caret back where it was. **Open entry** shows the whole entry beside the text, editable; **Back to the text** returns to the caret.
+
 ## The story bible
 
 `/novels/:id/bible` lists every entry by type: the built-in characters, locations, plotlines and themes, and any custom type. Each type has its count and a "New" button, and the page searches by name and alias. **New type** adds a custom type (name, ID prefix), and its list and entries work at once.

@@ -1,6 +1,21 @@
 import type { Chapter, Novel, Scene } from "@gh-writer/core";
 import { countWords } from "@gh-writer/core";
-import { caretBlock, caretScene, findCommands, getMarkdown, liveCounts, serializeProse, sessionCommands, spellCommands, writingModeCommands, type EditorCommand, type Manuscript } from "@gh-writer/editor";
+import {
+  caretBlock,
+  caretScene,
+  findCommands,
+  getMarkdown,
+  liveCounts,
+  MENTION_INFO_KEYS,
+  mentionAtCaret,
+  serializeProse,
+  sessionCommands,
+  spellCommands,
+  writingModeCommands,
+  type EditorCommand,
+  type Manuscript,
+  type MentionTarget,
+} from "@gh-writer/editor";
 import { ChapterEditor, FindReplace, SceneEditor, WordCount, type SpellService } from "@gh-writer/editor/react";
 import type { Editor } from "@tiptap/core";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -11,6 +26,7 @@ import { api } from "../api.ts";
 import { useCommands } from "../commands.ts";
 import { mentionEntities } from "../bible/types.ts";
 import { useCurrentScene } from "./current.ts";
+import { EntryPanel, leaveMention, MentionCard, useEntryPanel, useMentionCard } from "./mention-card.tsx";
 import { SceneDetails, useSceneDetails } from "./scene-details.tsx";
 import { useStructure } from "./structure.ts";
 import { TitleDialog } from "./structure-dialogs.tsx";
@@ -94,6 +110,40 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
     [details.open, details.toggle],
   );
 
+  // Mentions: a card on hover or Alt+Enter, and the entry beside the text.
+  const entryOpen = useEntryPanel((s) => s.entry !== null);
+  useEffect(
+    () => () => {
+      useMentionCard.getState().hide();
+      useEntryPanel.setState({ entry: null });
+    },
+    [viewId],
+  );
+  const sceneOf = (sceneId: string | undefined) => ("scene" in view ? view.scene : novel.allScenes.find((s) => s.file === sceneId));
+  const onMention = {
+    show: (target: MentionTarget) => editor && useMentionCard.getState().show({ ...target, scene: sceneOf(target.sceneId), editor }),
+    leave: leaveMention,
+  };
+  useCommands(
+    () => [
+      {
+        id: "writing.mentionCard",
+        title: "Show the mention's card",
+        group: "Writing",
+        keys: MENTION_INFO_KEYS,
+        run: () => {
+          const at = editor && !editor.isDestroyed ? mentionAtCaret(editor) : undefined;
+          const element = at && (editor!.view.nodeDOM(at.pos) as HTMLElement | null);
+          if (!at || !element) return;
+          const sceneId = editor!.state.doc.type.name === "chapter" ? (editor!.state.doc.resolve(at.pos).node(1).attrs.id as string) : undefined;
+          // After the palette has closed and given focus back.
+          requestAnimationFrame(() => onMention.show({ ...at, element, sceneId, via: "keyboard" }));
+        },
+      },
+    ],
+    [editor, view],
+  );
+
   // Split the scene at the caret: the paragraph holding it starts the new scene.
   const structure = useStructure(novelId, novel, workspace);
   const [splitting, setSplitting] = useState<{ scene: string; block: number }>();
@@ -164,9 +214,10 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
   const heading = "scene" in view ? view.scene.title : chapterTitle(novel, view.chapter);
 
   const detailsScene = current && scenes.find((s) => s.id === current.id);
+  const showDetails = !entryOpen && details.open && loaded && detailsScene !== undefined;
 
   return (
-    <div className={details.open ? "grid min-h-full lg:grid-cols-[minmax(0,1fr)_20rem]" : "min-h-full"}>
+    <div className={entryOpen ? "grid min-h-full lg:grid-cols-[minmax(0,1fr)_28rem]" : showDetails ? "grid min-h-full lg:grid-cols-[minmax(0,1fr)_20rem]" : "min-h-full"}>
       <div className="mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] content-start gap-3 px-6 py-6">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-xl font-semibold">{heading}</h1>
@@ -195,6 +246,7 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
             onReady={setEditor}
             autofocus={autofocus}
             entities={entities}
+            onMention={onMention}
             {...(spell ? { spell } : {})}
           />
         ) : (
@@ -205,11 +257,14 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
             onReady={setEditor}
             autofocus={autofocus}
             entities={entities}
+            onMention={onMention}
             {...(spell ? { spell } : {})}
           />
         )}
       </div>
-      {details.open && loaded && detailsScene && <SceneDetails key={detailsScene.file} novel={novel} workspace={workspace} path={detailsScene.file} title={detailsScene.title} />}
+      {showDetails && detailsScene && <SceneDetails key={detailsScene.file} novel={novel} workspace={workspace} path={detailsScene.file} title={detailsScene.title} />}
+      <EntryPanel novelId={novelId} novel={novel} workspace={workspace} spell={spell} />
+      <MentionCard novel={novel} />
     </div>
   );
 }

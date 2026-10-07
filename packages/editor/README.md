@@ -27,6 +27,8 @@ Mentions are atoms: the caret steps over them, typing can't split them, and Back
 
 **@ suggestions.** Give either editor `entities` (`{ id, name, aliases, type }`, `type` being the label to group by) and typing `@` at the start of a word, then a few letters, lists matching entries by name or alias, grouped by type in the order given. The list is a `listbox` the text box points at with `aria-activedescendant`, so focus stays in the text and screen readers read the highlighted option. ↑ ↓ move, Enter or Tab inserts the mention, Escape closes the list and leaves the `@` text as typed, and clicking an option inserts it. The mention shows the name or alias that was matched ("@ad" writes Ada, "@ada v" Ada Varn) and is written `[Ada](#char_7f3k2q)`, so it keeps its words and still finds its entry by ID if the entry is renamed. `suggestMentions(entities, query)` is the ranking on its own: a name or alias starting with the query first, then one with a word starting with it, then one containing it.
 
+**Mention cards.** `onMention` (`{ show, leave }`) tells the app when a mention is hovered (after a short pause) or Alt+Enter is pressed with the caret beside one: `show` gets the entity ID, the mention's element to place a card by, the scene holding it in a chapter, and whether it came by pointer or keyboard; `leave` says the pointer left it. The editor draws nothing itself. `mentionAtCaret(editor)` finds the mention beside the caret.
+
 The typography uses CSS custom properties (`--ghw-prose-font`, `--ghw-prose-measure`, `--ghw-ink`…) and follows the OS light or dark setting, or `data-theme` on the root element.
 
 ### Writing modes

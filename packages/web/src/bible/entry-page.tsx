@@ -20,7 +20,22 @@ const VIA: Record<SceneLink, string> = { pov: "point of view", characters: "pres
 type FieldRow = { key: string; value: string; kind: "string" | "number" | "boolean" };
 
 /** A bible entry: its details, its notes, and everywhere the story refers to it. */
-export function EntryPage({ novelId, novel, entity, workspace, spell }: { novelId: string; novel: Novel; entity: Entity; workspace: Workspace; spell?: { service: SpellService; onAddWord: (w: string) => void } | undefined }) {
+export function EntryPage({
+  novelId,
+  novel,
+  entity,
+  workspace,
+  spell,
+  embedded,
+}: {
+  novelId: string;
+  novel: Novel;
+  entity: Entity;
+  workspace: Workspace;
+  spell?: { service: SpellService; onAddWord: (w: string) => void } | undefined;
+  /** Shown in a side panel beside the text: its name is a level-2 heading with this ID, and it takes the panel's width. */
+  embedded?: { headingId: string };
+}) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const type = typeOf(novel, entity);
@@ -91,7 +106,7 @@ export function EntryPage({ novelId, novel, entity, workspace, spell }: { novelI
   const setField = (i: number, patch: Partial<FieldRow>) => setForm((f) => ({ ...f, fields: f.fields.map((row, j) => (j === i ? { ...row, ...patch } : row)) }));
 
   return (
-    <div className="mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] gap-6 px-6 py-6">
+    <div className={embedded ? "grid gap-6" : "mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] gap-6 px-6 py-6"}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <p className="text-sm text-muted">
@@ -100,7 +115,13 @@ export function EntryPage({ novelId, novel, entity, workspace, spell }: { novelI
             </Link>{" "}
             · {type?.label ?? entity.type}
           </p>
-          <h1 className="text-xl font-semibold">{entity.name}</h1>
+          {embedded ? (
+            <h2 id={embedded.headingId} className="text-lg font-semibold">
+              {entity.name}
+            </h2>
+          ) : (
+            <h1 className="text-xl font-semibold">{entity.name}</h1>
+          )}
         </div>
         <Button variant="ghost" size="sm" onClick={() => remove.mutate(false)} disabled={remove.isPending}>
           <Trash2 className="size-4" aria-hidden /> Delete

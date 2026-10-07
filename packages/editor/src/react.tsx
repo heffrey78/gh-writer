@@ -9,6 +9,7 @@ import { loadMarkdown, setInitialMarkdown } from "./editor.ts";
 import { proseContent } from "./extensions.ts";
 import { FindExtension } from "./find.ts";
 import { SearchHighlightExtension } from "./search.ts";
+import { MentionInfoExtension, type MentionTarget } from "./mention-info.ts";
 import { MentionSuggestExtension, type MentionEntity } from "./mention-suggest.ts";
 import { SpellCheckExtension, type SpellService } from "./spell.ts";
 import { writingModes, WritingModesExtension, type WritingModes } from "./modes.ts";
@@ -39,6 +40,8 @@ export interface SceneEditorProps {
   spell?: SpellProps;
   /** What @ suggests: the story bible's entries. */
   entities?: readonly MentionEntity[];
+  /** A mention was hovered, or Alt+Enter pressed beside one: for a card about its entity. */
+  onMention?: MentionCallbacks;
 }
 
 export interface SpellProps {
@@ -54,6 +57,19 @@ function useSpellExtension(spell: SpellProps | undefined) {
     service: spell?.service ?? null,
     onAddWord: spell?.onAddWord ? (word) => latest.current?.onAddWord?.(word) : undefined,
   });
+}
+
+export interface MentionCallbacks {
+  show: (target: MentionTarget) => void;
+  /** The pointer left the mention. */
+  leave: () => void;
+}
+
+/** Mention hover and shortcut, calling the latest `onMention` prop. */
+function useMentionInfoExtension(callbacks: MentionCallbacks | undefined) {
+  const latest = useRef(callbacks);
+  latest.current = callbacks;
+  return MentionInfoExtension.configure({ onShow: (t) => latest.current?.show(t), onLeave: () => latest.current?.leave() });
 }
 
 /** @ suggestions over the latest `entities` prop, as extensions are set up once. */
@@ -76,9 +92,11 @@ export function SceneEditor({
   sceneId = "scene",
   spell,
   entities,
+  onMention,
 }: SceneEditorProps) {
   const spellExtension = useSpellExtension(spell);
   const mentionExtension = useMentionExtension(entities);
+  const mentionInfo = useMentionInfoExtension(onMention);
   const callbacks = useRef({ onChange, onReady });
   callbacks.current = { onChange, onReady };
   // The Markdown the editor last loaded or reported, to tell its own output from a new value.
@@ -106,6 +124,7 @@ export function SceneEditor({
       SearchHighlightExtension,
       spellExtension,
       mentionExtension,
+      mentionInfo,
       Placeholder.configure({ placeholder }),
     ],
     editorProps: {
@@ -181,6 +200,8 @@ export interface ChapterEditorProps {
   spell?: SpellProps;
   /** What @ suggests: the story bible's entries. */
   entities?: readonly MentionEntity[];
+  /** A mention was hovered, or Alt+Enter pressed beside one: for a card about its entity. */
+  onMention?: MentionCallbacks;
 }
 
 /**
@@ -197,9 +218,11 @@ export function ChapterEditor({
   onReady,
   spell,
   entities,
+  onMention,
 }: ChapterEditorProps) {
   const spellExtension = useSpellExtension(spell);
   const mentionExtension = useMentionExtension(entities);
+  const mentionInfo = useMentionInfoExtension(onMention);
   const callbacks = useRef({ onChange, onReady });
   callbacks.current = { onChange, onReady };
   // Per scene: the Markdown last loaded or reported, and the content it was serialized from.
@@ -232,7 +255,7 @@ export function ChapterEditor({
   }).current;
 
   const editor = useEditor({
-    extensions: [...chapterContent, UndoRedo, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, mentionExtension],
+    extensions: [...chapterContent, UndoRedo, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, mentionExtension, mentionInfo],
     editorProps: {
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": label, class: "ghw-prose ghw-chapter" },
     },
