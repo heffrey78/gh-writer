@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import { axe, expect, launch, test, type App } from "./fixtures.ts";
@@ -10,6 +10,9 @@ import { axe, expect, launch, test, type App } from "./fixtures.ts";
  */
 
 const BRIDGE = "manuscript/01-return/01-arrival/02-the-bridge.md";
+
+/** A file's text, or "" while it's missing (a restore replaces files, so for a moment one isn't there). */
+const readNow = (path: string) => (existsSync(path) ? readFileSync(path, "utf8") : "");
 
 /** axe in light and dark, leaving the page in light. */
 async function audit(page: Page) {
@@ -121,7 +124,8 @@ for (const [name, viewport] of [
     await expect(panel.getByRole("listitem")).toHaveCount(1);
     await audit(page);
     await page.keyboard.press("Escape");
-    await expect(text).toBeVisible();
+    // Closed, not closing: until it's gone its focus trap would take the keys typed next.
+    await expect(panel).toHaveCount(0);
     await text.focus();
     await page.keyboard.press("Control+End");
     await page.keyboard.type(" Then more.");
@@ -134,12 +138,12 @@ for (const [name, viewport] of [
     await page.keyboard.press("Tab");
     await expect(confirm.getByRole("button", { name: "Restore manuscript" })).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect.poll(() => readFileSync(join(here, BRIDGE), "utf8")).not.toContain("Then more.");
+    await expect.poll(() => readNow(join(here, BRIDGE))).toMatch(/Written on the other machine\.\n$/);
     await expect(page.getByRole("status").filter({ hasText: "Restored the manuscript" })).toBeVisible();
     // Undo is in the notice, and a keystroke away in the palette.
     await palette(page, "undo");
     await expect(page.getByRole("status").filter({ hasText: "Undone" })).toBeVisible({ timeout: 10_000 });
-    await expect.poll(() => readFileSync(join(here, BRIDGE), "utf8")).toContain("Then more.");
+    await expect.poll(() => readNow(join(here, BRIDGE))).toContain("Then more.");
 
     // Theme and the shortcut reference.
     await palette(page, "theme dark");
