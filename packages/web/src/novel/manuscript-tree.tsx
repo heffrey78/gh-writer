@@ -1,8 +1,8 @@
 import { countWords, type Novel } from "@gh-writer/core";
 import { ChevronDown, ChevronRight, FilePlus, FolderPlus, History } from "lucide-react";
 import { ContextMenu } from "radix-ui";
-import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { memo, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { useNavigate } from "react-router";
 import { useCommands, type Command } from "../commands.ts";
 import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
@@ -33,9 +33,8 @@ type Dialog = { kind: "rename"; id: string; title: string } | { kind: "new-scene
  * F2 renames, Delete deletes (with Undo), Alt+Up/Down moves an item, letters jump; drag and drop
  * reorders; the context menu (right-click, Shift+F10) has the rest.
  */
-export function ManuscriptTree({ novelId, novel, structure }: { novelId: string; novel: Novel; structure: Structure }) {
+export function ManuscriptTree({ novelId, novel, structure, current }: { novelId: string; novel: Novel; structure: Structure; current: string | undefined }) {
   const navigate = useNavigate();
-  const location = useLocation();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [focused, setFocused] = useState<string>();
   const [dialog, setDialog] = useState<Dialog>();
@@ -45,7 +44,6 @@ export function ManuscriptTree({ novelId, novel, structure }: { novelId: string;
   /** An item moved from the keyboard: re-rendered elsewhere, it loses focus, so it gets it back. */
   const refocus = useRef<string | undefined>(undefined);
   const tree = useRef<HTMLDivElement>(null);
-  const current = /\/(chapter|scene)\/([^/]+)$/.exec(location.pathname)?.[2];
 
   const all = useMemo(() => {
     const out: TreeNode[] = [];
@@ -384,8 +382,22 @@ function itemKind(novel: Novel, id: string): ItemKind {
   return novel.allScenes.some((s) => s.id === id) ? "scene" : novel.allChapters.some((c) => c.id === id) ? "chapter" : "part";
 }
 
-/** The tree with its structural actions, for the workspace's sidebar. */
-export function ManuscriptSidebar({ novelId, novel, workspace }: { novelId: string; novel: Novel; workspace: Workspace }) {
+/**
+ * The tree with its structural actions, for the workspace's sidebar. `current` is the open chapter
+ * or scene. Memoised, and given that rather than reading the address itself, so a change to a
+ * view's query (a filter, a threshold) doesn't re-render a long book's tree.
+ */
+export const ManuscriptSidebar = memo(function ManuscriptSidebar({
+  novelId,
+  novel,
+  workspace,
+  current,
+}: {
+  novelId: string;
+  novel: Novel;
+  workspace: Workspace;
+  current: string | undefined;
+}) {
   const structure = useStructure(novelId, novel, workspace);
-  return <ManuscriptTree novelId={novelId} novel={novel} structure={structure} />;
-}
+  return <ManuscriptTree novelId={novelId} novel={novel} structure={structure} current={current} />;
+});

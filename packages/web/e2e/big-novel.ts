@@ -38,10 +38,11 @@ const words = (p: string) => p.split(/\s+/).length;
 
 /**
  * A full-length novel in `dir`, for performance work: parts × chapters × scenes of prose cycled from
- * the sample novel (about `total` words), and the sample's bible plus `extraCharacters` more entries.
+ * the sample novel (about `total` words), and the sample's bible plus `extraCharacters` more entries
+ * and `plotlines` more plotlines, each scene advancing three of them (a major beat and two minor).
  * Not a git repository: callers commit it.
  */
-export function writeBigNovel(dir: string, { total = 150_000, parts = 3, chapters = 20, scenes = 4, extraCharacters = 40 } = {}): { words: number; scenes: number } {
+export function writeBigNovel(dir: string, { total = 150_000, parts = 3, chapters = 20, scenes = 4, extraCharacters = 40, plotlines = 0 } = {}): { words: number; scenes: number } {
   const paragraphs = sampleParagraphs();
   const part = ids("pt");
   const chapter = ids("ch");
@@ -58,6 +59,13 @@ export function writeBigNovel(dir: string, { total = 150_000, parts = 3, chapter
     writeFileSync(join(dir, "bible/characters", `${id}.md`), `---\nid: ${id}\nname: Extra Person ${i + 1}\nsummary: A face in the crowd at Varn.\n---\n\nNotes about Extra Person ${i + 1}.\n`);
   }
 
+  const plotline = ids("plot");
+  const plots = Array.from({ length: plotlines }, (_, i) => {
+    const id = plotline();
+    writeFileSync(join(dir, "bible/plotlines", `${id}.md`), `---\nid: ${id}\nname: Thread ${i + 1}\nsummary: A thread through the book.\n---\n`);
+    return id;
+  });
+  let sceneNumber = 0;
   const perScene = Math.ceil(total / (parts * chapters * scenes));
   let next = 0;
   let written = 0;
@@ -85,7 +93,13 @@ export function writeBigNovel(dir: string, { total = 150_000, parts = 3, chapter
         }
         written += n;
         const title = `Scene ${p}.${c}.${s}`;
-        writeFileSync(join(chapterDir, `${String(s).padStart(2, "0")}-scene-${s}.md`), `---\nid: ${sceneId}\ntitle: ${title}\nstatus: drafted\n---\n\n${body.join("\n\n")}\n`);
+        const k = sceneNumber++;
+        const threads = plots.length
+          ? `plotlines:\n${[0, 3, 7]
+              .map((step, j) => `  - id: ${plots[(k + step) % plots.length]}\n    weight: ${j === 0 ? "major" : "minor"}\n    beat: Beat ${k + 1}.${j + 1}\n`)
+              .join("")}`
+          : "";
+        writeFileSync(join(chapterDir, `${String(s).padStart(2, "0")}-scene-${s}.md`), `---\nid: ${sceneId}\ntitle: ${title}\nstatus: drafted\n${threads}---\n\n${body.join("\n\n")}\n`);
       }
       writeFileSync(join(chapterDir, "_chapter.yaml"), `id: ${chapterId}\ntitle: Chapter ${(p - 1) * chapters + c}\nscenes: [${sceneIds.join(", ")}]\n`);
     }

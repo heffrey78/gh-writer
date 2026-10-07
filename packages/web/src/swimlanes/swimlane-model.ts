@@ -16,6 +16,8 @@ export interface Swimlanes {
   parts: { part: Part; span: number }[];
   /** How a scene advances a plotline, by `${plotline}|${scene}`; absent: it doesn't. */
   marks: Map<string, Mark>;
+  /** Each scene's words, counted once (gaps in words read them on every threshold). */
+  words: number[];
 }
 
 export const cellKey = (plotline: string, scene: string) => `${plotline}|${scene}`;
@@ -40,7 +42,7 @@ export function swimlanes(novel: Novel, scenes: Scene[] = novel.scenes): Swimlan
     if (lastPart?.part.id === part.id) lastPart.span++;
     else parts.push({ part, span: 1 });
   }
-  return { lanes, scenes, chapters, parts, marks };
+  return { lanes, scenes, chapters, parts, marks, words: scenes.map((scene) => countWords(scene.body)) };
 }
 
 /** How long a plotline may go unmentioned before it counts as a gap: in scenes, or in words. */
@@ -64,7 +66,7 @@ export interface Gap {
  * beats, and after its last beat to the end of the book. (Before its first beat it hasn't started.)
  */
 export function gaps(s: Swimlanes, threshold: GapThreshold): Gap[] {
-  const words = s.scenes.map((scene) => countWords(scene.body));
+  const { words } = s;
   const out: Gap[] = [];
   for (const lane of s.lanes) {
     const beats = s.scenes.flatMap((scene, i) => (s.marks.has(cellKey(lane.id, scene.id)) ? [i] : []));

@@ -3,7 +3,7 @@ import { joinSceneFile } from "@gh-writer/editor";
 import { useQueryClient } from "@tanstack/react-query";
 import { Popover } from "radix-ui";
 import { GripHorizontal } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { Link } from "react-router";
 import { api, keys } from "../api.ts";
 import { useNotice } from "../novel/notice.tsx";
@@ -132,6 +132,17 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
     const move = id && target ? dropMove(novel, id, target.id, target.after) : undefined;
     if (id && move) void structure.move(id, move.index, move.to);
   };
+
+  // Stable for the memoised cells: they read the latest page state through refs.
+  const latest = useRef({ choose: (_l: Entity, _s: Scene, _e: HTMLElement) => {}, s });
+  latest.current = { choose, s };
+  const onChoose = useCallback((laneId: string, sceneId: string, el: HTMLElement) => {
+    const { choose: pick, s: now } = latest.current;
+    const lane = now.lanes.find((l) => l.id === laneId);
+    const scene = now.scenes.find((x) => x.id === sceneId);
+    if (lane && scene) pick(lane, scene, el);
+  }, []);
+  const onFocusCell = useCallback((lane: string, scene: string) => setFocused({ lane, scene }), []);
 
   const cellEl = (lane: string, scene: string) => table.current?.querySelector<HTMLElement>(`[data-cell="${cellKey(lane, scene)}"]`);
   // The focused cell's place now: where its lane and scene are (the first cell if they're gone).
@@ -315,41 +326,17 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
                   const gap = inGap.get(cellKey(lane.id, scene.id));
                   const active = row === focusRow && col === focusCol;
                   return (
-                    <td
+                    <Cell
                       key={scene.id}
-                      role="gridcell"
-                      data-cell={cellKey(lane.id, scene.id)}
-                      tabIndex={active ? 0 : -1}
-                      onFocus={() => !active && setFocused({ lane: lane.id, scene: scene.id })}
-                      onClick={(e) => choose(lane, scene, e.currentTarget)}
-                      aria-label={cellLabel(scene.title, lane.name, mark, gap)}
-                      aria-haspopup={mark ? "dialog" : undefined}
-                      className={cn(
-                        "group relative h-10 w-10 cursor-pointer border-t border-l border-rule p-0 text-center outline-none hover:bg-panel focus-visible:bg-accent-soft",
-                        gap && "bg-warn-soft",
-                      )}
-                    >
-                      <span className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-rule" aria-hidden />
-                      {mark && (
-                        <>
-                          <span
-                            aria-hidden
-                            className={cn(
-                              "relative inline-block rounded-full align-middle",
-                              mark.weight === "major" ? "size-3.5 bg-accent" : "size-2.5 border border-accent bg-accent-soft",
-                            )}
-                          />
-                          {mark.beat && (
-                            <span
-                              aria-hidden
-                              className="pointer-events-none absolute top-full left-1/2 z-20 mt-1 hidden w-48 -translate-x-1/2 rounded-md border border-rule bg-raised px-2 py-1 text-left text-xs shadow-md group-hover:block group-focus:block"
-                            >
-                              {mark.beat}
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </td>
+                      lane={lane.id}
+                      scene={scene.id}
+                      label={cellLabel(scene.title, lane.name, mark, gap)}
+                      mark={mark}
+                      quiet={gap !== undefined}
+                      active={active}
+                      onChoose={onChoose}
+                      onFocusCell={onFocusCell}
+                    />
                   );
                 })}
               </tr>
@@ -477,3 +464,61 @@ function CellEditor({
     </Popover.Root>
   );
 }
+
+/**
+ * One cell of the grid: memoised, so a change that touches a few cells (an edit, a new gap
+ * threshold) re-renders those, not all of them.
+ */
+const Cell = memo(function Cell({
+  lane,
+  scene,
+  label,
+  mark,
+  quiet,
+  active,
+  onChoose,
+  onFocusCell,
+}: {
+  lane: string;
+  scene: string;
+  label: string;
+  mark: Mark | undefined;
+  quiet: boolean;
+  active: boolean;
+  onChoose: (lane: string, scene: string, el: HTMLElement) => void;
+  onFocusCell: (lane: string, scene: string) => void;
+}) {
+  return (
+    <td
+      role="gridcell"
+      data-cell={cellKey(lane, scene)}
+      tabIndex={active ? 0 : -1}
+      onFocus={() => !active && onFocusCell(lane, scene)}
+      onClick={(e) => onChoose(lane, scene, e.currentTarget)}
+      aria-label={label}
+      aria-haspopup={mark ? "dialog" : undefined}
+      className={cn(
+        "group relative h-10 w-10 cursor-pointer border-t border-l border-rule p-0 text-center outline-none hover:bg-panel focus-visible:bg-accent-soft",
+        quiet && "bg-warn-soft",
+      )}
+    >
+      <span className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-rule" aria-hidden />
+      {mark && (
+        <>
+          <span
+            aria-hidden
+            className={cn("relative inline-block rounded-full align-middle", mark.weight === "major" ? "size-3.5 bg-accent" : "size-2.5 border border-accent bg-accent-soft")}
+          />
+          {mark.beat && (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute top-full left-1/2 z-20 mt-1 hidden w-48 -translate-x-1/2 rounded-md border border-rule bg-raised px-2 py-1 text-left text-xs shadow-md group-hover:block group-focus:block"
+            >
+              {mark.beat}
+            </span>
+          )}
+        </>
+      )}
+    </td>
+  );
+});

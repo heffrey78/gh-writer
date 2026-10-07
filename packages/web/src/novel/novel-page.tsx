@@ -3,7 +3,7 @@ import type { Novel } from "@gh-writer/core";
 import { useWritingModes } from "@gh-writer/editor/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams } from "react-router";
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router";
 import { api, keys } from "../api.ts";
 import { useCommands, type Command } from "../commands.ts";
 import { Shell } from "../layout.tsx";
@@ -34,6 +34,9 @@ const GraphPage = lazy(() => import("../graph/graph-page.tsx").then((m) => ({ de
 /** A novel's workspace: the manuscript on the left, the editor on the right, save and sync state on top. */
 export function NovelPage() {
   const { novelId = "" } = useParams();
+  // The open chapter or scene, for the tree.
+  const { pathname } = useLocation();
+  const current = /\/(chapter|scene)\/([^/]+)$/.exec(pathname)?.[2];
   const queryClient = useQueryClient();
   const novel = useQuery({ queryKey: keys.novel(novelId), queryFn: () => api.novel<Novel>(novelId) });
   const sync = useQuery({ queryKey: keys.sync(novelId), queryFn: () => api.sync(novelId) });
@@ -163,7 +166,7 @@ export function NovelPage() {
                 </NavLink>
               ))}
             </nav>
-            <ManuscriptSidebar novelId={novelId} novel={book} workspace={workspace} />
+            <ManuscriptSidebar novelId={novelId} novel={book} workspace={workspace} current={current} />
             <nav aria-label="Story bible" className="mt-2 border-t border-rule pt-3 text-sm">
               <NavLink to={`/novels/${novelId}/bible`} end className={({ isActive }) => `block rounded-md px-2 py-1 font-semibold hover:bg-paper ${isActive ? "bg-accent-soft" : ""}`}>
                 Story bible
