@@ -1,5 +1,5 @@
 import { backlinks, type Novel } from "@gh-writer/core";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../api.ts";
 import { sceneItems } from "../bible/pickers.ts";
@@ -17,6 +17,10 @@ import { graphAt, RELATIONSHIP_GRAPH, type GraphFilter } from "./graph-model.ts"
 
 const list = (v: string | null) => (v ? v.split(",").filter(Boolean) : undefined);
 
+/** How long each scene shows while playing, by speed. */
+const SPEEDS = { slow: 2000, normal: 1000, fast: 400 } as const;
+type Speed = keyof typeof SPEEDS;
+
 type Editing = { kind: "add"; from: string; to?: string } | { kind: "edge" | "change" | "end"; id: string } | { kind: "entry" };
 
 /**
@@ -32,8 +36,16 @@ export function GraphPage({ novelId, novel }: { novelId: string; novel: Novel })
   const [address, setAddress] = useSearchParams();
   // The page answers at once and the address follows: waiting on the address would make the slider
   // drop key presses and checkboxes spring back for a moment.
+  // Addresses the page wrote itself are ignored when they arrive (late, they would roll the view back
+  // between key presses); any other (a link, a reload) is followed.
   const [query, setQuery] = useState(address.toString());
-  useEffect(() => setQuery(address.toString()), [address]);
+  const written = useRef(new Set<string>());
+  useEffect(() => {
+    const now = address.toString();
+    if (written.current.has(now)) return;
+    written.current.clear();
+    setQuery(now);
+  }, [address]);
   const params = useMemo(() => new URLSearchParams(query), [query]);
   const theme = useTheme((s) => s.theme);
   const show = useNotice((s) => s.show);
@@ -63,6 +75,7 @@ export function GraphPage({ novelId, novel }: { novelId: string; novel: Novel })
       if (v) next.set(k, v);
       else next.delete(k);
     }
+    written.current.add(next.toString());
     setQuery(next.toString());
     setAddress(next, { replace: true });
   };
@@ -82,6 +95,36 @@ export function GraphPage({ novelId, novel }: { novelId: string; novel: Novel })
   const plotlines = novel.entities.filter((e) => e.type === "plotline").sort((a, b) => a.name.localeCompare(b.name));
   const sceneList = useMemo(() => sceneItems(novel), [novel]);
   const shownList = selected ? view.list.filter((r) => view.edges.some((e) => e.id === r.id && (e.source === selected.id || e.target === selected.id))) : view.list;
+  // Play: the slider steps through the book on its own, until the end or until the author does anything.
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState<Speed>("normal");
+  const playButton = useRef<HTMLButtonElement>(null);
+  const sliderRef = useRef<HTMLInputElement>(null);
+  const play = () => {
+    if (!playing && index >= scenes.length - 1) go(scenes[0]?.id);
+    setPlaying(!playing);
+  };
+  useEffect(() => {
+    if (!playing) return;
+    if (index >= scenes.length - 1) return setPlaying(false);
+    const timer = setTimeout(() => go(scenes[index + 1]?.id), SPEEDS[speed]);
+    return () => clearTimeout(timer);
+  }, [playing, index, speed]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!playing) return;
+    const stop = (e: Event) => {
+      if (e.target === playButton.current) return; // its own click toggles
+      if (e instanceof KeyboardEvent && e.key === " " && e.target === sliderRef.current) return; // the slider's own toggle
+      setPlaying(false);
+    };
+    document.addEventListener("pointerdown", stop, true);
+    document.addEventListener("keydown", stop, true);
+    return () => {
+      document.removeEventListener("pointerdown", stop, true);
+      document.removeEventListener("keydown", stop, true);
+    };
+  }, [playing]);
+
   const [editing, setEditing] = useState<Editing>();
   const close = () => setEditing(undefined);
   const editedRel = editing && "id" in editing ? novel.relationships.find((r) => r.id === editing.id) : undefined;
@@ -107,7 +150,14 @@ export function GraphPage({ novelId, novel }: { novelId: string; novel: Novel })
                 Story position
               </label>
               <input
+                ref={sliderRef}
                 id={`${id}-slider`}
+                onKeyDown={(e) => {
+                  if (e.key !== " ") return;
+                  e.preventDefault();
+                  play();
+                }}
+                aria-keyshortcuts="Space"
                 type="range"
                 min={0}
                 max={scenes.length - 1}
@@ -123,6 +173,22 @@ export function GraphPage({ novelId, novel }: { novelId: string; novel: Novel })
               </p>
             </div>
             <Picker label="Scene" items={sceneList} value={scene.id} onChange={go} className="w-64" />
+            <div className="flex items-end gap-2">
+              <Button ref={playButton} aria-pressed={playing} onClick={play} title="Space, on the slider">
+                {playing ? "Pause" : "Play"}
+              </Button>
+              <label className="grid gap-1.5 text-sm font-medium">
+                Speed
+                <select value={speed} onChange={(e) => setSpeed(e.target.value as Speed)} className="h-9 rounded-md border border-rule bg-raised px-2 font-normal">
+                  <option value="slow">Slow</option>
+                  <option value="normal">Normal</option>
+                  <option value="fast">Fast</option>
+                </select>
+              </label>
+            </div>
+            <p role="status" className="sr-only">
+              {playing ? `At “${scene.title}”` : ""}
+            </p>
           </div>
         ) : (
           <p className="text-muted">The manuscript has no scenes yet: the graph shows relationships that hold from the start.</p>
@@ -188,7 +254,7 @@ export function GraphPage({ novelId, novel }: { novelId: string; novel: Novel })
         </details>
       </div>
       <div className="grid min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-        <div className="min-h-96 overflow-hidden rounded-lg border border-rule bg-raised">
+        <div className="ghw-graph min-h-96 overflow-hidden rounded-lg border border-rule bg-raised">
           {view.nodes.length ? (
             <GraphCanvas
               nodes={view.nodes}

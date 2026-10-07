@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from "react";
+import type { ComponentProps } from "react";
 import { cn } from "./cn.ts";
 
 const VARIANTS = {
@@ -13,7 +13,7 @@ const SIZES = {
   md: "h-9 px-3.5 text-sm gap-2",
 } as const;
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends ComponentProps<"button"> {
   variant?: keyof typeof VARIANTS;
   size?: keyof typeof SIZES;
 }

@@ -180,3 +180,39 @@ test("an edge is ended at the graph's scene, or removed, from its dialog; new en
   await expect(page.getByRole("region", { name: "Ilse Varn" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 1, name: "Relationships" })).toBeVisible();
 });
+
+test("Play steps through the book until the end or until the author does anything", async ({ page, app }) => {
+  await open(page, app);
+  const slider = page.getByRole("slider", { name: "Story position" });
+  const playButton = page.getByRole("button", { name: /^(Play|Pause)$/ });
+  await page.getByRole("combobox", { name: "Speed" }).selectOption("fast");
+  await playButton.click();
+  await expect(playButton).toHaveAttribute("aria-pressed", "true");
+  // Each scene is announced as it comes.
+  await expect(page.getByRole("status").filter({ hasText: /^At “/ })).toHaveCount(1);
+  // It passes The Betrayal, where the edge changes, and stops at the end.
+  await expect(edge(page, "Ada Varn, Rivals with, Ben Varn")).toHaveCount(1, { timeout: 10_000 });
+  await expect(slider).toHaveAttribute("aria-valuetext", /^Scene 8 of 8/, { timeout: 10_000 });
+  await expect(playButton).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("status").filter({ hasText: /^At “/ })).toHaveCount(0);
+
+  // From the end, Play starts again at the beginning; Space on the slider toggles it; a click elsewhere pauses it.
+  await slider.focus();
+  await page.keyboard.press("Space");
+  await expect(playButton).toHaveAttribute("aria-pressed", "true");
+  await expect(slider).toHaveAttribute("aria-valuetext", /^Scene [2-7] of 8/);
+  await page.getByRole("heading", { level: 1, name: "Relationships" }).click();
+  await expect(playButton).toHaveAttribute("aria-pressed", "false");
+  const stoppedAt = await slider.getAttribute("aria-valuetext");
+  await page.waitForTimeout(900);
+  await expect(slider).toHaveAttribute("aria-valuetext", stoppedAt!);
+  await axe(page);
+});
+
+test("with reduced motion, edges change without animating", async ({ page, app }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await open(page, app);
+  await expect(page.locator(".ghw-graph .react-flow__edge").first()).toHaveCSS("animation-name", "none");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await expect(page.locator(".ghw-graph .react-flow__edge").first()).toHaveCSS("animation-name", "ghw-edge-in");
+});

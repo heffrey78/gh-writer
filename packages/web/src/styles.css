@@ -78,3 +78,16 @@ body {
 ::selection {
   background: var(--ghw-selection);
 }
+
+/* The relationship graph: an edge that comes into being (moving through the story) fades in. */
+@media (prefers-reduced-motion: no-preference) {
+  .ghw-graph .react-flow__edge {
+    animation: ghw-edge-in 400ms ease-out;
+  }
+}
+
+@keyframes ghw-edge-in {
+  from {
+    opacity: 0;
+  }
+}

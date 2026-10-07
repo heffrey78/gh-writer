@@ -79,6 +79,8 @@ Items can also be dragged: before or after an item of the same kind, or onto a c
 
 **Editing on the graph.** Drawing a line from one node's handle to another's adds a relationship between them (choose its type; it starts at the graph's scene, or the beginning if that's the first). Clicking an edge, or **Edit** beside it in the list (the keyboard path), offers to change it or end it at the graph's scene, or remove it; changes go through the story bible's operations, so both entries show them. With a node selected, **Add a relationship** does the same without drawing. **New entry** adds a bible entry, which joins the graph selected. Several relationships between the same two entries are drawn as curves fanned out side by side, each with its own label.
 
+**Play** steps the slider through the book (Slow, Normal or Fast), announcing each scene politely; new relationships fade in as they start, unless the system asks for reduced motion. It stops at the end, and pauses as soon as the author clicks or presses anything else. Space on the slider plays and pauses; Play at the end starts again from the beginning.
+
 Nodes are placed by dragging, or by focusing one (Tab), Enter to select it and the arrow keys. Positions are saved to `diagrams/layouts.yaml`, one line per node, and committed with the next autosave; nodes without a saved position are laid out on a ring around the placed ones. React Flow (`@xyflow/react`) draws the graph and is loaded only when the graph is first opened. `/bench/graph?nodes=60&edges=200` is the benchmark page the performance tests drive.
 
 ## Mentions
