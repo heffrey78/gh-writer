@@ -1,6 +1,6 @@
-import { Background, Controls, Handle, MarkerType, Position, ReactFlow, useNodesState, type Edge, type Node, type NodeProps } from "@xyflow/react";
+import { Background, Controls, Handle, MarkerType, Position, ReactFlow, useNodesState, type ColorMode, type Edge, type Node, type NodeChange, type NodeProps } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { memo, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
 export interface GraphNode {
   id: string;
@@ -21,6 +21,8 @@ export interface GraphEdge {
   line?: "solid" | "dashed" | "dotted";
   /** Symmetric relationships have no arrow. */
   directed?: boolean;
+  /** What a screen reader says for it, e.g. "Ada Varn, Allied with, Ben Varn". */
+  ariaLabel?: string;
 }
 
 export interface GraphCanvasProps {
@@ -28,8 +30,10 @@ export interface GraphCanvasProps {
   edges: GraphEdge[];
   /** The canvas's accessible name. */
   label: string;
-  /** A node was dragged to a new place. */
-  onNodeMoved?: (id: string, x: number, y: number) => void;
+  /** Nodes moved by dragging or with the arrow keys, once they settle. */
+  onNodesMoved?: (positions: Record<string, { x: number; y: number }>) => void;
+  /** Light, dark, or the system's. */
+  colorMode?: ColorMode;
 }
 
 type EntityData = { label: string; type: string };
@@ -50,7 +54,7 @@ const nodeTypes = { entity: EntityNode };
 const DASH = { solid: undefined, dashed: "6 4", dotted: "2 4" } as const;
 
 /** Entities as nodes and relationships as labelled edges, on a pannable, zoomable canvas. */
-export function GraphCanvas({ nodes, edges, label, onNodeMoved }: GraphCanvasProps) {
+export function GraphCanvas({ nodes, edges, label, onNodesMoved, colorMode = "system" }: GraphCanvasProps) {
   const initial = useMemo(() => nodes.map(toFlowNode), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(initial);
 
@@ -78,9 +82,37 @@ export function GraphCanvas({ nodes, edges, label, onNodeMoved }: GraphCanvasPro
           labelStyle: { fill: "var(--ghw-ink)", fontSize: 12 },
           labelBgStyle: { fill: "var(--ghw-paper)" },
           ...(e.directed ? { markerEnd: { type: MarkerType.ArrowClosed, color: colour } } : {}),
+          ...(e.ariaLabel ? { ariaLabel: e.ariaLabel } : {}),
         };
       }),
     [edges],
+  );
+
+  // Moves are reported once they settle: a drag when it ends, arrow-key steps after a pause.
+  const moved = useRef<Record<string, { x: number; y: number }>>({});
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const latest = useRef(onNodesMoved);
+  latest.current = onNodesMoved;
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const onChange = useCallback(
+    (changes: NodeChange<Node<EntityData>>[]) => {
+      onNodesChange(changes);
+      let any = false;
+      for (const c of changes) {
+        if (c.type === "position" && c.position && !c.dragging) {
+          moved.current[c.id] = { x: c.position.x, y: c.position.y };
+          any = true;
+        }
+      }
+      if (!any) return;
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => {
+        const positions = moved.current;
+        moved.current = {};
+        if (Object.keys(positions).length) latest.current?.(positions);
+      }, 400);
+    },
+    [onNodesChange],
   );
 
   return (
@@ -89,12 +121,11 @@ export function GraphCanvas({ nodes, edges, label, onNodeMoved }: GraphCanvasPro
         nodes={flowNodes}
         edges={flowEdges}
         nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        onNodeDragStop={(_, node) => onNodeMoved?.(node.id, node.position.x, node.position.y)}
+        onNodesChange={onChange}
         fitView
         minZoom={0.2}
         proOptions={{ hideAttribution: true }}
-        colorMode="system"
+        colorMode={colorMode}
       >
         <Background />
         <Controls showInteractive={false} />
@@ -104,5 +135,5 @@ export function GraphCanvas({ nodes, edges, label, onNodeMoved }: GraphCanvasPro
 }
 
 function toFlowNode(n: GraphNode): Node<EntityData> {
-  return { id: n.id, type: "entity", position: { x: n.x, y: n.y }, data: { label: n.label, type: n.type } };
+  return { id: n.id, type: "entity", position: { x: n.x, y: n.y }, data: { label: n.label, type: n.type }, ariaLabel: `${n.label}, ${n.type}` };
 }

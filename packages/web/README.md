@@ -71,6 +71,12 @@ Items can also be dragged: before or after an item of the same kind, or onto a c
 - **Corkboard** (`/novels/:id/corkboard`): scenes as cards by chapter, filtered by point of view, character, plotline and status. Filters combine and live in the address, so a filtered board can be bookmarked. A card dropped beside another lands right beside it in the whole book (scenes the filter hides keep their places); Alt+←/→ on a card's handle steps it past its visible neighbour.
 - **Scene details** (palette: *Show scene details*): a panel beside the editor for the scene being written (in a chapter, the one holding the caret): synopsis, status, point of view, characters, locations, plotlines (weight, beat), themes (strength), story time (a day and time, or a date), duration and tags. People, places, plotlines and themes are picked by name or alias. Each change rewrites only the front-matter lines it touches and goes through the open file's autosave, so it merges with changes on disk like typing does. Whether the panel is open is remembered in this browser.
 
+## Relationship graph
+
+**Graph** (`/novels/:id/graph`, also in the palette) shows characters as nodes and the relationships between them as labelled edges, coloured and dashed by their type's `style` (or a colour of their own when a type has none; symmetric types have no arrow). The **Story position** slider, or the scene picker beside it, moves through the book in reading order, and the edges are the relationships holding at that scene, so Ada and Ben are allies at "The Station" and rivals from "The Betrayal". The scene is kept in the address (`?at=sc_…`). Beside the graph, the same relationships are listed as sentences, which is also what a screen reader gets.
+
+Nodes are placed by dragging, or by focusing one (Tab), Enter to select it and the arrow keys. Positions are saved to `diagrams/layouts.yaml`, one line per node, and committed with the next autosave; nodes without a saved position are laid out on a ring around the placed ones. React Flow (`@xyflow/react`) draws the graph and is loaded only when the graph is first opened. `/bench/graph?nodes=60&edges=200` is the benchmark page the performance tests drive.
+
 ## Mentions
 
 Typing `@` in any editor (chapters, scenes, an entry's notes) suggests the bible's entries by name or alias; see the [editor's README](../editor/README.md) for the keys. A mention keeps the words it was written with and refers to its entry by ID, so renaming the entry never changes the prose, and the entry's **In the story** still finds the scene.

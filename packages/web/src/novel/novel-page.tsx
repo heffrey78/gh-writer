@@ -2,7 +2,7 @@ import type { SyncStatus } from "@gh-writer/client";
 import type { Novel } from "@gh-writer/core";
 import { useWritingModes } from "@gh-writer/editor/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams } from "react-router";
 import { api, keys } from "../api.ts";
 import { useCommands, type Command } from "../commands.ts";
@@ -26,6 +26,9 @@ import { useSpell } from "./spell.ts";
 import { SyncBadge } from "./sync-badge.tsx";
 import { createWorkspace, type Workspace } from "./workspace.ts";
 import { WritingView } from "./writing-view.tsx";
+
+// React Flow comes with the graph, loaded when it's first opened.
+const GraphPage = lazy(() => import("../graph/graph-page.tsx").then((m) => ({ default: m.GraphPage })));
 
 /** A novel's workspace: the manuscript on the left, the editor on the right, save and sync state on top. */
 export function NovelPage() {
@@ -82,6 +85,7 @@ export function NovelPage() {
       { id: "novel.bible", title: "Story bible", group: "Go to", run: () => void navigate(`/novels/${novelId}/bible`) },
       { id: "novel.outline", title: "Outline", group: "Go to", run: () => void navigate(`/novels/${novelId}/outline`) },
       { id: "novel.corkboard", title: "Corkboard", group: "Go to", run: () => void navigate(`/novels/${novelId}/corkboard`) },
+      { id: "novel.graph", title: "Relationship graph", group: "Go to", keywords: ["diagram", "characters"], run: () => void navigate(`/novels/${novelId}/graph`) },
       ...(model?.entityTypes ?? []).map((t) => ({ id: `novel.newEntry.${t.key}`, title: `New ${t.label.toLowerCase()}`, group: "Story bible", run: () => setNewEntry(t.key) })),
       ...(model?.entities ?? []).map((e) => ({
         id: `novel.entry.${e.id}`,
@@ -149,6 +153,7 @@ export function NovelPage() {
               {[
                 ["outline", "Outline"],
                 ["corkboard", "Corkboard"],
+                ["graph", "Graph"],
               ].map(([path, label]) => (
                 <NavLink key={path} to={`/novels/${novelId}/${path}`} className={({ isActive }) => `rounded-md px-2 py-1 hover:bg-paper ${isActive ? "bg-accent-soft font-medium" : ""}`}>
                   {label}
@@ -177,6 +182,14 @@ export function NovelPage() {
               <Route index element={book.chapters[0] ? <Navigate to={`/novels/${novelId}/chapter/${book.chapters[0].id}`} replace /> : <EmptyManuscript />} />
               <Route path="chapter/:chapterId" element={<ChapterRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
               <Route path="scene/:sceneId" element={<SceneRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
+              <Route
+                path="graph"
+                element={
+                  <Suspense fallback={<p className="px-6 py-6 text-muted">Opening the graph…</p>}>
+                    <GraphPage novelId={novelId} novel={book} />
+                  </Suspense>
+                }
+              />
               <Route path="corkboard" element={<CorkboardPage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="outline" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="bible" element={<BiblePage novelId={novelId} novel={book} />} />
