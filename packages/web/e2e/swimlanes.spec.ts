@@ -18,7 +18,7 @@ const grid = (page: Page) => page.getByRole("grid", { name: "Plotlines by scene"
 test("plotlines run as lanes across the scenes, with each beat marked and its note on focus", async ({ page, app }) => {
   await open(page, app);
   await expect(grid(page).getByRole("rowheader")).toHaveText(["Ben's Debt", "The Sale"]);
-  await expect(grid(page).getByRole("columnheader", { name: "The Betrayal" })).toBeVisible();
+  await expect(grid(page).getByRole("columnheader", { name: /The Betrayal$/ })).toBeVisible();
   for (const chapter of ["Arrival", "Old Debts", "Night Crossing", "Varn Holds"]) await expect(grid(page).getByRole("columnheader", { name: chapter })).toBeVisible();
   const betrayalSale = grid(page).getByRole("gridcell", { name: "The Betrayal: major beat in The Sale, “The plans have been sold”" });
   await expect(betrayalSale).toBeVisible();
@@ -85,4 +85,42 @@ test("the swimlanes and the scene details panel agree after an edit in either", 
   await panel.getByRole("combobox", { name: "Weight of “The Sale”" }).selectOption("major");
   await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Plotlines" }).click();
   await expect(grid(page).getByRole("gridcell", { name: /^The Station: major beat in The Sale/ })).toBeVisible();
+});
+
+const chapters = (read: (path: string) => string) =>
+  ["01-return/01-arrival", "01-return/02-old-debts", "02-the-sale/01-night-crossing", "02-the-sale/02-varn-holds"].map((c) => read(`manuscript/${c}/_chapter.yaml`));
+
+test("a column moves by keyboard through the whole book, exactly as the outline moves rows", async ({ page, app }) => {
+  // In the swimlanes: The Station two steps right (past Walking the Span, into Old Debts), pressed
+  // in quick succession: the second step starts from where the first left it.
+  const novel = await open(page, app);
+  const handle = page.getByRole("button", { name: "Move “The Station”" });
+  await handle.focus();
+  await page.keyboard.press("Alt+ArrowRight");
+  await page.keyboard.press("Alt+ArrowRight");
+  await expect.poll(() => novel.read("manuscript/01-return/02-old-debts/_chapter.yaml")).toContain("scenes: [sc_5tat1n, sc_w0rk5h, sc_1edger]");
+  await expect(handle).toBeFocused();
+  const viaSwimlanes = chapters(novel.read);
+
+  // The same in the outline, on a fresh copy: the same order files.
+  const other = app.novelRepo("outline-twin");
+  await app.restart(other);
+  await page.goto(app.launchUrl);
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Outline" }).click();
+  const row = page.getByRole("button", { name: "Move “The Station”" });
+  await row.focus();
+  await page.keyboard.press("Alt+ArrowDown");
+  await page.keyboard.press("Alt+ArrowDown");
+  await expect.poll(() => chapters((p) => readFileSync(join(other, p), "utf8"))).toEqual(viaSwimlanes);
+});
+
+test("dragging a column beside another puts its scene there", async ({ page, app }) => {
+  const novel = await open(page, app);
+  const target = grid(page).getByRole("columnheader", { name: /The Betrayal$/ });
+  const box = (await target.boundingBox())!;
+  await page.getByRole("button", { name: "Move “Mirela's Offer”" }).dragTo(target, { targetPosition: { x: 4, y: box.height / 2 } });
+  await expect.poll(() => novel.read("manuscript/02-the-sale/01-night-crossing/_chapter.yaml")).toContain("scenes: [sc_0ffer5, sc_0d9wm4, sc_f100d0]");
+  await expect(grid(page).getByRole("columnheader").filter({ hasText: /^(The Betrayal|Mirela's Offer)$/ })).toHaveText(["Mirela's Offer", "The Betrayal"]);
+  await axe(page);
 });

@@ -2,11 +2,13 @@ import { readFrontMatter, type Entity, type Novel, type Scene } from "@gh-writer
 import { joinSceneFile } from "@gh-writer/editor";
 import { useQueryClient } from "@tanstack/react-query";
 import { Popover } from "radix-ui";
-import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { GripHorizontal } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { Link } from "react-router";
 import { api, keys } from "../api.ts";
 import { useNotice } from "../novel/notice.tsx";
 import { plotlineEdits, type PlotlineChange } from "../novel/plotline-edits.ts";
+import { dropMove, useStructure } from "../novel/structure.ts";
 import type { Workspace } from "../novel/workspace.ts";
 import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
@@ -57,6 +59,40 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
   const rows = s.lanes.length;
   const cols = s.scenes.length;
 
+  // Columns move like the outline's rows: Alt+Left/Right steps a scene through the book, a drag puts
+  // it beside the column it's dropped on. A moved column keeps focus, even in another chapter.
+  const structure = useStructure(novelId, novel, workspace);
+  const dragging = useRef<string | undefined>(undefined);
+  const [drop, setDrop] = useState<{ id: string; after: boolean }>();
+  const refocus = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const id = refocus.current;
+    if (id && (document.activeElement === document.body || !document.activeElement?.isConnected)) document.querySelector<HTMLElement>(`[data-col-handle="${id}"]`)?.focus();
+  }, [novel]);
+  const onHandleKey = (e: KeyboardEvent, scene: Scene) => {
+    if (!e.altKey || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+    e.preventDefault();
+    refocus.current = scene.id;
+    void Promise.resolve(structure.step(scene.id, e.key === "ArrowLeft" ? -1 : 1)).then(() =>
+      requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-col-handle="${scene.id}"]`)?.focus()),
+    );
+  };
+  const onDragOver = (e: DragEvent, scene: Scene) => {
+    if (!dragging.current || dragging.current === scene.id) return;
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDrop({ id: scene.id, after: e.clientX > rect.left + rect.width / 2 });
+  };
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault();
+    const id = dragging.current;
+    const target = drop;
+    dragging.current = undefined;
+    setDrop(undefined);
+    const move = id && target ? dropMove(novel, id, target.id, target.after) : undefined;
+    if (id && move) void structure.move(id, move.index, move.to);
+  };
+
   const cellEl = (lane: string, scene: string) => table.current?.querySelector<HTMLElement>(`[data-cell="${cellKey(lane, scene)}"]`);
   // The focused cell's place now: where its lane and scene are (the first cell if they're gone).
   const focusRow = Math.max(0, s.lanes.findIndex((l) => l.id === focused?.lane));
@@ -68,6 +104,8 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
     cellEl(lane.id, scene.id)?.focus();
   };
   const onKey = (e: KeyboardEvent) => {
+    // Only the cells' own keys: the column handles above them (Alt+arrows) are in the table too.
+    if ((e.target as HTMLElement).getAttribute("role") !== "gridcell" || e.altKey) return;
     const [row, col] = [focusRow, focusCol];
     const moves: Record<string, [number, number]> = {
       ArrowLeft: [row, col - 1],
@@ -138,7 +176,36 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
                 Plotline
               </th>
               {s.scenes.map((scene) => (
-                <th key={scene.id} scope="col" className="h-32 w-10 border-l border-rule align-bottom">
+                <th
+                  key={scene.id}
+                  scope="col"
+                  onDragOver={(e) => onDragOver(e, scene)}
+                  onDrop={onDrop}
+                  className={cn(
+                    "h-36 w-10 border-l border-rule align-bottom",
+                    drop?.id === scene.id && (drop.after ? "shadow-[inset_-3px_0_0_var(--ghw-accent)]" : "shadow-[inset_3px_0_0_var(--ghw-accent)]"),
+                  )}
+                >
+                  <button
+                    type="button"
+                    data-col-handle={scene.id}
+                    draggable
+                    onDragStart={(e) => {
+                      dragging.current = scene.id;
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", scene.title);
+                    }}
+                    onDragEnd={() => {
+                      dragging.current = undefined;
+                      setDrop(undefined);
+                    }}
+                    onKeyDown={(e) => onHandleKey(e, scene)}
+                    aria-label={`Move “${scene.title}”`}
+                    aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+                    className="mx-auto block cursor-grab rounded p-0.5 text-muted hover:bg-panel"
+                  >
+                    <GripHorizontal className="size-4" aria-hidden />
+                  </button>
                   <Link
                     to={`/novels/${novelId}/scene/${scene.id}`}
                     tabIndex={-1}

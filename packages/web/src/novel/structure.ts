@@ -60,6 +60,16 @@ export function dropMove(novel: Novel, id: string, target: string, after: boolea
   return { index: list.indexOf(target) + (after ? 1 : 0), to: at.container };
 }
 
+/** Moves waiting their turn, per novel, shared by every view (tree, outline, corkboard, swimlanes). */
+const queues = new Map<string, Promise<unknown>>();
+
+/** Run `task` after the novel's earlier moves have finished. */
+function enqueue<T>(novelId: string, task: () => Promise<T>): Promise<T> {
+  const next = (queues.get(novelId) ?? Promise.resolve()).catch(() => {}).then(task);
+  queues.set(novelId, next);
+  return next;
+}
+
 /**
  * Structural changes from the UI: unsaved text is saved first, the model is reloaded after, and the
  * result (or the reason it failed) is announced; a delete offers Undo.
@@ -89,11 +99,18 @@ export function useStructure(novelId: string, novel: Novel, workspace: Workspace
   const where = (to: string | null) => (to ? (itemOf(novel, to)?.title ?? "") : "the top level");
 
   return {
-    move: (id: string, index: number, to: string | null) => run("move it", () => m.move(novelId, id, index, to), () => `Moved “${name(id)}” to ${where(to)}, position ${index + 1}.`),
-    step: (id: string, direction: -1 | 1) => {
-      const target = stepMove(novel, id, direction);
-      return target ? run("move it", () => m.move(novelId, id, target.index, target.to), () => `Moved “${name(id)}” ${direction < 0 ? "up" : "down"}${target.to !== siblingsOf(novel, id)?.container ? ` into “${where(target.to)}”` : ""}.`) : undefined;
-    },
+    move: (id: string, index: number, to: string | null) =>
+      enqueue(novelId, () => run("move it", () => m.move(novelId, id, index, to), () => `Moved “${name(id)}” to ${where(to)}, position ${index + 1}.`)),
+    // Each step is worked out when its turn comes, from the model as the moves before it left it:
+    // two quick presses move two places, not one twice.
+    step: (id: string, direction: -1 | 1) =>
+      enqueue(novelId, async () => {
+        const now = queryClient.getQueryData<{ novel: Novel }>(keys.novel(novelId))?.novel ?? novel;
+        const target = stepMove(now, id, direction);
+        if (!target) return undefined;
+        const into = target.to !== siblingsOf(now, id)?.container ? ` into “${(target.to && itemOf(now, target.to)?.title) || ""}”` : "";
+        return run("move it", () => m.move(novelId, id, target.index, target.to), () => `Moved “${name(id)}” ${direction < 0 ? "up" : "down"}${into}.`);
+      }),
     rename: (id: string, title: string) => run("rename it", () => m.rename(novelId, id, title), () => `Renamed to “${title}”.`),
     createScene: (chapter: string, title: string, after?: string | null) =>
       run("add the scene", () => m.createScene(novelId, chapter, title, after), ({ id }) => {
