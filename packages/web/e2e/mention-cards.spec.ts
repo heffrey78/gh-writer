@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { axe, expect, test, type App } from "./fixtures.ts";
+import { axe, expect, selectionSettled, test, type App } from "./fixtures.ts";
 
 async function open(page: Page, app: App) {
   await app.restart(app.novelRepo("varn"));
@@ -14,6 +14,7 @@ const card = (page: Page) => page.getByRole("dialog", { name: "Ada Varn" });
 async function caretAfterAda(page: Page) {
   const box = (await ada(page).boundingBox())!;
   await page.mouse.click(box.x + box.width - 1, box.y + box.height / 2);
+  await selectionSettled(page);
 }
 
 test("hovering a mention shows its entry, with relationships as they stand at that scene", async ({ page, app }) => {

@@ -159,3 +159,13 @@ async function stop(child: ChildProcess | undefined, signal: NodeJS.Signals = "S
 }
 
 export { expect };
+
+/**
+ * Wait until the editor has taken in a click's caret. ProseMirror reads the selection on the
+ * browser's selectionchange event, which comes after the click; a key pressed sooner (as
+ * Playwright can, and no person does) acts on the old selection.
+ */
+export async function selectionSettled(page: Page): Promise<void> {
+  await expect.poll(() => page.evaluate(() => document.activeElement?.contains(getSelection()?.anchorNode ?? null) ?? false)).toBe(true);
+  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+}

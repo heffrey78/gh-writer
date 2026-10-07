@@ -1,7 +1,7 @@
 import { countWords, type Novel, type Scene, type SceneStatus } from "@gh-writer/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { GripVertical } from "lucide-react";
-import { Fragment, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { Link } from "react-router";
 import { keys } from "../api.ts";
 import { cn } from "../ui/cn.ts";
@@ -36,9 +36,18 @@ export function OutlinePage({ novelId, novel, workspace }: { novelId: string; no
     }
   };
 
+  // A row moved by keyboard keeps focus, even when it lands in another chapter (a new element)
+  // after the model reloads: focus left on nothing goes back to its handle.
+  const refocus = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const id = refocus.current;
+    if (id && (document.activeElement === document.body || !document.activeElement?.isConnected)) document.querySelector<HTMLElement>(`[data-handle="${id}"]`)?.focus();
+  }, [novel]);
+
   const onHandleKey = (e: KeyboardEvent, scene: Scene) => {
     if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
     e.preventDefault();
+    refocus.current = scene.id;
     const handle = e.currentTarget as HTMLElement;
     void Promise.resolve(structure.step(scene.id, e.key === "ArrowUp" ? -1 : 1)).then(() =>
       requestAnimationFrame(() => (document.querySelector<HTMLElement>(`[data-handle="${scene.id}"]`) ?? handle).focus()),

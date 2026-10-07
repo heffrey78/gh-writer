@@ -29,6 +29,7 @@ import { mentionEntities } from "../bible/types.ts";
 import { useCurrentScene } from "./current.ts";
 import { EntryPanel, leaveMention, MentionCard, useEntryPanel, useMentionCard } from "./mention-card.tsx";
 import { mentionEdits } from "./mention-sync.ts";
+import { useNotice } from "./notice.tsx";
 import { SceneDetails, useSceneDetails } from "./scene-details.tsx";
 import { useStructure } from "./structure.ts";
 import { TitleDialog } from "./structure-dialogs.tsx";
@@ -164,6 +165,7 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
   // Split the scene at the caret: the paragraph holding it starts the new scene.
   const structure = useStructure(novelId, novel, workspace);
   const [splitting, setSplitting] = useState<{ scene: string; block: number }>();
+  const notify = useNotice((s) => s.show);
   useCommands(
     () => [
       {
@@ -174,6 +176,7 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
           const at = editor && !editor.isDestroyed ? caretBlock(editor) : undefined;
           const scene = at && scenes.find((s) => s.file === at.sceneId);
           if (scene && at.block > 0) setSplitting({ scene: scene.id, block: at.block });
+          else if (scene) notify({ message: "The caret is in the scene's first paragraph: put it in the paragraph that should start the new scene." });
         },
       },
     ],

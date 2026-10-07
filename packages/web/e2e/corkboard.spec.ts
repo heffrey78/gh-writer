@@ -58,6 +58,8 @@ test("a card dropped on a filtered board lands next to the card it was dropped o
   const box = (await betrayal.boundingBox())!;
   await page.getByRole("button", { name: "Move “Mirela's Offer”" }).dragTo(betrayal, { targetPosition: { x: box.width - 8, y: 8 } });
   await expect.poll(() => novel.read(NIGHT)).toContain("scenes: [sc_0d9wm4, sc_0ffer5, sc_f100d0]");
+  // The board shows the move before the next drag starts, or it would pick up whatever card is there now.
+  await expect(page.getByRole("region", { name: "Night Crossing" }).getByRole("listitem", { name: "Mirela's Offer" })).toBeVisible();
   await page.getByRole("button", { name: "Move “Mirela's Offer”" }).dragTo(card(page, "The Station"), { targetPosition: { x: 8, y: 8 } });
   await expect.poll(() => novel.read("manuscript/01-return/01-arrival/_chapter.yaml")).toContain("scenes: [sc_0ffer5, sc_5tat1n, sc_br1dg3]");
 });

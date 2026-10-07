@@ -1,6 +1,6 @@
 import type { Novel, Scene } from "@gh-writer/core";
 import { GripVertical } from "lucide-react";
-import { useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
@@ -45,6 +45,14 @@ export function CorkboardPage({ novelId, novel, workspace }: { novelId: string; 
     return move ? structure.move(id, move.index, move.to) : undefined;
   };
 
+  // A card moved by keyboard keeps focus, even when it lands in another chapter (a new element)
+  // after the model reloads: focus left on nothing goes back to its handle.
+  const refocus = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const id = refocus.current;
+    if (id && (document.activeElement === document.body || !document.activeElement?.isConnected)) document.querySelector<HTMLElement>(`[data-card-handle="${id}"]`)?.focus();
+  }, [novel]);
+
   const onHandleKey = (e: KeyboardEvent, scene: Scene) => {
     if (!e.altKey || (e.key !== "ArrowLeft" && e.key !== "ArrowRight" && e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
     e.preventDefault();
@@ -54,6 +62,7 @@ export function CorkboardPage({ novelId, novel, workspace }: { novelId: string; 
       e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 1,
     );
     if (!step) return;
+    refocus.current = scene.id;
     void Promise.resolve(moveTo(scene.id, step.target, step.after)).then(() =>
       requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-card-handle="${scene.id}"]`)?.focus()),
     );

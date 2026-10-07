@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { axe, expect, test, type App } from "./fixtures.ts";
+import { axe, expect, selectionSettled, test, type App } from "./fixtures.ts";
 
 const STATION = "manuscript/01-return/01-arrival/01-the-station.md";
 
@@ -24,6 +24,7 @@ const listbox = (page: Page) => page.getByRole("listbox", { name: "Mention sugge
 /** The caret at the end of the station's paragraph about counting the flags. */
 async function caretInStation(page: Page) {
   await page.getByRole("textbox", { name: "Chapter text" }).getByText(/the way you count stitches in a wound\./).click();
+  await selectionSettled(page);
   await page.keyboard.press("End");
 }
 

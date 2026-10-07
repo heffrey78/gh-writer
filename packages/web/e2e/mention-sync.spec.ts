@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { axe, expect, test } from "./fixtures.ts";
+import { axe, expect, selectionSettled, test } from "./fixtures.ts";
 
 const STATION = "manuscript/01-return/01-arrival/01-the-station.md";
 
@@ -24,6 +24,7 @@ test("a new mention lists its character or place in the scene; removing one stic
 
   // Mentioning Ben adds him to the scene's characters, on disk.
   await text.getByText(/the way you count stitches in a wound\./).click();
+  await selectionSettled(page);
   await page.keyboard.press("End");
   await page.keyboard.type(" @ben");
   await page.keyboard.press("Enter");
@@ -37,6 +38,7 @@ test("a new mention lists its character or place in the scene; removing one stic
   await panel.getByRole("button", { name: "Remove “Ben Varn”" }).click();
   await expect.poll(read).toContain("characters: [char_7f3k2q]\n");
   await text.getByText(/Ben waved\./).click();
+  await selectionSettled(page);
   await page.keyboard.press("End");
   await page.keyboard.type(" Later.");
   await expect.poll(read).toContain("[Ben](#char_b3n0vs) waved. Later.");
@@ -47,9 +49,7 @@ test("a new mention lists its character or place in the scene; removing one stic
   await expect(text.locator(".ghw-unlinked", { hasText: "the bridge" })).toBeVisible();
   await axe(page);
   await text.locator(".ghw-unlinked", { hasText: "the bridge" }).click();
-  // ProseMirror reads the click's selection on selectionchange, after the click.
-  await expect.poll(() => page.evaluate(() => getSelection()?.anchorNode?.parentElement?.classList.contains("ghw-unlinked"))).toBe(true);
-  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+  await selectionSettled(page);
   await page.keyboard.press("Alt+Enter");
   await expect.poll(read).toContain("From the platform she could see [the bridge](#loc_br1dg3), the long black spine");
   await expect.poll(read).toContain("locations: [loc_5tat10, loc_br1dg3]\n");

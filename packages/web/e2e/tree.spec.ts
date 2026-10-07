@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { axe, expect, test, type App } from "./fixtures.ts";
+import { axe, expect, selectionSettled, test, type App } from "./fixtures.ts";
 
 const ARRIVAL = "manuscript/01-return/01-arrival";
 const OLD_DEBTS = "manuscript/01-return/02-old-debts";
@@ -124,6 +124,7 @@ test("splits a scene at the caret and merges it back from the context menu", asy
   await item(page, "The Station").click();
   const text = page.getByRole("textbox", { name: "Scene text" });
   await text.getByText(/^From the platform she could see the bridge/).click();
+  await selectionSettled(page);
   await palette(page, "split the scene");
   await page.getByRole("dialog").getByRole("textbox", { name: "Title of the new scene" }).fill("The Flags");
   await page.keyboard.press("Enter");
