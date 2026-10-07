@@ -7,9 +7,9 @@ import { cellKey, swimlanes } from "../src/swimlanes/swimlane-model.ts";
 const novel = await loadNovel(nodeSource(fileURLToPath(new URL("../../../examples/sample-novel/", import.meta.url))));
 
 describe("swimlanes", () => {
-  it("lays plotlines in order of first appearance against every scene in reading order, grouped by chapter and part", () => {
+  it("lays plotlines, by name, against every scene in reading order, grouped by chapter and part", () => {
     const s = swimlanes(novel);
-    expect(s.lanes.map((l) => l.name)).toEqual(["The Sale", "Ben's Debt"]);
+    expect(s.lanes.map((l) => l.name)).toEqual(["Ben's Debt", "The Sale"]);
     expect(s.scenes.map((x) => x.id)).toEqual(novel.scenes.map((x) => x.id));
     expect(s.chapters.map((c) => [c.title, c.span])).toEqual([["Arrival", 2], ["Old Debts", 2], ["Night Crossing", 2], ["Varn Holds", 2]]);
     expect(s.parts.map((p) => [p.part.title, p.span])).toEqual([["Return", 4], ["The Sale", 4]]);

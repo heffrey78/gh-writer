@@ -1,6 +1,14 @@
-import type { Novel } from "@gh-writer/core";
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { readFrontMatter, type Entity, type Novel, type Scene } from "@gh-writer/core";
+import { joinSceneFile } from "@gh-writer/editor";
+import { useQueryClient } from "@tanstack/react-query";
+import { Popover } from "radix-ui";
+import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Link } from "react-router";
+import { api, keys } from "../api.ts";
+import { useNotice } from "../novel/notice.tsx";
+import { plotlineEdits, type PlotlineChange } from "../novel/plotline-edits.ts";
+import type { Workspace } from "../novel/workspace.ts";
+import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
 import { cellKey, swimlanes, type Mark } from "./swimlane-model.ts";
 
@@ -16,20 +24,51 @@ function cellLabel(scene: string, plotline: string, mark: Mark | undefined) {
  * one, with the beat's note on hover or focus. Gaps show where a thread goes quiet. The cells are a
  * grid: arrow keys move between them, Home and End go to a lane's ends.
  */
-export function SwimlanesPage({ novelId, novel }: { novelId: string; novel: Novel }) {
+export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; novel: Novel; workspace: Workspace }) {
   const s = useMemo(() => swimlanes(novel), [novel]);
-  const [focus, setFocus] = useState({ row: 0, col: 0 });
+  const queryClient = useQueryClient();
+  const show = useNotice((n) => n.show);
+  // The cell whose link is being edited, and its element, for the popover to sit by.
+  // By IDs, not positions: the lanes and columns can change (an edit, a reorder) under them.
+  const [editing, setEditing] = useState<{ lane: string; scene: string; el: HTMLElement }>();
+
+  /** One change to a scene's link to a plotline, written to its front matter through the workspace. */
+  const change = async (scene: Scene, lane: Entity, what: PlotlineChange, done?: string) => {
+    try {
+      const open = workspace.store.getState().files[scene.file];
+      const text = open ? joinSceneFile(open) : (await api.readFile(novelId, scene.file)).content;
+      const edits = plotlineEdits(readFrontMatter(text) ?? {}, lane.id, what);
+      if (!edits.length) return;
+      await workspace.editFrontMatter(scene.file, edits);
+      await workspace.autosave.flush();
+      await queryClient.invalidateQueries({ queryKey: keys.novel(novelId) });
+      if (done) show({ message: done });
+    } catch (e) {
+      show({ message: `Couldn't change “${scene.title}”: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  };
+  /** A cell chosen (click, Enter or Space): an empty one links its scene to the plotline; a marked one opens its editor. */
+  const choose = (lane: Entity, scene: Scene, el: HTMLElement) => {
+    if (s.marks.has(cellKey(lane.id, scene.id))) setEditing({ lane: lane.id, scene: scene.id, el });
+    else void change(scene, lane, { link: true }, `“${scene.title}” now advances ${lane.name}.`);
+  };
+  const [focused, setFocused] = useState<{ lane: string; scene: string }>();
   const table = useRef<HTMLTableElement>(null);
   const rows = s.lanes.length;
   const cols = s.scenes.length;
 
-  const moveTo = (row: number, col: number) => {
-    const next = { row: Math.max(0, Math.min(rows - 1, row)), col: Math.max(0, Math.min(cols - 1, col)) };
-    setFocus(next);
-    table.current?.querySelector<HTMLElement>(`[data-cell="${next.row}:${next.col}"]`)?.focus();
+  const cellEl = (lane: string, scene: string) => table.current?.querySelector<HTMLElement>(`[data-cell="${cellKey(lane, scene)}"]`);
+  // The focused cell's place now: where its lane and scene are (the first cell if they're gone).
+  const focusRow = Math.max(0, s.lanes.findIndex((l) => l.id === focused?.lane));
+  const focusCol = Math.max(0, s.scenes.findIndex((x) => x.id === focused?.scene));
+  const moveTo = (r: number, c: number) => {
+    const lane = s.lanes[Math.max(0, Math.min(rows - 1, r))]!;
+    const scene = s.scenes[Math.max(0, Math.min(cols - 1, c))]!;
+    setFocused({ lane: lane.id, scene: scene.id });
+    cellEl(lane.id, scene.id)?.focus();
   };
   const onKey = (e: KeyboardEvent) => {
-    const { row, col } = focus;
+    const [row, col] = [focusRow, focusCol];
     const moves: Record<string, [number, number]> = {
       ArrowLeft: [row, col - 1],
       ArrowRight: [row, col + 1],
@@ -38,11 +77,22 @@ export function SwimlanesPage({ novelId, novel }: { novelId: string; novel: Nove
       Home: e.ctrlKey ? [0, 0] : [row, 0],
       End: e.ctrlKey ? [rows - 1, cols - 1] : [row, cols - 1],
     };
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      const lane = s.lanes[row]!;
+      const scene = s.scenes[col]!;
+      const el = cellEl(lane.id, scene.id);
+      if (el) choose(lane, scene, el);
+      return;
+    }
     const to = moves[e.key];
     if (!to) return;
     e.preventDefault();
     moveTo(...to);
   };
+
+  const editingLane = editing && s.lanes.find((l) => l.id === editing.lane);
+  const editingScene = editing && s.scenes.find((x) => x.id === editing.scene);
 
   if (!rows || !cols) {
     return (
@@ -109,16 +159,18 @@ export function SwimlanesPage({ novelId, novel }: { novelId: string; novel: Nove
                 </th>
                 {s.scenes.map((scene, col) => {
                   const mark = s.marks.get(cellKey(lane.id, scene.id));
-                  const active = focus.row === row && focus.col === col;
+                  const active = row === focusRow && col === focusCol;
                   return (
                     <td
                       key={scene.id}
                       role="gridcell"
-                      data-cell={`${row}:${col}`}
+                      data-cell={cellKey(lane.id, scene.id)}
                       tabIndex={active ? 0 : -1}
-                      onFocus={() => !active && setFocus({ row, col })}
+                      onFocus={() => !active && setFocused({ lane: lane.id, scene: scene.id })}
+                      onClick={(e) => choose(lane, scene, e.currentTarget)}
                       aria-label={cellLabel(scene.title, lane.name, mark)}
-                      className="group relative h-10 w-10 border-t border-l border-rule p-0 text-center outline-none focus-visible:bg-accent-soft"
+                      aria-haspopup={mark ? "dialog" : undefined}
+                      className="group relative h-10 w-10 cursor-pointer border-t border-l border-rule p-0 text-center outline-none hover:bg-panel focus-visible:bg-accent-soft"
                     >
                       <span className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-rule" aria-hidden />
                       {mark && (
@@ -148,6 +200,101 @@ export function SwimlanesPage({ novelId, novel }: { novelId: string; novel: Nove
           </tbody>
         </table>
       </div>
+      {editingLane && editingScene && editing && (
+        <CellEditor
+          anchor={editing.el}
+          scene={editingScene}
+          lane={editingLane}
+          mark={s.marks.get(cellKey(editingLane.id, editingScene.id))}
+          onChange={(what, done) => change(editingScene, editingLane, what, done)}
+          onClose={() => {
+            const el = cellEl(editing.lane, editing.scene);
+            setEditing(undefined);
+            el?.focus();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/** A scene's link to a plotline: its weight, its beat, or taking it away. */
+function CellEditor({
+  anchor,
+  scene,
+  lane,
+  mark,
+  onChange,
+  onClose,
+}: {
+  anchor: HTMLElement;
+  scene: Scene;
+  lane: Entity;
+  mark: Mark | undefined;
+  onChange: (what: PlotlineChange, done?: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const id = useId();
+  const [beat, setBeat] = useState(mark?.beat ?? "");
+  const saveBeat = () => beat.trim() !== (mark?.beat ?? "") && void onChange({ beat });
+  return (
+    <Popover.Root open onOpenChange={(o) => !o && onClose()}>
+      <Popover.Anchor virtualRef={{ current: anchor }} />
+      <Popover.Portal>
+        <Popover.Content
+          side="bottom"
+          sideOffset={4}
+          aria-labelledby={`${id}-title`}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          className="z-[80] grid w-72 gap-3 rounded-lg border border-rule bg-raised p-4 text-sm text-ink shadow-lg"
+        >
+          <p id={`${id}-title`} className="font-semibold">
+            “{scene.title}” in {lane.name}
+          </p>
+          <label className="grid gap-1 font-medium">
+            Weight
+            <select
+              value={mark?.weight ?? "major"}
+              onChange={(e) => void onChange({ weight: e.target.value as "major" | "minor" })}
+              className="h-8 rounded-md border border-rule bg-raised px-2 font-normal"
+            >
+              <option value="major">Major beat</option>
+              <option value="minor">Minor beat</option>
+            </select>
+          </label>
+          <label className="grid gap-1 font-medium">
+            Beat
+            <input
+              value={beat}
+              onChange={(e) => setBeat(e.target.value)}
+              onBlur={saveBeat}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  saveBeat();
+                }
+              }}
+              placeholder="What happens to it here"
+              className="h-8 rounded-md border border-rule bg-raised px-2 font-normal"
+            />
+          </label>
+          <div className="flex justify-between gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                void onChange({ remove: true }, `“${scene.title}” no longer advances ${lane.name}.`);
+                onClose();
+              }}
+            >
+              Remove from this plotline
+            </Button>
+            <Button size="sm" onClick={onClose}>
+              Done
+            </Button>
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

@@ -44,6 +44,11 @@ export interface WorkspaceOptions {
   /** How long typing must pause before a save (ms). */
   interval?: number;
   storage?: StorageLike | null;
+  /**
+   * A save changed a file's front matter (a scene's details, an entry's fields): the story model,
+   * which other views read, needs loading again. Changes on disk from elsewhere come as file events.
+   */
+  onFrontMatterSaved?: (path: string) => void;
 }
 
 export interface Workspace {
@@ -79,7 +84,7 @@ export interface Workspace {
  * server refuses (409) and which is then merged paragraph by paragraph with what's on disk. A clean
  * merge applies by itself; a clash goes to the author.
  */
-export function createWorkspace({ api, novelId, interval, storage }: WorkspaceOptions): Workspace {
+export function createWorkspace({ api, novelId, interval, storage, onFrontMatterSaved }: WorkspaceOptions): Workspace {
   const store = createStore<WorkspaceState>(() => ({ files: {}, conflicts: [], error: undefined }));
   const live = new Map<string, () => string | undefined>();
   const editListeners = new Set<(path: string, before: string, after: string) => void>();
@@ -102,6 +107,7 @@ export function createWorkspace({ api, novelId, interval, storage }: WorkspaceOp
     onSaved: (path, content, hash) => {
       const f = file(path);
       if (f) setFile(path, { ...f, disk: content, hash });
+      if (f && splitSceneFile(f.disk).frontMatter !== splitSceneFile(content).frontMatter) onFrontMatterSaved?.(path);
     },
     onConflict: (c) => void merge(c),
   });

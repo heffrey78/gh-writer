@@ -7,7 +7,7 @@ export interface Mark {
 }
 
 export interface Swimlanes {
-  /** Plotlines, in the order they first appear in the book; ones never used come last, by name. */
+  /** Plotlines, by name: an order that edits never shuffle. */
   lanes: Entity[];
   /** Scenes in reading order. */
   scenes: Scene[];
@@ -23,16 +23,8 @@ export const cellKey = (plotline: string, scene: string) => `${plotline}|${scene
 /** The book as plotline lanes against scene columns, from the scenes' plotlines. */
 export function swimlanes(novel: Novel, scenes: Scene[] = novel.scenes): Swimlanes {
   const marks = new Map<string, Mark>();
-  const firstSeen = new Map<string, number>();
-  scenes.forEach((scene, i) => {
-    for (const p of scene.plotlines) {
-      marks.set(cellKey(p.id, scene.id), { weight: p.weight, ...(p.beat ? { beat: p.beat } : {}) });
-      if (!firstSeen.has(p.id)) firstSeen.set(p.id, i);
-    }
-  });
-  const lanes = novel.entities
-    .filter((e) => e.type === "plotline")
-    .sort((a, b) => (firstSeen.get(a.id) ?? Infinity) - (firstSeen.get(b.id) ?? Infinity) || a.name.localeCompare(b.name));
+  for (const scene of scenes) for (const p of scene.plotlines) marks.set(cellKey(p.id, scene.id), { weight: p.weight, ...(p.beat ? { beat: p.beat } : {}) });
+  const lanes = novel.entities.filter((e) => e.type === "plotline").sort((a, b) => a.name.localeCompare(b.name));
 
   const chapters: Swimlanes["chapters"] = [];
   const parts: Swimlanes["parts"] = [];

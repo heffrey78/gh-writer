@@ -45,7 +45,7 @@ export function NovelPage() {
   const spell = useSpell(api, novelId, novel.data?.novel);
 
   useEffect(() => {
-    const ws = createWorkspace({ api, novelId });
+    const ws = createWorkspace({ api, novelId, onFrontMatterSaved: () => void queryClient.invalidateQueries({ queryKey: keys.novel(novelId) }) });
     const detach = ws.autosave.attach(window);
     setWorkspace(ws);
     return () => {
@@ -193,7 +193,7 @@ export function NovelPage() {
                   </Suspense>
                 }
               />
-              <Route path="swimlanes" element={<SwimlanesPage novelId={novelId} novel={book} />} />
+              <Route path="swimlanes" element={<SwimlanesPage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="corkboard" element={<CorkboardPage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="outline" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="bible" element={<BiblePage novelId={novelId} novel={book} />} />
