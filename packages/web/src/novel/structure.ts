@@ -117,6 +117,7 @@ export function useStructure(novelId: string, novel: Novel, workspace: Workspace
         void navigate(`/novels/${novelId}/scene/${id}`);
         return `Added the scene “${title}”.`;
       }),
+    createPart: (title: string, after?: string | null) => run("add the part", () => m.createPart(novelId, title, after), () => `Added the part “${title}”. Add a chapter to it from its menu.`),
     createChapter: (part: string | null, title: string | undefined, after?: string | null) =>
       run("add the chapter", () => m.createChapter(novelId, part, title, after), ({ id }) => {
         void navigate(`/novels/${novelId}/chapter/${id}`);

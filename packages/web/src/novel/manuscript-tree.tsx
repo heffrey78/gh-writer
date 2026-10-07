@@ -1,6 +1,6 @@
 import { countWords, type Novel } from "@gh-writer/core";
-import { ChevronDown, ChevronRight, FilePlus, FolderPlus, History } from "lucide-react";
-import { ContextMenu } from "radix-ui";
+import { ChevronDown, ChevronRight, Ellipsis, FilePlus, FolderPlus, History, Layers } from "lucide-react";
+import { ContextMenu, DropdownMenu } from "radix-ui";
 import { memo, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { useNavigate } from "react-router";
 import { useCommands, type Command } from "../commands.ts";
@@ -26,7 +26,7 @@ interface TreeNode {
   hasChildren: boolean;
 }
 
-type Dialog = { kind: "rename"; id: string; title: string } | { kind: "new-scene"; chapter: string; after?: string | null } | { kind: "new-chapter"; part: string | null; after: string | null } | { kind: "move"; id: string; what: "scene" | "chapter" } | { kind: "deleted" };
+type Dialog = { kind: "new-part"; after: string | null } | { kind: "rename"; id: string; title: string } | { kind: "new-scene"; chapter: string; after?: string | null } | { kind: "new-chapter"; part: string | null; after: string | null } | { kind: "move"; id: string; what: "scene" | "chapter" } | { kind: "deleted" };
 
 /**
  * The manuscript as a tree: parts, chapters and scenes with word counts. Arrows move, Enter opens,
@@ -193,69 +193,71 @@ export function ManuscriptTree({ novelId, novel, structure, current }: { novelId
     if (move) void structure.move(id, move.index, move.to);
   };
 
-  const menu = (n: TreeNode) => {
-    const item = "flex cursor-pointer items-center justify-between gap-6 rounded px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent-soft data-[disabled]:opacity-50";
+  /** What can be done to an item: the right-click menu and the toolbar's ⋯ menu both list these. */
+  type Action = { label: string; keys?: string; disabled?: boolean; danger?: boolean; run: () => void } | "separator";
+  const actions = (n: TreeNode): Action[] => {
     const up = stepMove(novel, n.id, -1);
     const down = stepMove(novel, n.id, 1);
     const chapterOf = n.kind === "scene" ? n.parent : n.kind === "chapter" ? n.id : null;
-    return (
-      // Inside the page's main area, so the menu sits within a landmark.
-      <ContextMenu.Portal container={document.getElementById("main")}>
-        <ContextMenu.Content className="z-50 min-w-52 rounded-md border border-rule bg-raised p-1 text-ink shadow-lg">
-          {n.kind !== "part" && (
-            <ContextMenu.Item className={item} onSelect={() => open(n)}>
-              Open
-            </ContextMenu.Item>
-          )}
-          <ContextMenu.Item className={item} onSelect={() => setDialog({ kind: "rename", id: n.id, title: n.kind === "chapter" ? (novel.allChapters.find((c) => c.id === n.id)?.title ?? "") : n.title })}>
-            Rename… <kbd className="text-xs text-muted">F2</kbd>
-          </ContextMenu.Item>
-          {chapterOf && (
-            <ContextMenu.Item className={item} onSelect={() => setDialog({ kind: "new-scene", chapter: chapterOf, after: n.kind === "scene" ? n.id : null })}>
-              New scene {n.kind === "scene" ? "after this" : "at the start"}
-            </ContextMenu.Item>
-          )}
-          {n.kind !== "scene" && (
-            <ContextMenu.Item
-              className={item}
-              onSelect={() => setDialog(n.kind === "part" ? { kind: "new-chapter", part: n.id, after: null } : { kind: "new-chapter", part: n.parent, after: n.id })}
-            >
-              New chapter {n.kind === "part" ? "at the start" : "after this"}
-            </ContextMenu.Item>
-          )}
-          <ContextMenu.Separator className="my-1 h-px bg-rule" />
-          <ContextMenu.Item className={item} disabled={!up} onSelect={() => void structure.step(n.id, -1)}>
-            Move up <kbd className="text-xs text-muted">Alt+↑</kbd>
-          </ContextMenu.Item>
-          <ContextMenu.Item className={item} disabled={!down} onSelect={() => void structure.step(n.id, 1)}>
-            Move down <kbd className="text-xs text-muted">Alt+↓</kbd>
-          </ContextMenu.Item>
-          {(n.kind === "scene" || (n.kind === "chapter" && novel.topLevel === "parts")) && (
-            <ContextMenu.Item className={item} onSelect={() => setDialog({ kind: "move", id: n.id, what: n.kind === "scene" ? "scene" : "chapter" })}>
-              {n.kind === "scene" ? "Move to chapter…" : "Move to part…"}
-            </ContextMenu.Item>
-          )}
-          {n.kind === "scene" && n.pos < n.size && (
-            <ContextMenu.Item className={item} onSelect={() => void structure.merge(n.id)}>
-              Merge with the next scene
-            </ContextMenu.Item>
-          )}
-          <ContextMenu.Separator className="my-1 h-px bg-rule" />
-          <ContextMenu.Item className={cn(item, "text-danger")} onSelect={() => void structure.remove(n.id)}>
-            Delete <kbd className="text-xs text-muted">Del</kbd>
-          </ContextMenu.Item>
-        </ContextMenu.Content>
-      </ContextMenu.Portal>
-    );
+    return [
+      ...(n.kind !== "part" ? [{ label: "Open", run: () => open(n) }] : []),
+      { label: "Rename…", keys: "F2", run: () => setDialog({ kind: "rename", id: n.id, title: n.kind === "chapter" ? (novel.allChapters.find((c) => c.id === n.id)?.title ?? "") : n.title }) },
+      ...(chapterOf ? [{ label: `New scene ${n.kind === "scene" ? "after this" : "at the start"}`, run: () => setDialog({ kind: "new-scene", chapter: chapterOf, after: n.kind === "scene" ? n.id : null }) }] : []),
+      ...(n.kind !== "scene"
+        ? [
+            {
+              label: `New chapter ${n.kind === "part" ? "at the start" : "after this"}`,
+              run: () => setDialog(n.kind === "part" ? { kind: "new-chapter", part: n.id, after: null } : { kind: "new-chapter", part: n.parent, after: n.id }),
+            },
+          ]
+        : []),
+      ...(n.kind === "part" ? [{ label: "New part after this", run: () => setDialog({ kind: "new-part", after: n.id }) }] : []),
+      "separator",
+      { label: "Move up", keys: "Alt+↑", disabled: !up, run: () => void structure.step(n.id, -1) },
+      { label: "Move down", keys: "Alt+↓", disabled: !down, run: () => void structure.step(n.id, 1) },
+      ...(n.kind === "scene" || (n.kind === "chapter" && novel.topLevel === "parts")
+        ? [{ label: n.kind === "scene" ? "Move to chapter…" : "Move to part…", run: () => setDialog({ kind: "move", id: n.id, what: n.kind === "scene" ? "scene" : "chapter" }) }]
+        : []),
+      ...(n.kind === "scene" && n.pos < n.size ? [{ label: "Merge with the next scene", run: () => void structure.merge(n.id) }] : []),
+      "separator",
+      { label: "Delete", keys: "Del", danger: true, run: () => void structure.remove(n.id) },
+    ];
   };
+  const itemClass = "flex cursor-pointer items-center justify-between gap-6 rounded px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent-soft data-[disabled]:opacity-50";
+  const menuClass = "z-50 min-w-52 rounded-md border border-rule bg-raised p-1 text-ink shadow-lg";
+
+  const menu = (n: TreeNode) => (
+    // Inside the page's main area, so the menu sits within a landmark.
+    <ContextMenu.Portal container={document.getElementById("main")}>
+      <ContextMenu.Content className={menuClass}>
+        {actions(n).map((a, i) =>
+          a === "separator" ? (
+            <ContextMenu.Separator key={i} className="my-1 h-px bg-rule" />
+          ) : (
+            <ContextMenu.Item key={a.label} className={cn(itemClass, a.danger && "text-danger")} disabled={a.disabled ?? false} onSelect={a.run}>
+              {a.label} {a.keys && <kbd className="text-xs text-muted">{a.keys}</kbd>}
+            </ContextMenu.Item>
+          ),
+        )}
+      </ContextMenu.Content>
+    </ContextMenu.Portal>
+  );
 
   const currentChapter = novel.allScenes.find((s) => s.id === current)?.chapterId ?? (novel.allChapters.some((c) => c.id === current) ? current : novel.chapters[0]?.id);
   const currentNode = all.find((n) => n.id === current);
+  const currentPart = novel.allChapters.find((c) => c.id === currentChapter)?.partId;
+  // The toolbar's ⋯ acts on the item last focused in the tree, or the open one.
+  const target = all.find((n) => n.id === focused) ?? currentNode;
   useCommands((): Command[] => {
     const here = currentNode;
     return [
       ...(currentChapter ? [{ id: "tree.newScene", title: "New scene", group: "Manuscript", run: () => setDialog({ kind: "new-scene", chapter: currentChapter, ...(here?.kind === "scene" ? { after: here.id } : {}) }) }] : []),
       { id: "tree.newChapter", title: "New chapter", group: "Manuscript", run: () => setDialog({ kind: "new-chapter", part: novel.topLevel === "parts" ? (novel.allChapters.find((c) => c.id === currentChapter)?.partId ?? novel.parts[0]?.id ?? null) : null, after: currentChapter ?? null }) },
+      ...(novel.topLevel === "parts" ? [{ id: "tree.newPart", title: "New part", group: "Manuscript", run: () => setDialog({ kind: "new-part", after: currentPart ?? novel.parts.at(-1)?.id ?? null }) }] : []),
+      ...novel.parts.flatMap((p): Command[] => [
+        { id: `tree.renamePart.${p.id}`, title: `Rename part “${p.title}”…`, group: "Manuscript", run: () => setDialog({ kind: "rename", id: p.id, title: p.title }) },
+        { id: `tree.deletePart.${p.id}`, title: `Delete part “${p.title}”`, group: "Manuscript", run: () => void structure.remove(p.id) },
+      ]),
       { id: "tree.deleted", title: "Recently deleted", group: "Manuscript", run: () => setDialog({ kind: "deleted" }) },
       ...(here
         ? [
@@ -272,7 +274,7 @@ export function ManuscriptTree({ novelId, novel, structure, current }: { novelId
 
   return (
     <div className="grid gap-2">
-      <div className="flex gap-1" role="toolbar" aria-label="Manuscript actions">
+      <div className="flex flex-wrap gap-1" role="toolbar" aria-label="Manuscript actions">
         <Button size="sm" variant="ghost" disabled={!currentChapter} onClick={() => currentChapter && setDialog({ kind: "new-scene", chapter: currentChapter, ...(current && novel.allScenes.some((s) => s.id === current) ? { after: current } : {}) })}>
           <FilePlus className="size-4" aria-hidden /> Scene
         </Button>
@@ -284,9 +286,37 @@ export function ManuscriptTree({ novelId, novel, structure, current }: { novelId
         >
           <FolderPlus className="size-4" aria-hidden /> Chapter
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => setDialog({ kind: "deleted" })} aria-label="Recently deleted">
+        {novel.topLevel === "parts" && (
+          <Button size="sm" variant="ghost" onClick={() => setDialog({ kind: "new-part", after: currentPart ?? novel.parts.at(-1)?.id ?? null })}>
+            <Layers className="size-4" aria-hidden /> Part
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={() => setDialog({ kind: "deleted" })} aria-label="Recently deleted" title="Recently deleted">
           <History className="size-4" aria-hidden />
         </Button>
+        {target && (
+          <DropdownMenu.Root modal={false}>
+            <DropdownMenu.Trigger asChild>
+              <Button size="sm" variant="ghost" aria-label={`Actions for “${target.title}”`} title={`Actions for “${target.title}”`}>
+                <Ellipsis className="size-4" aria-hidden />
+              </Button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal container={document.getElementById("main")}>
+              <DropdownMenu.Content align="end" className={menuClass}>
+                <DropdownMenu.Label className="px-2 py-1 text-xs font-semibold text-muted">{target.title}</DropdownMenu.Label>
+                {actions(target).map((a, i) =>
+                  a === "separator" ? (
+                    <DropdownMenu.Separator key={i} className="my-1 h-px bg-rule" />
+                  ) : (
+                    <DropdownMenu.Item key={a.label} className={cn(itemClass, a.danger && "text-danger")} disabled={a.disabled ?? false} onSelect={a.run}>
+                      {a.label} {a.keys && <kbd className="text-xs text-muted">{a.keys}</kbd>}
+                    </DropdownMenu.Item>
+                  ),
+                )}
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
+        )}
       </div>
       <div role="tree" aria-label="Manuscript" ref={tree} onKeyDown={onKey} className="grid gap-px text-sm" onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setDrop(undefined)}>
         {visible.map((n) => (
@@ -368,6 +398,7 @@ export function ManuscriptTree({ novelId, novel, structure, current }: { novelId
           }}
         />
       )}
+      {dialog?.kind === "new-part" && <TitleDialog title="New part" action="Add part" submit={(title) => structure.createPart(title, dialog.after)} onClose={() => setDialog(undefined)} />}
       {dialog?.kind === "new-scene" && <TitleDialog title="New scene" action="Add scene" submit={(title) => structure.createScene(dialog.chapter, title, dialog.after)} onClose={() => setDialog(undefined)} />}
       {dialog?.kind === "new-chapter" && (
         <TitleDialog title="New chapter" label="Title (optional)" required={false} action="Add chapter" submit={(title) => structure.createChapter(dialog.part, title || undefined, dialog.after)} onClose={() => setDialog(undefined)} />

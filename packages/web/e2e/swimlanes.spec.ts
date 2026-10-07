@@ -161,3 +161,19 @@ test("zooms to one part or chapter, and keeps the zoom in the address", async ({
   await page.getByRole("combobox", { name: "Show" }).selectOption({ label: "Chapter: Arrival" });
   await expect(grid(page).locator("tbody tr").first().getByRole("gridcell")).toHaveCount(2);
 });
+
+test("the grid can be drawn larger or smaller, and its frame closes around it", async ({ page, app }) => {
+  await open(page, app);
+  const cell = grid(page).locator("tbody").getByRole("gridcell").first();
+  const medium = (await cell.boundingBox())!.width;
+  await page.getByRole("combobox", { name: "Size" }).selectOption("large");
+  await expect.poll(async () => (await cell.boundingBox())!.width).toBeGreaterThan(medium + 6);
+  await expect(page).toHaveURL(/size=large/);
+  await page.getByRole("combobox", { name: "Size" }).selectOption("small");
+  await expect.poll(async () => (await cell.boundingBox())!.width).toBeLessThan(medium);
+  // The frame hugs the table: its right edge is the last column's.
+  const frame = (await grid(page).locator("xpath=..").boundingBox())!;
+  const table = (await grid(page).boundingBox())!;
+  expect(Math.abs(frame.x + frame.width - (table.x + table.width))).toBeLessThanOrEqual(2);
+  await axe(page);
+});

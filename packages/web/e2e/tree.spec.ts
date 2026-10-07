@@ -144,3 +144,32 @@ test("splits a scene at the caret and merges it back from the context menu", asy
   const paragraphs = (t: string) => t.replace(/^---[\s\S]*?\n---\n/, "").split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
   await expect.poll(() => paragraphs(novel.read(`${ARRIVAL}/01-the-station.md`))).toEqual(paragraphs(original));
 });
+
+test("parts: add one from the toolbar, then rename and delete it from the ⋯ menu or the palette", async ({ page, app }) => {
+  const novel = await open(page, app);
+  await page.getByRole("toolbar", { name: "Manuscript actions" }).getByRole("button", { name: "Part" }).click();
+  await page.getByRole("dialog").getByRole("textbox", { name: "Title" }).fill("Aftermath");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(item(page, "Aftermath")).toHaveAttribute("aria-level", "1");
+  await expect(notice(page)).toContainText("Added the part “Aftermath”.");
+  // After the part of the open chapter (Arrival, in Return): between Return and The Sale.
+  expect(novel.read("manuscript/_order.yaml")).toMatch(/^parts: \[pt_r3tvrn, pt_[0-9a-z]{6}, pt_5a1e00\]$/m);
+  expect(novel.has("manuscript/02-aftermath/_part.yaml")).toBe(true);
+
+  // The ⋯ menu acts on the item last focused in the tree.
+  await item(page, "Aftermath").focus();
+  await page.getByRole("button", { name: "Actions for “Aftermath”" }).click();
+  await axe(page);
+  await page.getByRole("menuitem", { name: /^Rename…/ }).click();
+  await page.getByRole("dialog").getByRole("textbox", { name: "Title" }).fill("Afterwards");
+  await page.keyboard.press("Enter");
+  await expect(item(page, "Afterwards")).toBeVisible();
+  expect(novel.has("manuscript/02-afterwards/_part.yaml")).toBe(true);
+
+  // Every part has palette commands too.
+  await palette(page, "delete part “afterwards”");
+  await expect(notice(page)).toContainText("Deleted the part “Afterwards”.");
+  await expect(item(page, "Afterwards")).toHaveCount(0);
+  expect(novel.read("manuscript/_order.yaml")).toContain("parts: [pt_r3tvrn, pt_5a1e00]");
+});

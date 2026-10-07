@@ -3,7 +3,7 @@ import { joinSceneFile } from "@gh-writer/editor";
 import { useQueryClient } from "@tanstack/react-query";
 import { Popover } from "radix-ui";
 import { GripHorizontal } from "lucide-react";
-import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent } from "react";
 import { Link } from "react-router";
 import { api, keys } from "../api.ts";
 import { useNotice } from "../novel/notice.tsx";
@@ -16,6 +16,14 @@ import { useViewParams } from "../ui/view-params.ts";
 import { cellKey, DEFAULT_GAP, gaps, swimlanes, zoomed, type Gap, type GapThreshold, type Mark } from "./swimlane-model.ts";
 
 const number = new Intl.NumberFormat();
+
+/** How big the grid is drawn: its cells and its type scale together (markers are in em). */
+const SIZES = {
+  small: { cell: "2.25rem", font: "0.8125rem" },
+  medium: { cell: "2.75rem", font: "0.9375rem" },
+  large: { cell: "3.375rem", font: "1.0625rem" },
+} as const;
+type Size = keyof typeof SIZES;
 const amount = (t: GapThreshold) => ("scenes" in t ? `${t.scenes} scene${t.scenes === 1 ? "" : "s"}` : `${number.format(t.words)} words`);
 /** The threshold in the address: "3" scenes, or "5000w" words. */
 const readGap = (v: string | null): GapThreshold | undefined => {
@@ -39,6 +47,7 @@ function cellLabel(scene: string, plotline: string, mark: Mark | undefined, gap?
 export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; novel: Novel; workspace: Workspace }) {
   const [params, setParams] = useViewParams();
   const zoom = params.get("zoom") ?? undefined;
+  const size: Size = (params.get("size") as Size | null) && params.get("size")! in SIZES ? (params.get("size") as Size) : "medium";
   const saved = novel.config?.plotline_gap ?? DEFAULT_GAP;
   const threshold = readGap(params.get("gap")) ?? saved;
   // Gaps are found in the whole book (a quiet stretch can cross the zoom's edge); the grid shows the zoom.
@@ -212,6 +221,14 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
             ))}
           </select>
         </label>
+        <label className="grid gap-1 font-medium">
+          Size
+          <select value={size} onChange={(e) => setParams({ size: e.target.value === "medium" ? undefined : e.target.value })} className="h-8 rounded-md border border-rule bg-raised px-2 font-normal">
+            <option value="small">Small</option>
+            <option value="medium">Medium</option>
+            <option value="large">Large</option>
+          </select>
+        </label>
         <fieldset className="flex items-end gap-2">
           <legend className="mb-1 font-medium">A plotline goes quiet after</legend>
           <input
@@ -245,8 +262,15 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
         Each column is a scene, in reading order. <span className="inline-block size-3 rounded-full bg-accent align-middle" aria-hidden /> a major beat,{" "}
         <span className="inline-block size-2 rounded-full border border-accent bg-accent-soft align-middle" aria-hidden /> a minor one; shaded, a plotline gone quiet for more than {amount(threshold)}.
       </p>
-      <div className="overflow-x-auto rounded-lg border border-rule">
-        <table ref={table} role="grid" aria-label="Plotlines by scene" onKeyDown={onKey} className="border-collapse text-sm">
+      <div className="w-fit max-w-full overflow-x-auto rounded-lg border border-rule">
+        <table
+          ref={table}
+          role="grid"
+          aria-label="Plotlines by scene"
+          onKeyDown={onKey}
+          style={{ "--cell": SIZES[size].cell, fontSize: SIZES[size].font } as CSSProperties}
+          className="border-collapse"
+        >
           <thead>
             {s.parts.length > 0 && (
               <tr>
@@ -279,7 +303,7 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
                   onDragOver={(e) => onDragOver(e, scene)}
                   onDrop={onDrop}
                   className={cn(
-                    "h-36 w-10 border-l border-rule align-bottom",
+                    "h-[calc(var(--cell)*3.6)] w-[var(--cell)] border-l border-rule align-bottom",
                     drop?.id === scene.id && (drop.after ? "shadow-[inset_-3px_0_0_var(--ghw-accent)]" : "shadow-[inset_3px_0_0_var(--ghw-accent)]"),
                   )}
                 >
@@ -307,7 +331,7 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
                     to={`/novels/${novelId}/scene/${scene.id}`}
                     tabIndex={-1}
                     title={scene.title}
-                    className="mx-auto block max-h-32 truncate px-1 py-1 text-xs font-normal underline-offset-2 [writing-mode:vertical-rl] hover:underline"
+                    className="mx-auto block max-h-[calc(var(--cell)*3.2)] truncate px-1 py-1 text-[0.85em] font-normal underline-offset-2 [writing-mode:vertical-rl] hover:underline"
                   >
                     {scene.title}
                   </Link>
@@ -318,7 +342,7 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
           <tbody>
             {s.lanes.map((lane, row) => (
               <tr key={lane.id}>
-                <th scope="row" className="sticky left-0 z-10 max-w-48 truncate border-t border-rule bg-paper px-3 py-2 text-left font-medium">
+                <th scope="row" className="sticky left-0 z-10 max-w-[14em] truncate border-t border-rule bg-paper px-3 py-2 text-left font-medium">
                   {lane.name}
                 </th>
                 {s.scenes.map((scene, col) => {
@@ -498,7 +522,7 @@ const Cell = memo(function Cell({
       aria-label={label}
       aria-haspopup={mark ? "dialog" : undefined}
       className={cn(
-        "group relative h-10 w-10 cursor-pointer border-t border-l border-rule p-0 text-center outline-none hover:bg-panel focus-visible:bg-accent-soft",
+        "group relative h-[var(--cell)] w-[var(--cell)] cursor-pointer border-t border-l border-rule p-0 text-center outline-none hover:bg-panel focus-visible:bg-accent-soft",
         quiet && "bg-warn-soft",
       )}
     >
@@ -507,12 +531,12 @@ const Cell = memo(function Cell({
         <>
           <span
             aria-hidden
-            className={cn("relative inline-block rounded-full align-middle", mark.weight === "major" ? "size-3.5 bg-accent" : "size-2.5 border border-accent bg-accent-soft")}
+            className={cn("relative inline-block rounded-full align-middle", mark.weight === "major" ? "size-[0.95em] bg-accent" : "size-[0.7em] border border-accent bg-accent-soft")}
           />
           {mark.beat && (
             <span
               aria-hidden
-              className="pointer-events-none absolute top-full left-1/2 z-20 mt-1 hidden w-48 -translate-x-1/2 rounded-md border border-rule bg-raised px-2 py-1 text-left text-xs shadow-md group-hover:block group-focus:block"
+              className="pointer-events-none absolute top-full left-1/2 z-20 mt-1 hidden w-56 -translate-x-1/2 rounded-md border border-rule bg-raised px-2 py-1 text-left text-[0.85em] shadow-md group-hover:block group-focus:block"
             >
               {mark.beat}
             </span>
