@@ -1,4 +1,4 @@
-import { relationshipsAt, type Novel, type Relationship, type RelationshipStyle } from "@gh-writer/core";
+import { mentions, relationshipsAt, type Novel, type Relationship, type RelationshipStyle, type Scene } from "@gh-writer/core";
 import { describe } from "../bible/entry-page.tsx";
 import type { GraphEdge, GraphNode } from "./graph-canvas.tsx";
 
@@ -14,13 +14,47 @@ export interface GraphView {
   list: { id: string; text: string }[];
 }
 
+/** What the graph shows. Every filter that's set must hold. */
+export interface GraphFilter {
+  /** Entity types shown as nodes (default: characters). */
+  types?: string[];
+  /** Relationship types shown as edges (default: all). */
+  relationshipTypes?: string[];
+  /** Only entities present in a scene that advances this plotline. */
+  plotline?: string;
+  /** Only entities present in a scene from `from` to `to` (inclusive, reading order); either end may be open. */
+  from?: string;
+  to?: string;
+}
+
+/** Everything a scene refers to: point of view, people, places, plotlines, themes and mentions. */
+export function presentIn(scene: Scene): Set<string> {
+  return new Set([...(scene.pov ? [scene.pov] : []), ...scene.characters, ...scene.locations, ...scene.plotlines.map((p) => p.id), ...scene.themes.map((t) => t.id), ...mentions(scene.body).map((m) => m.id)]);
+}
+
+/** The entities the scene filters (plotline, range) allow, or undefined when neither is set. */
+function presentInFiltered(novel: Novel, f: GraphFilter): Set<string> | undefined {
+  if (!f.plotline && !f.from && !f.to) return undefined;
+  const pos = (id: string | undefined, fallback: number) => (id ? Math.max(0, novel.scenes.findIndex((s) => s.id === id)) : fallback);
+  const [lo, hi] = [pos(f.from, 0), pos(f.to, novel.scenes.length - 1)].sort((a, b) => a - b);
+  const out = new Set<string>();
+  novel.scenes.forEach((scene, i) => {
+    if (i < lo! || i > hi!) return;
+    if (f.plotline && !scene.plotlines.some((p) => p.id === f.plotline)) return;
+    for (const id of presentIn(scene)) out.add(id);
+  });
+  return out;
+}
+
 /**
- * The relationship graph at a scene: entities of `types` as nodes, at their saved positions or laid
- * out around them, and the relationships holding at `sceneId` between two shown entities as edges,
- * styled by their type.
+ * The relationship graph at a scene: entities of the filter's types (and present where the scene
+ * filters say) as nodes, at their saved positions or laid out around them, and the relationships
+ * of the filter's types holding at `sceneId` between two shown entities as edges, styled by type.
  */
-export function graphAt(novel: Novel, sceneId: string | undefined, types: string[] = ["character"]): GraphView {
-  const entities = novel.entities.filter((e) => types.includes(e.type)).sort((a, b) => a.name.localeCompare(b.name));
+export function graphAt(novel: Novel, sceneId: string | undefined, filter: GraphFilter = {}): GraphView {
+  const types = filter.types ?? ["character"];
+  const present = presentInFiltered(novel, filter);
+  const entities = novel.entities.filter((e) => types.includes(e.type) && (!present || present.has(e.id))).sort((a, b) => a.name.localeCompare(b.name));
   const shown = new Set(entities.map((e) => e.id));
   const typeLabel = new Map(novel.entityTypes.map((t) => [t.key, t.label]));
   const saved = novel.layouts[RELATIONSHIP_GRAPH]?.nodes ?? {};
@@ -28,7 +62,7 @@ export function graphAt(novel: Novel, sceneId: string | undefined, types: string
   const nodes: GraphNode[] = entities.map((e) => ({ id: e.id, label: e.name, type: typeLabel.get(e.type) ?? e.type, ...positions.get(e.id)! }));
 
   const holding = sceneId ? relationshipsAt(novel, sceneId) : novel.relationships.filter((r) => !r.since);
-  const rels = holding.filter((r) => shown.has(r.from) && shown.has(r.to) && r.from !== r.to);
+  const rels = holding.filter((r) => shown.has(r.from) && shown.has(r.to) && r.from !== r.to && (!filter.relationshipTypes || filter.relationshipTypes.includes(r.type)));
   const name = (id: string) => novel.entities.find((e) => e.id === id)?.name ?? id;
   const edges = rels.map((r) => {
     const e = edgeOf(novel, r);

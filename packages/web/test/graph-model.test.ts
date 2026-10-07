@@ -29,8 +29,23 @@ describe("the relationship graph at a scene", () => {
     const view = graphAt(novel, "sc_5tat1n");
     expect(view.nodes.map((n) => n.label)).toEqual(["Ada Varn", "Ben Varn", "Mirela Kost", "Tomas Hale"]);
     expect(view.nodes.find((n) => n.id === ADA)).toMatchObject({ x: 0, y: 0, type: "Character" });
-    const withArtifacts = graphAt(novel, "sc_0d9wm4", ["character", "artifact"]);
+    const withArtifacts = graphAt(novel, "sc_0d9wm4", { types: ["character", "artifact"] });
     expect(withArtifacts.edges.map((e) => e.label)).toContain("Holds");
+  });
+});
+
+describe("filtering the graph", () => {
+  it("by relationship type, by plotline, and by who is present in a range of scenes; filters combine", () => {
+    expect(graphAt(novel, "sc_0d9wm4", { relationshipTypes: ["rivals"] }).edges.map((e) => e.label)).toEqual(["Rivals with"]);
+    // Ben's Debt runs through five scenes; Mirela is in none of them.
+    const debt = graphAt(novel, "sc_0d9wm4", { plotline: "plot_gr1efa" });
+    expect(debt.nodes.map((n) => n.label)).toEqual(["Ada Varn", "Ben Varn", "Tomas Hale"]);
+    // Only the first chapter: Ada and Ben.
+    expect(graphAt(novel, "sc_5tat1n", { from: "sc_5tat1n", to: "sc_br1dg3" }).nodes.map((n) => n.label)).toEqual(["Ada Varn", "Ben Varn"]);
+    // A range given backwards is the same range.
+    expect(graphAt(novel, "sc_5tat1n", { from: "sc_br1dg3", to: "sc_5tat1n" }).nodes.map((n) => n.label)).toEqual(["Ada Varn", "Ben Varn"]);
+    const both = graphAt(novel, "sc_5tat1n", { from: "sc_5tat1n", to: "sc_br1dg3", relationshipTypes: ["sibling"] });
+    expect(both.edges.map((e) => e.label)).toEqual(["Sibling of"]);
   });
 });
 

@@ -78,3 +78,48 @@ test("nodes keep where they're put, by dragging or by keyboard, one line of the 
   expect(Math.abs(again[0]! - placed[0]!)).toBeLessThanOrEqual(1);
   expect(Math.abs(again[1]! - placed[1]!)).toBeLessThanOrEqual(1);
 });
+
+test("filters narrow the graph by relationship type, plotline and scenes, and survive a reload", async ({ page, app }) => {
+  await open(page, app);
+  await page.getByText("Filters").click();
+  // Only rivals and siblings: no ally edge anywhere.
+  await page.getByRole("checkbox", { name: "Allied with" }).uncheck();
+  await expect(edge(page, "Ada Varn, Allied with, Ben Varn")).toHaveCount(0);
+  await expect(edge(page, "Ada Varn, Sibling of, Ben Varn")).toHaveCount(1);
+  // Ben's Debt never involves Mirela.
+  await page.getByRole("combobox", { name: "In scenes of the plotline" }).selectOption({ label: "Ben's Debt" });
+  await expect(page.locator('.react-flow__node[aria-label="Mirela Kost, Character"]')).toHaveCount(0);
+  // The first chapter's scenes: Ada and Ben only.
+  await page.getByRole("combobox", { name: "In scenes of the plotline" }).selectOption({ label: "Any" });
+  await page.getByRole("button", { name: /^to / }).click();
+  await page.keyboard.type("walking the span");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".react-flow__node")).toHaveCount(2);
+  await page.reload();
+  await expect(page.locator(".react-flow__node")).toHaveCount(2);
+  await expect(page.getByRole("checkbox", { name: "Allied with" })).not.toBeChecked();
+  // Other entity types on request.
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await page.getByText("Filters").click();
+  await page.getByRole("checkbox", { name: "Artifacts" }).check();
+  await expect(page.locator('.react-flow__node[aria-label="The Original Plans, Artifact"]')).toBeVisible();
+  await axe(page);
+});
+
+test("selecting a character brings out their relationships and lists their scenes", async ({ page, app }) => {
+  await open(page, app);
+  await page.locator('.react-flow__node[aria-label="Tomas Hale, Character"]').click();
+  const panel = page.getByRole("region", { name: "Tomas Hale" });
+  await expect(panel.getByRole("list", { name: "Relationships" })).toHaveText(["Tomas Hale: Mentor of Ada Varn"]);
+  await expect(panel.getByRole("list", { name: "Scenes with Tomas Hale" }).getByRole("link")).toContainText(["Tomas's Workshop"]);
+  await expect(edge(page, "Ada Varn, Allied with, Ben Varn")).toHaveCSS("opacity", "0.2");
+  await expect(page).toHaveURL(/sel=char_t0ma5h/);
+  await axe(page);
+  // By keyboard: focus a node, Enter selects it.
+  await page.locator('.react-flow__node[aria-label="Mirela Kost, Character"]').focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("region", { name: "Mirela Kost" })).toBeVisible();
+  await page.getByRole("button", { name: "Show everyone" }).click();
+  await expect(page.getByRole("region", { name: /^At “/ })).toBeVisible();
+  await panel.getByRole("link").first().isVisible();
+});
