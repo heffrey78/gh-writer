@@ -1,4 +1,4 @@
-import { Background, BaseEdge, ConnectionMode, Controls, Handle, MarkerType, Position, ReactFlow, useNodesState, type ColorMode, type Edge, type EdgeChange, type EdgeProps, type Node, type NodeChange, type NodeProps } from "@xyflow/react";
+import { Background, BaseEdge, ConnectionMode, Controls, Handle, MarkerType, Position, ReactFlow, useInternalNode, useNodesState, type ColorMode, type Edge, type EdgeChange, type EdgeProps, type Node, type NodeChange, type NodeProps } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
@@ -63,15 +63,23 @@ const EntityNode = memo(function EntityNode({ data }: NodeProps<Node<EntityData>
  * entities (siblings and rivals, say) are drawn apart, each with its own label, rather than on top
  * of each other. The side is fixed by the pair, not the direction, so a→b and b→a fan out together.
  */
-function ParallelEdge({ sourceX, sourceY, targetX, targetY, source, target, data, label, style, markerEnd, labelStyle, labelBgStyle, interactionWidth }: EdgeProps<Edge<{ offset: number }>>) {
+function ParallelEdge(props: EdgeProps<Edge<{ offset: number }>>) {
+  const { source, target, data, label, style, markerEnd, labelStyle, labelBgStyle, interactionWidth } = props;
+  const from = useInternalNode(source);
+  const to = useInternalNode(target);
+  // Floating: between the nodes' centres, leaving each at the point of its border that faces the curve.
+  const a = from ? centre(from) : { x: props.sourceX, y: props.sourceY, w: 0, h: 0 };
+  const b = to ? centre(to) : { x: props.targetX, y: props.targetY, w: 0, h: 0 };
   const offset = data?.offset ?? 0;
-  const dx = targetX - sourceX;
-  const dy = targetY - sourceY;
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
   const length = Math.hypot(dx, dy) || 1;
   const side = source < target ? 1 : -1;
   // The curve's peak is half the control point's distance from the line.
-  const cx = (sourceX + targetX) / 2 + ((-dy / length) * offset * 2 * side);
-  const cy = (sourceY + targetY) / 2 + ((dx / length) * offset * 2 * side);
+  const cx = (a.x + b.x) / 2 + (-dy / length) * offset * 2 * side;
+  const cy = (a.y + b.y) / 2 + (dx / length) * offset * 2 * side;
+  const { x: sourceX, y: sourceY } = border(a, cx, cy);
+  const { x: targetX, y: targetY } = border(b, cx, cy);
   const labelX = 0.25 * sourceX + 0.5 * cx + 0.25 * targetX;
   const labelY = 0.25 * sourceY + 0.5 * cy + 0.25 * targetY;
   return (
@@ -89,6 +97,23 @@ function ParallelEdge({ sourceX, sourceY, targetX, targetY, source, target, data
       interactionWidth={interactionWidth}
     />
   );
+}
+
+type Box = { x: number; y: number; w: number; h: number };
+
+function centre(node: NonNullable<ReturnType<typeof useInternalNode>>): Box {
+  const w = node.measured.width ?? 0;
+  const h = node.measured.height ?? 0;
+  return { x: node.internals.positionAbsolute.x + w / 2, y: node.internals.positionAbsolute.y + h / 2, w, h };
+}
+
+/** Where the line from a box's centre toward (x, y) crosses the box's edge (a little outside it, for the arrowhead). */
+function border(box: Box, x: number, y: number): { x: number; y: number } {
+  const dx = x - box.x;
+  const dy = y - box.y;
+  if ((!dx && !dy) || !box.w || !box.h) return { x: box.x, y: box.y };
+  const scale = Math.min(Math.abs((box.w / 2 + 2) / (dx || 1e-9)), Math.abs((box.h / 2 + 2) / (dy || 1e-9)));
+  return { x: box.x + dx * scale, y: box.y + dy * scale };
 }
 
 const nodeTypes = { entity: EntityNode };
