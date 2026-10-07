@@ -85,6 +85,8 @@ On a 120-scene book with 12 plotlines (the performance project), the swimlanes r
 
 Clicking a cell (or Enter or Space) where an entry isn't listed adds it to the scene's characters, locations, themes or plotlines; on a listed one it opens its editor: the scene's point of view (characters), strength (themes), weight (plotlines), or Remove from this scene (a character taken out stops being the point of view). Each change rewrites only the lines it touches, through the same autosave as typing, and every other view follows. Custom types have no list, so a cell explains that a mention (@ in the scene) is what puts one there.
 
+**Sort** orders the rows by first appearance (the default), by how many scenes each is in (the number beside each name), or by name. An absence longer than a threshold (scenes or words, as in the swimlanes), between two appearances or after the last one, is shaded and listed under **Long absences** ("Mirela Kost: away for 1 scene (74 words) at “The Last Rivet”, and never back."). Sort and threshold live in the address.
+
 ## Relationship graph
 
 **Graph** (`/novels/:id/graph`, also in the palette) shows characters as nodes and the relationships between them as labelled edges, coloured and dashed by their type's `style` (or a colour of their own when a type has none; symmetric types have no arrow). The **Story position** slider, or the scene picker beside it, moves through the book in reading order, and the edges are the relationships holding at that scene, so Ada and Ben are allies at "The Station" and rivals from "The Betrayal". The scene is kept in the address (`?at=sc_…`). Beside the graph, the same relationships are listed as sentences, which is also what a screen reader gets.

@@ -3,6 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Popover } from "radix-ui";
 import { useId, useMemo, useState } from "react";
 import { api, keys } from "../api.ts";
+import { GapControls } from "../diagrams/gap-controls.tsx";
+import { amount, readGap, writeGap } from "../diagrams/gap-param.ts";
 import { readSize, SceneGrid, SizeSelect, type GridMark } from "../diagrams/scene-grid.tsx";
 import { useNotice } from "../novel/notice.tsx";
 import { plotlineEdits, type PlotlineChange } from "../novel/plotline-edits.ts";
@@ -13,14 +15,6 @@ import { useViewParams } from "../ui/view-params.ts";
 import { cellKey, DEFAULT_GAP, gaps, swimlanes, zoomed, type Gap, type GapThreshold, type Mark } from "./swimlane-model.ts";
 
 const number = new Intl.NumberFormat();
-
-const amount = (t: GapThreshold) => ("scenes" in t ? `${t.scenes} scene${t.scenes === 1 ? "" : "s"}` : `${number.format(t.words)} words`);
-/** The threshold in the address: "3" scenes, or "5000w" words. */
-const readGap = (v: string | null): GapThreshold | undefined => {
-  const m = v ? /^(\d+)(w?)$/.exec(v) : null;
-  return m ? (m[2] ? { words: Number(m[1]) } : { scenes: Number(m[1]) }) : undefined;
-};
-const writeGap = (t: GapThreshold) => ("scenes" in t ? String(t.scenes) : `${t.words}w`);
 
 /** What a screen reader says for a cell. */
 function cellLabel(scene: string, plotline: string, mark: Mark | undefined, gap?: Gap) {
@@ -124,34 +118,18 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
           </select>
         </label>
         <SizeSelect value={size} onChange={(v) => setParams({ size: v })} />
-        <fieldset className="flex items-end gap-2">
-          <legend className="mb-1 font-medium">A plotline goes quiet after</legend>
-          <input
-            type="number"
-            min={0}
-            aria-label="How many"
-            value={"scenes" in threshold ? threshold.scenes : threshold.words}
-            onChange={(e) => {
-              const n = Math.max(0, Math.round(Number(e.target.value) || 0));
-              setParams({ gap: writeGap("scenes" in threshold ? { scenes: n } : { words: n }) });
-            }}
-            className="h-8 w-24 rounded-md border border-rule bg-raised px-2"
-          />
-          <select
-            aria-label="Counted in"
-            value={"scenes" in threshold ? "scenes" : "words"}
-            onChange={(e) => setParams({ gap: writeGap(e.target.value === "words" ? { words: 5000 } : { scenes: 3 }) })}
-            className="h-8 rounded-md border border-rule bg-raised px-2"
-          >
-            <option value="scenes">scenes</option>
-            <option value="words">words</option>
-          </select>
-          {!isDefault && (
-            <Button size="sm" onClick={() => void saveDefault()}>
-              Make this the novel's default
-            </Button>
-          )}
-        </fieldset>
+        <GapControls
+          legend="A plotline goes quiet after"
+          threshold={threshold}
+          onChange={(gap) => setParams({ gap })}
+          extra={
+            !isDefault && (
+              <Button size="sm" onClick={() => void saveDefault()}>
+                Make this the novel's default
+              </Button>
+            )
+          }
+        />
       </div>
       <p className="text-sm text-muted">
         Each column is a scene, in reading order. <span className="inline-block size-3 rounded-full bg-accent align-middle" aria-hidden /> a major beat,{" "}

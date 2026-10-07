@@ -23,7 +23,8 @@ const grid = (page: Page, name: string) => page.getByRole("grid", { name });
 test("characters, places, themes and other entries against every scene, from the scenes' metadata", async ({ page, app }) => {
   await open(page, app);
   const characters = grid(page, "Characters by scene");
-  await expect(characters.getByRole("rowheader")).toHaveText(["Ada Varn", "Ben Varn", "Mirela Kost", "Tomas Hale"]);
+  // By first appearance, each with how many scenes it's in.
+  await expect(characters.getByRole("rowheader")).toHaveText(["Ada Varn8", "Ben Varn4", "Tomas Hale3", "Mirela Kost1"]);
   await expect(characters.getByRole("gridcell", { name: "The Betrayal: Ada Varn present, point of view" })).toBeVisible();
   await expect(characters.getByRole("gridcell", { name: "The Flood: Ben Varn present, point of view" })).toBeVisible();
   await expect(characters.getByRole("gridcell", { name: "The Station: Mirela Kost not there" })).toBeVisible();
@@ -101,4 +102,23 @@ test("the matrix and the scene details panel agree after an edit in either", asy
   await panel.getByRole("button", { name: "Remove “Tomas Hale”" }).click();
   await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Presence" }).click();
   await expect(grid(page, "Characters by scene").getByRole("gridcell", { name: "The Station: Tomas Hale not there" })).toBeVisible();
+});
+
+test("rows sort by first appearance, most scenes or name, and long absences are flagged", async ({ page, app }) => {
+  await open(page, app);
+  const characters = grid(page, "Characters by scene");
+  await expect(characters.getByRole("rowheader")).toHaveText(["Ada Varn8", "Ben Varn4", "Tomas Hale3", "Mirela Kost1"]);
+  await page.getByRole("combobox", { name: "Sort" }).selectOption({ label: "Name" });
+  await expect(characters.getByRole("rowheader")).toHaveText(["Ada Varn8", "Ben Varn4", "Mirela Kost1", "Tomas Hale3"]);
+  await page.getByRole("combobox", { name: "Sort" }).selectOption({ label: "Most scenes" });
+  await expect(characters.getByRole("rowheader").first()).toHaveText("Ada Varn8");
+  await expect(page).toHaveURL(/sort=total/);
+
+  const absences = page.getByRole("region", { name: "Long absences" });
+  await expect(absences).toContainText("No characters away for more than 3 scenes.");
+  await page.getByRole("spinbutton", { name: "How many" }).fill("0");
+  await expect(absences).toContainText("Mirela Kost: away for 1 scene");
+  await expect(absences).toContainText("at “The Last Rivet”, and never back.");
+  await expect(characters.getByRole("gridcell", { name: "The Last Rivet: Mirela Kost not there, in an absence of 1 scene" })).toBeVisible();
+  await axe(page);
 });

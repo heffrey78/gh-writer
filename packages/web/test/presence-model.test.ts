@@ -4,6 +4,7 @@ import { nodeSource } from "@gh-writer/core/node";
 import { describe, expect, it } from "vitest";
 import { gridKey } from "../src/diagrams/columns.ts";
 import { presence, sortRows, totals } from "../src/presence/presence-model.ts";
+import { gaps } from "../src/swimlanes/swimlane-model.ts";
 
 const novel = await loadNovel(nodeSource(fileURLToPath(new URL("../../../examples/sample-novel/", import.meta.url))));
 
@@ -41,5 +42,22 @@ describe("presence", () => {
     expect(sortRows(m, "total")[0]!.name).toBe("Ada Varn");
     expect(totals(m).get("char_7f3k2q")).toBe(8);
     expect(sortRows(m, "first")[0]!.name).toBe("Ada Varn");
+  });
+});
+
+describe("absences", () => {
+  it("finds who is away between appearances, and who never comes back", () => {
+    const m = presence(novel, "character");
+    const away = gaps({ lanes: m.rows, scenes: m.scenes, marks: m.marks, words: m.words }, { scenes: 0 });
+    const of = (id: string) => away.filter((g) => g.lane === id).map((g) => [g.from, g.to, g.scenes, g.open]);
+    // Mirela: only in Mirela's Offer, then The Last Rivet without her.
+    expect(of("char_m1re1a")).toEqual([["sc_r1vet8", "sc_r1vet8", 1, true]]);
+    // Tomas: the workshop, the flood, the last rivet.
+    expect(of("char_t0ma5h")).toEqual([
+      ["sc_1edger", "sc_0d9wm4", 2, false],
+      ["sc_0ffer5", "sc_0ffer5", 1, false],
+    ]);
+    // Over one scene: Ben (The Workshop and Ben's Ledger) and Tomas (Ben's Ledger and The Betrayal).
+    expect(gaps({ lanes: m.rows, scenes: m.scenes, marks: m.marks, words: m.words }, { scenes: 1 }).map((g) => g.lane)).toEqual(["char_b3n0vs", "char_t0ma5h"]);
   });
 });

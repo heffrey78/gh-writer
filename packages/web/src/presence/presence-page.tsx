@@ -9,9 +9,18 @@ import { entryEdits, type EntryChange } from "../novel/plotline-edits.ts";
 import { useSceneEdit } from "../novel/scene-edit.ts";
 import type { Workspace } from "../novel/workspace.ts";
 import { Button } from "../ui/button.tsx";
-import { zoomed } from "../swimlanes/swimlane-model.ts";
+import { DEFAULT_GAP, gaps, zoomed, type Gap } from "../swimlanes/swimlane-model.ts";
+import { GapControls } from "../diagrams/gap-controls.tsx";
+import { amount, readGap, writeGap } from "../diagrams/gap-param.ts";
 import { useViewParams } from "../ui/view-params.ts";
-import { LISTS, presence, type Presence } from "./presence-model.ts";
+import { LISTS, presence, sortRows, totals, type Presence, type RowOrder } from "./presence-model.ts";
+
+const number = new Intl.NumberFormat();
+const ORDERS: [RowOrder, string][] = [
+  ["first", "First appearance"],
+  ["total", "Most scenes"],
+  ["name", "Name"],
+];
 
 /** How a presence is drawn: the point of view ringed, a listing filled (a theme's by its strength), a mention alone dashed. */
 function markOf(p: Presence): GridMark {
@@ -23,8 +32,8 @@ function markOf(p: Presence): GridMark {
 }
 
 /** What a screen reader says for a cell. */
-function describe(scene: string, name: string, p: Presence | undefined): string {
-  if (!p) return `${scene}: ${name} not there`;
+function describe(scene: string, name: string, p: Presence | undefined, gap?: Gap): string {
+  if (!p) return `${scene}: ${name} not there${gap ? `, in an absence of ${gap.scenes} scene${gap.scenes === 1 ? "" : "s"}` : ""}`;
   if (!p.listed) return `${scene}: ${name} mentioned only`;
   const how = [p.pov ? "point of view" : "", p.strength !== undefined ? `strength ${p.strength}` : "", p.weight ? `${p.weight} beat` : "", p.note ? `“${p.note}”` : ""].filter(Boolean).join(", ");
   return `${scene}: ${name} present${how ? `, ${how}` : ""}`;
@@ -41,9 +50,24 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
   const zoom = params.get("zoom") ?? undefined;
   const size = readSize(params.get("size"));
   const label = novel.entityTypes.find((t) => t.key === type)?.label ?? type;
-  const m = useMemo(() => presence(novel, type, zoomed(novel, novel.scenes, zoom)), [novel, type, zoom]);
+  const order: RowOrder = (["first", "total", "name"] as const).find((o) => o === params.get("sort")) ?? "first";
+  const threshold = readGap(params.get("gap")) ?? DEFAULT_GAP;
+  // Absences are found in the whole book (one can cross the zoom's edge); the grid shows the zoom.
+  const whole = useMemo(() => presence(novel, type), [novel, type]);
+  const m = useMemo(() => (zoom ? presence(novel, type, zoomed(novel, novel.scenes, zoom)) : whole), [novel, type, zoom, whole]);
   const marks = useMemo(() => new Map([...m.marks].map(([k, p]) => [k, markOf(p)])), [m]);
-  const shaded = useMemo(() => new Set<string>(), []);
+  const rows = useMemo(() => {
+    const count = totals(whole);
+    return sortRows(whole, order).map((r) => ({ id: r.id, name: r.name, aside: number.format(count.get(r.id) ?? 0) }));
+  }, [whole, order]);
+  const absences = useMemo(() => gaps({ lanes: sortRows(whole, order), scenes: whole.scenes, marks: whole.marks, words: whole.words }, threshold), [whole, order, writeGap(threshold)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const inGap = useMemo(() => {
+    const out = new Map<string, Gap>();
+    const ids = whole.scenes.map((s) => s.id);
+    for (const g of absences) for (const id of ids.slice(ids.indexOf(g.from), ids.indexOf(g.to) + 1)) out.set(gridKey(g.lane, id), g);
+    return out;
+  }, [absences, whole]);
+  const shaded = useMemo(() => new Set(inGap.keys()), [inGap]);
   const listedIn = LISTS[type];
   const show = useNotice((n) => n.show);
   const sceneEdit = useSceneEdit(novelId, workspace);
@@ -108,7 +132,18 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
             ))}
           </select>
         </label>
+        <label className="grid gap-1 font-medium">
+          Sort
+          <select value={order} onChange={(e) => setParams({ sort: e.target.value === "first" ? undefined : e.target.value })} className="h-8 rounded-md border border-rule bg-raised px-2 font-normal">
+            {ORDERS.map(([o, l]) => (
+              <option key={o} value={o}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </label>
         <SizeSelect value={size} onChange={(v) => setParams({ size: v })} />
+        <GapControls legend="Flag an absence longer than" threshold={threshold} onChange={(gap) => setParams({ gap })} />
       </div>
       <p className="text-sm text-muted">
         Each column is a scene, in reading order.{" "}
@@ -126,7 +161,8 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
         ) : (
           `${plural(label)} have no list in a scene's details: they're there where the prose mentions them. `
         )}
-        <span className="inline-block size-2.5 rounded-full border border-dashed border-accent align-middle" aria-hidden /> mentioned in the prose{listedIn ? " but not listed" : ""}.
+        <span className="inline-block size-2.5 rounded-full border border-dashed border-accent align-middle" aria-hidden /> mentioned in the prose{listedIn ? " but not listed" : ""}; shaded, an absence of more than{" "}
+        {amount(threshold)}. The number by each name is how many scenes it's in.
       </p>
       {!m.rows.length || !m.scenes.length ? (
         <p className="text-muted">{!m.rows.length ? `No ${plural(label).toLowerCase()} yet.` : "The manuscript has no scenes yet."}</p>
@@ -137,15 +173,41 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
           workspace={workspace}
           label={`${plural(label)} by scene`}
           rowHeading={label}
-          rows={m.rows}
+          rows={rows}
           scenes={m.scenes}
           marks={marks}
           shaded={shaded}
-          cellLabel={(row: string, scene: Scene) => describe(scene.title, m.rows.find((r) => r.id === row)?.name ?? row, m.marks.get(gridKey(row, scene.id)))}
+          cellLabel={(row: string, scene: Scene) => describe(scene.title, m.rows.find((r) => r.id === row)?.name ?? row, m.marks.get(gridKey(row, scene.id)), inGap.get(gridKey(row, scene.id)))}
           onChoose={choose}
           hasPopup={(row, scene) => !!listedIn && !!m.marks.get(gridKey(row, scene))?.listed}
           size={size}
         />
+      )}
+      {m.rows.length > 0 && m.scenes.length > 0 && (
+        <section aria-labelledby="absences-heading" className="grid gap-1 text-sm">
+          <h2 id="absences-heading" className="font-semibold">
+            Long absences
+          </h2>
+          {absences.length ? (
+            <ul className="grid gap-1">
+              {absences.map((g) => {
+                const name = whole.rows.find((r) => r.id === g.lane)?.name;
+                const title = (id: string) => whole.scenes.find((x) => x.id === id)?.title;
+                const where = g.from === g.to ? `at “${title(g.from)}”` : `from “${title(g.from)}” to “${title(g.to)}”`;
+                return (
+                  <li key={`${g.lane}-${g.from}`}>
+                    {name}: away for {g.scenes} scene{g.scenes === 1 ? "" : "s"} ({number.format(g.words)} words) {where}
+                    {g.open ? ", and never back" : ""}.
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="text-muted">
+              No {plural(label).toLowerCase()} away for more than {amount(threshold)}.
+            </p>
+          )}
+        </section>
       )}
       {editing && editingEntry && editingScene && listedIn && (
         <PresenceEditor
