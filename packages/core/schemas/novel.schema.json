@@ -134,6 +134,37 @@
         }
       },
       "additionalProperties": false
+    },
+    "plotline_gap": {
+      "description": "How long a plotline may go unmentioned before the swimlanes show a gap: a number of scenes, or of words.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "scenes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "scenes"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "words": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "words"
+          ],
+          "additionalProperties": false
+        }
+      ]
     }
   },
   "required": [

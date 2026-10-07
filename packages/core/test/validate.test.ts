@@ -139,6 +139,13 @@ describe("validate", () => {
     expect(only(bad.diagnostics)).toEqual(["E_SCHEMA"]);
   });
 
+  it("accepts a plotline gap in scenes or in words, and refuses anything else", async () => {
+    expect((await fixture({ "novel.yaml": `${NOVEL}plotline_gap: { scenes: 2 }\n` })).diagnostics).toEqual([]);
+    expect((await fixture({ "novel.yaml": `${NOVEL}plotline_gap: { words: 4000 }\n` })).diagnostics).toEqual([]);
+    expect(only((await fixture({ "novel.yaml": `${NOVEL}plotline_gap: { scenes: 2, words: 10 }\n` })).diagnostics)).toContain("E_SCHEMA");
+    expect(only((await fixture({ "novel.yaml": `${NOVEL}plotline_gap: { pages: 3 }\n` })).diagnostics)).toContain("E_SCHEMA");
+  });
+
   it("skips cross-reference checks for a newer schema version", async () => {
     const r = await fixture({ "novel.yaml": "schema_version: 9\nid: nv_4k8h2c\ntitle: Future\n", "manuscript/01-one/02-b.md": scene("sc_bbbbbb", "B", "pov: char_zzzzzz\n") });
     expect(only(r.diagnostics)).toEqual(["E_SCHEMA_VERSION"]);

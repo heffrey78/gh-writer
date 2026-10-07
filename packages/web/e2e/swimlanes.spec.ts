@@ -124,3 +124,40 @@ test("dragging a column beside another puts its scene there", async ({ page, app
   await expect(grid(page).getByRole("columnheader").filter({ hasText: /^(The Betrayal|Mirela's Offer)$/ })).toHaveText(["Mirela's Offer", "The Betrayal"]);
   await axe(page);
 });
+
+test("quiet stretches show under a lower threshold, in scenes or words, and the novel can keep it", async ({ page, app }) => {
+  const novel = await open(page, app);
+  const quiet = page.getByRole("region", { name: "Quiet stretches" });
+  await expect(quiet).toContainText("No plotline goes quiet for more than 3 scenes.");
+  await page.getByRole("spinbutton", { name: "How many" }).fill("0");
+  await expect(quiet.getByRole("listitem")).toHaveCount(4);
+  await expect(quiet).toContainText("Ben's Debt: quiet for 1 scene");
+  await expect(grid(page).getByRole("gridcell", { name: "Tomas's Workshop: doesn't advance Ben's Debt, in a quiet stretch of 1 scene" })).toBeVisible();
+  await expect(page).toHaveURL(/gap=0/);
+  await axe(page);
+
+  // In words: a high threshold hides them again.
+  await page.getByRole("combobox", { name: "Counted in" }).selectOption("words");
+  await expect(quiet).toContainText("No plotline goes quiet for more than 5,000 words.");
+  await page.getByRole("spinbutton", { name: "How many" }).fill("50");
+  await expect(quiet.getByRole("listitem")).toHaveCount(4);
+
+  // Kept as the novel's own.
+  await page.getByRole("button", { name: "Make this the novel's default" }).click();
+  await expect.poll(() => novel.read("novel.yaml")).toContain("plotline_gap:\n  words: 50\n");
+  await page.reload();
+  await expect(page.getByRole("spinbutton", { name: "How many" })).toHaveValue("50");
+  await expect(page.getByRole("button", { name: "Make this the novel's default" })).toHaveCount(0);
+});
+
+test("zooms to one part or chapter, and keeps the zoom in the address", async ({ page, app }) => {
+  await open(page, app);
+  await page.getByRole("combobox", { name: "Show" }).selectOption({ label: "Part: The Sale" });
+  await expect(grid(page).locator("tbody tr").first().getByRole("gridcell")).toHaveCount(4);
+  await expect(grid(page).getByRole("columnheader", { name: /The Station$/ })).toHaveCount(0);
+  await expect(grid(page).getByRole("columnheader", { name: /The Betrayal$/ })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("combobox", { name: "Show" })).toHaveValue("pt_5a1e00");
+  await page.getByRole("combobox", { name: "Show" }).selectOption({ label: "Chapter: Arrival" });
+  await expect(grid(page).locator("tbody tr").first().getByRole("gridcell")).toHaveCount(2);
+});

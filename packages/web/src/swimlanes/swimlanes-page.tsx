@@ -1,4 +1,4 @@
-import { readFrontMatter, type Entity, type Novel, type Scene } from "@gh-writer/core";
+import { editYaml, readFrontMatter, type Entity, type Novel, type Scene } from "@gh-writer/core";
 import { joinSceneFile } from "@gh-writer/editor";
 import { useQueryClient } from "@tanstack/react-query";
 import { Popover } from "radix-ui";
@@ -12,11 +12,21 @@ import { dropMove, useStructure } from "../novel/structure.ts";
 import type { Workspace } from "../novel/workspace.ts";
 import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
-import { cellKey, swimlanes, type Mark } from "./swimlane-model.ts";
+import { useViewParams } from "../ui/view-params.ts";
+import { cellKey, DEFAULT_GAP, gaps, swimlanes, zoomed, type Gap, type GapThreshold, type Mark } from "./swimlane-model.ts";
+
+const number = new Intl.NumberFormat();
+const amount = (t: GapThreshold) => ("scenes" in t ? `${t.scenes} scene${t.scenes === 1 ? "" : "s"}` : `${number.format(t.words)} words`);
+/** The threshold in the address: "3" scenes, or "5000w" words. */
+const readGap = (v: string | null): GapThreshold | undefined => {
+  const m = v ? /^(\d+)(w?)$/.exec(v) : null;
+  return m ? (m[2] ? { words: Number(m[1]) } : { scenes: Number(m[1]) }) : undefined;
+};
+const writeGap = (t: GapThreshold) => ("scenes" in t ? String(t.scenes) : `${t.words}w`);
 
 /** What a screen reader says for a cell. */
-function cellLabel(scene: string, plotline: string, mark: Mark | undefined) {
-  if (!mark) return `${scene}: doesn't advance ${plotline}`;
+function cellLabel(scene: string, plotline: string, mark: Mark | undefined, gap?: Gap) {
+  if (!mark) return `${scene}: doesn't advance ${plotline}${gap ? `, in a quiet stretch of ${gap.scenes} scene${gap.scenes === 1 ? "" : "s"}` : ""}`;
   return `${scene}: ${mark.weight} beat in ${plotline}${mark.beat ? `, “${mark.beat}”` : ""}`;
 }
 
@@ -27,12 +37,42 @@ function cellLabel(scene: string, plotline: string, mark: Mark | undefined) {
  * grid: arrow keys move between them, Home and End go to a lane's ends.
  */
 export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; novel: Novel; workspace: Workspace }) {
-  const s = useMemo(() => swimlanes(novel), [novel]);
+  const [params, setParams] = useViewParams();
+  const zoom = params.get("zoom") ?? undefined;
+  const saved = novel.config?.plotline_gap ?? DEFAULT_GAP;
+  const threshold = readGap(params.get("gap")) ?? saved;
+  // Gaps are found in the whole book (a quiet stretch can cross the zoom's edge); the grid shows the zoom.
+  const whole = useMemo(() => swimlanes(novel), [novel]);
+  const s = useMemo(() => swimlanes(novel, zoomed(novel, novel.scenes, zoom)), [novel, zoom]);
+  const gapList = useMemo(() => gaps(whole, threshold), [whole, writeGap(threshold)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const inGap = useMemo(() => {
+    const out = new Map<string, Gap>();
+    const order = whole.scenes.map((x) => x.id);
+    for (const g of gapList) for (const id of order.slice(order.indexOf(g.from), order.indexOf(g.to) + 1)) out.set(cellKey(g.lane, id), g);
+    return out;
+  }, [gapList, whole]);
+  const isDefault = writeGap(threshold) === writeGap(saved);
   const queryClient = useQueryClient();
   const show = useNotice((n) => n.show);
   // The cell whose link is being edited, and its element, for the popover to sit by.
   // By IDs, not positions: the lanes and columns can change (an edit, a reorder) under them.
   const [editing, setEditing] = useState<{ lane: string; scene: string; el: HTMLElement }>();
+
+  /** The threshold shown becomes the novel's own, in novel.yaml (committed with the next autosave). */
+  const saveDefault = async () => {
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { content, hash } = await api.readFile(novelId, "novel.yaml");
+        const result = await api.writeFile(novelId, "novel.yaml", editYaml(content, [{ path: ["plotline_gap"], value: threshold }]), hash);
+        if (result.ok) break;
+      }
+      await queryClient.invalidateQueries({ queryKey: keys.novel(novelId) });
+      setParams({ gap: undefined });
+      show({ message: `Gaps are now ${amount(threshold)} for this novel.` });
+    } catch (e) {
+      show({ message: `Couldn't save it: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  };
 
   /** One change to a scene's link to a plotline, written to its front matter through the workspace. */
   const change = async (scene: Scene, lane: Entity, what: PlotlineChange, done?: string) => {
@@ -144,9 +184,55 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
   return (
     <div className="grid content-start gap-3 px-6 py-6">
       <h1 className="text-xl font-semibold">Plotlines</h1>
+      <div className="flex flex-wrap items-end gap-4 text-sm">
+        <label className="grid gap-1 font-medium">
+          Show
+          <select value={zoom ?? ""} onChange={(e) => setParams({ zoom: e.target.value || undefined })} className="h-8 rounded-md border border-rule bg-raised px-2 font-normal">
+            <option value="">The whole book</option>
+            {novel.parts.map((p) => (
+              <option key={p.id} value={p.id}>
+                Part: {p.title}
+              </option>
+            ))}
+            {whole.chapters.map(({ chapter, title }) => (
+              <option key={chapter.id} value={chapter.id}>
+                Chapter: {title}
+              </option>
+            ))}
+          </select>
+        </label>
+        <fieldset className="flex items-end gap-2">
+          <legend className="mb-1 font-medium">A plotline goes quiet after</legend>
+          <input
+            type="number"
+            min={0}
+            aria-label="How many"
+            value={"scenes" in threshold ? threshold.scenes : threshold.words}
+            onChange={(e) => {
+              const n = Math.max(0, Math.round(Number(e.target.value) || 0));
+              setParams({ gap: writeGap("scenes" in threshold ? { scenes: n } : { words: n }) });
+            }}
+            className="h-8 w-24 rounded-md border border-rule bg-raised px-2"
+          />
+          <select
+            aria-label="Counted in"
+            value={"scenes" in threshold ? "scenes" : "words"}
+            onChange={(e) => setParams({ gap: writeGap(e.target.value === "words" ? { words: 5000 } : { scenes: 3 }) })}
+            className="h-8 rounded-md border border-rule bg-raised px-2"
+          >
+            <option value="scenes">scenes</option>
+            <option value="words">words</option>
+          </select>
+          {!isDefault && (
+            <Button size="sm" onClick={() => void saveDefault()}>
+              Make this the novel's default
+            </Button>
+          )}
+        </fieldset>
+      </div>
       <p className="text-sm text-muted">
         Each column is a scene, in reading order. <span className="inline-block size-3 rounded-full bg-accent align-middle" aria-hidden /> a major beat,{" "}
-        <span className="inline-block size-2 rounded-full border border-accent bg-accent-soft align-middle" aria-hidden /> a minor one.
+        <span className="inline-block size-2 rounded-full border border-accent bg-accent-soft align-middle" aria-hidden /> a minor one; shaded, a plotline gone quiet for more than {amount(threshold)}.
       </p>
       <div className="overflow-x-auto rounded-lg border border-rule">
         <table ref={table} role="grid" aria-label="Plotlines by scene" onKeyDown={onKey} className="border-collapse text-sm">
@@ -226,6 +312,7 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
                 </th>
                 {s.scenes.map((scene, col) => {
                   const mark = s.marks.get(cellKey(lane.id, scene.id));
+                  const gap = inGap.get(cellKey(lane.id, scene.id));
                   const active = row === focusRow && col === focusCol;
                   return (
                     <td
@@ -235,9 +322,12 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
                       tabIndex={active ? 0 : -1}
                       onFocus={() => !active && setFocused({ lane: lane.id, scene: scene.id })}
                       onClick={(e) => choose(lane, scene, e.currentTarget)}
-                      aria-label={cellLabel(scene.title, lane.name, mark)}
+                      aria-label={cellLabel(scene.title, lane.name, mark, gap)}
                       aria-haspopup={mark ? "dialog" : undefined}
-                      className="group relative h-10 w-10 cursor-pointer border-t border-l border-rule p-0 text-center outline-none hover:bg-panel focus-visible:bg-accent-soft"
+                      className={cn(
+                        "group relative h-10 w-10 cursor-pointer border-t border-l border-rule p-0 text-center outline-none hover:bg-panel focus-visible:bg-accent-soft",
+                        gap && "bg-warn-soft",
+                      )}
                     >
                       <span className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-rule" aria-hidden />
                       {mark && (
@@ -267,6 +357,28 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
           </tbody>
         </table>
       </div>
+      <section aria-labelledby="quiet-heading" className="grid gap-1 text-sm">
+        <h2 id="quiet-heading" className="font-semibold">
+          Quiet stretches
+        </h2>
+        {gapList.length ? (
+          <ul className="grid gap-1">
+            {gapList.map((g) => {
+              const lane = whole.lanes.find((l) => l.id === g.lane)?.name;
+              const title = (id: string) => whole.scenes.find((x) => x.id === id)?.title;
+              const where = g.from === g.to ? `at “${title(g.from)}”` : `from “${title(g.from)}” to “${title(g.to)}”`;
+              return (
+                <li key={`${g.lane}-${g.from}`}>
+                  {lane}: quiet for {g.scenes} scene{g.scenes === 1 ? "" : "s"} ({number.format(g.words)} words) {where}
+                  {g.open ? ", and never picked up again" : ""}.
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="text-muted">No plotline goes quiet for more than {amount(threshold)}.</p>
+        )}
+      </section>
       {editingLane && editingScene && editing && (
         <CellEditor
           anchor={editing.el}

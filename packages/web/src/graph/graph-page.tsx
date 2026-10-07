@@ -1,6 +1,6 @@
 import { backlinks, type Novel } from "@gh-writer/core";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { Link } from "react-router";
 import { api } from "../api.ts";
 import { sceneItems } from "../bible/pickers.ts";
 import { NewEntryDialog } from "../bible/new-entry.tsx";
@@ -11,6 +11,7 @@ import { useNotice } from "../novel/notice.tsx";
 import { useTheme } from "../theme.ts";
 import { Button } from "../ui/button.tsx";
 import { Picker } from "../ui/picker.tsx";
+import { useViewParams } from "../ui/view-params.ts";
 import { EdgeDialog } from "./edge-dialog.tsx";
 import { GraphCanvas } from "./graph-canvas.tsx";
 import { graphAt, RELATIONSHIP_GRAPH, type GraphFilter } from "./graph-model.ts";
@@ -33,20 +34,7 @@ type Editing = { kind: "add"; from: string; to?: string } | { kind: "edge" | "ch
  * as a list.
  */
 export function GraphPage({ novelId, novel }: { novelId: string; novel: Novel }) {
-  const [address, setAddress] = useSearchParams();
-  // The page answers at once and the address follows: waiting on the address would make the slider
-  // drop key presses and checkboxes spring back for a moment.
-  // Addresses the page wrote itself are ignored when they arrive (late, they would roll the view back
-  // between key presses); any other (a link, a reload) is followed.
-  const [query, setQuery] = useState(address.toString());
-  const written = useRef(new Set<string>());
-  useEffect(() => {
-    const now = address.toString();
-    if (written.current.has(now)) return;
-    written.current.clear();
-    setQuery(now);
-  }, [address]);
-  const params = useMemo(() => new URLSearchParams(query), [query]);
+  const [params, set] = useViewParams();
   const theme = useTheme((s) => s.theme);
   const show = useNotice((s) => s.show);
   const id = useId();
@@ -69,16 +57,6 @@ export function GraphPage({ novelId, novel }: { novelId: string; novel: Novel })
   const selectedId = params.get("sel") ?? undefined;
   const selected = selectedId ? novel.entities.find((e) => e.id === selectedId && view.nodes.some((n) => n.id === e.id)) : undefined;
 
-  const set = (changes: Record<string, string | undefined>) => {
-    const next = new URLSearchParams(params);
-    for (const [k, v] of Object.entries(changes)) {
-      if (v) next.set(k, v);
-      else next.delete(k);
-    }
-    written.current.add(next.toString());
-    setQuery(next.toString());
-    setAddress(next, { replace: true });
-  };
   const go = (sceneId: string | undefined) => sceneId && set({ at: sceneId });
 
   const types = filter.types ?? ["character"];

@@ -14,6 +14,8 @@ export interface NovelFile {
   entity_types?: CustomEntityTypeFile[];
   relationship_types?: RelationshipTypeFile[];
   calendar?: { start?: string };
+  /** How long a plotline may go unmentioned before the swimlanes show a gap. */
+  plotline_gap?: { scenes: number } | { words: number };
 }
 
 export interface CustomEntityTypeFile {
