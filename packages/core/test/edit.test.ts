@@ -63,6 +63,15 @@ describe("editYaml", () => {
     expect(editYaml("a: 1\nwhen: soon\nz: 2\n", [{ path: ["when"], value: { day: 3 } }])).toBe("a: 1\nwhen:\n  day: 3\nz: 2\n");
   });
 
+  it("keeps a flow map's spacing, and writes a new entry like its one-line siblings", () => {
+    const text = "nodes:\n  a_1: { x: 0, y: 0 }\n  b_2: { x: 5, y: 6 }\n";
+    expect(editYaml(text, [{ path: ["nodes", "b_2", "x"], value: 7 }])).toBe("nodes:\n  a_1: { x: 0, y: 0 }\n  b_2: { x: 7, y: 6 }\n");
+    expect(editYaml(text, [{ path: ["nodes", "c_3"], value: { x: 1, y: 2 } }])).toBe("nodes:\n  a_1: { x: 0, y: 0 }\n  b_2: { x: 5, y: 6 }\n  c_3: { x: 1, y: 2 }\n");
+    expect(editYaml("tags: [a, b]\n", [{ path: ["tags"], value: ["a", "b", "c"] }])).toBe("tags: [a, b, c]\n");
+    // Siblings written as blocks: a new entry is a block too.
+    expect(editYaml("nodes:\n  a_1:\n    x: 0\n", [{ path: ["nodes", "b_2"], value: { x: 1 } }])).toBe("nodes:\n  a_1:\n    x: 0\n  b_2:\n    x: 1\n");
+  });
+
   it("keeps CRLF line endings", () => {
     expect(editYaml("a: 1\r\nb: 2\r\n", [{ path: ["c"], value: { d: 1 } }])).toBe("a: 1\r\nb: 2\r\nc:\r\n  d: 1\r\n");
   });

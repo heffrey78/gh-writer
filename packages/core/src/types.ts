@@ -31,6 +31,14 @@ export interface RelationshipTypeFile {
   symmetric?: boolean;
   from_types?: string[];
   to_types?: string[];
+  /** How diagrams draw it. */
+  style?: RelationshipStyle;
+}
+
+/** A colour from the app's palette (light and dark) and a line style, for drawing a relationship. */
+export interface RelationshipStyle {
+  color?: "accent" | "danger" | "ok" | "warn" | "ink" | "muted";
+  line?: "solid" | "dashed" | "dotted";
 }
 
 export type ManuscriptOrderFile = { parts: string[] } | { chapters: string[] };

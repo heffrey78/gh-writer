@@ -129,6 +129,16 @@ describe("validate", () => {
     expect([r.errors, r.warnings]).toEqual([0, 3]);
   });
 
+  it("W_LAYOUT_UNKNOWN for a placed ID that isn't in the novel; relationship type styles are checked", async () => {
+    const r = await fixture({ "diagrams/layouts.yaml": "layouts:\n  relationship-graph:\n    nodes:\n      char_aaaaaa: { x: 0, y: 0 }\n      char_zzzzzz: { x: 1, y: 1 }\n" });
+    expect(only(r.diagnostics)).toEqual(["W_LAYOUT_UNKNOWN"]);
+    expect(r.diagnostics[0]!.pointer).toBe("/layouts/relationship-graph/nodes/char_zzzzzz");
+    const styled = await fixture({ "novel.yaml": NOVEL.replace("    symmetric: true\n", "    symmetric: true\n    style: { color: danger, line: dashed }\n") });
+    expect(styled.diagnostics).toEqual([]);
+    const bad = await fixture({ "novel.yaml": NOVEL.replace("    symmetric: true\n", "    symmetric: true\n    style: { color: \"#ff0000\" }\n") });
+    expect(only(bad.diagnostics)).toEqual(["E_SCHEMA"]);
+  });
+
   it("skips cross-reference checks for a newer schema version", async () => {
     const r = await fixture({ "novel.yaml": "schema_version: 9\nid: nv_4k8h2c\ntitle: Future\n", "manuscript/01-one/02-b.md": scene("sc_bbbbbb", "B", "pov: char_zzzzzz\n") });
     expect(only(r.diagnostics)).toEqual(["E_SCHEMA_VERSION"]);

@@ -7,7 +7,7 @@
  * result is parsed and compared with the intended data; if a case isn't handled surgically, the
  * document is re-serialised instead, which is still correct but may reformat it.
  */
-import { isMap, isScalar, isSeq, parseDocument, Scalar, stringify, type Document, type Node, type Pair } from "yaml";
+import { isMap, isScalar, isSeq, parseDocument, Scalar, stringify, type Document, type Node, type Pair, type YAMLMap } from "yaml";
 import { ID_ALPHABET, ID_LENGTH } from "./ids.ts";
 
 export type YamlPath = (string | number)[];
@@ -85,7 +85,7 @@ function edited(text: string, doc: Document, edit: YamlEdit, eol: string): strin
       }
       // A flow collection stays flow, on its line. An empty one (`[]`, `{}`) is a placeholder: filled, it becomes a block.
       if ((isSeq(pair.value) || isMap(pair.value)) && pair.value.flow && pair.value.items.length && Array.isArray(value) === isSeq(pair.value) && typeof value === "object" && value !== null) {
-        return splice(text, pair.value.range![0], pair.value.range![1], flowText(value));
+        return splice(text, pair.value.range![0], pair.value.range![1], flowText(value, padded(text, pair.value)));
       }
       // Anything else: the whole pair, written again at its indentation.
       const start = pairStart(text, pair);
@@ -97,6 +97,9 @@ function edited(text: string, doc: Document, edit: YamlEdit, eol: string): strin
     const indent = column(text, pairStart(text, last));
     const at = pairEnd(text, last);
     const before = at > 0 && text[at - 1] !== "\n" ? eol : "";
+    // Written like its siblings: when they are all one-line flow collections of its kind, so is it.
+    const like = flowSiblings(parent, value);
+    if (like) return splice(text, at, at, `${before}${" ".repeat(indent)}${stringify(key, STRINGIFY).trim()}: ${flowText(value as object, padded(text, like))}${eol}`);
     return splice(text, at, at, before + block({ [key]: value }, indent, eol));
   }
 
@@ -126,7 +129,7 @@ function edited(text: string, doc: Document, edit: YamlEdit, eol: string): strin
     const data = doc.getIn(parentPath) as { toJSON?: () => unknown } | undefined;
     const current = (data && typeof data.toJSON === "function" ? data.toJSON() : data) as unknown;
     const next = applyToData(structuredClone(current), { ...edit, path: [key] } as YamlEdit);
-    return splice(text, parent.range![0], parent.range![1], flowText(next as object));
+    return splice(text, parent.range![0], parent.range![1], flowText(next as object, padded(text, parent)));
   }
 
   // The map holding the key doesn't exist yet: create it, as a new pair of its own parent.
@@ -188,8 +191,26 @@ function block(value: unknown, indent: number, eol: string): string {
   return lines.map((l) => pad + l).join(eol) + eol;
 }
 
-function flowText(value: object): string {
-  return stringify(value, { ...STRINGIFY, collectionStyle: "flow" }).trim();
+/** `value` on one line as a flow collection, padded inside its brackets (`{ x: 1 }`) when `padding`. */
+function flowText(value: object, padding = false): string {
+  return stringify(value, { ...STRINGIFY, collectionStyle: "flow", flowCollectionPadding: padding }).trim();
+}
+
+/** Whether a flow collection in the text is written with spaces inside its brackets. */
+function padded(text: string, node: Node): boolean {
+  return text[node.range![0] + 1] === " ";
+}
+
+/**
+ * The first of a map's values when every one is a non-empty, one-line flow collection of the same
+ * kind as `value` (a map, or a list) with only scalars in it: a new entry is then written that way too.
+ */
+function flowSiblings(parent: YAMLMap, value: unknown): Node | undefined {
+  if (typeof value !== "object" || value === null || Object.values(value).some((v) => typeof v === "object" && v !== null)) return undefined;
+  const list = Array.isArray(value);
+  const values = parent.items.map((p) => p.value as Node | null);
+  const flow = values.every((v) => (list ? isSeq(v) : isMap(v)) && (v as YAMLMap).flow && (v as YAMLMap).items.length > 0);
+  return flow ? (values[0] as Node) : undefined;
 }
 
 const isPlainValue = (v: unknown) => v === null || ["string", "number", "boolean"].includes(typeof v);

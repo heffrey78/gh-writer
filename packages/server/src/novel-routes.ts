@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
 import { bibleRoutes } from "./bible-routes.ts";
+import { diagramRoutes } from "./diagrams.ts";
 import { manuscriptRoutes } from "./manuscript-routes.ts";
 import { CheckpointError } from "./checkpoints.ts";
 import { ConflictError, type FileResolution } from "./conflicts.ts";
@@ -135,6 +136,7 @@ export function novelRoutes(library: Library, workspaces: Workspaces): Hono<Nove
   );
 
   bibleRoutes(routes);
+  diagramRoutes(routes);
   manuscriptRoutes(routes);
 
   routes.get("/:id/events", (c) =>

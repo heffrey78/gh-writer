@@ -278,6 +278,9 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
     bible: bibleApi((id) => `/api/novels/${encodeURIComponent(id)}/bible`, request),
     /** Reshaping the manuscript: each is one commit; IDs never change. */
     manuscript: manuscriptApi((id) => `/api/novels/${encodeURIComponent(id)}/manuscript`, request),
+    /** Hand-placed diagram positions (diagrams/layouts.yaml), saved like typing: committed with the next autosave. */
+    saveLayout: async (id: string, diagram: string, positions: Record<string, { x: number; y: number }>) =>
+      (await request<{ file: string; hash: string }>("PUT", `/api/novels/${encodeURIComponent(id)}/diagrams/${encodeURIComponent(diagram)}/layout`, { positions })).data,
     /** Sync with the remote now; resolves with the status once it's done. */
     syncNow: async (id: string) => (await request<SyncStatus>("POST", `/api/novels/${encodeURIComponent(id)}/sync`)).data,
   };

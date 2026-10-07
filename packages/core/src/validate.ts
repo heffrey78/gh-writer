@@ -28,6 +28,7 @@ export const RULES: Readonly<Record<string, Severity>> = {
   W_HARD_WRAP: "warning",
   W_POV_NOT_PRESENT: "warning",
   W_REL_SELF: "warning",
+  W_LAYOUT_UNKNOWN: "warning",
 };
 
 export interface ValidationResult {
@@ -125,6 +126,13 @@ export function validateNovel(novel: Novel): Diagnostic[] {
       if (!typeByKey.has(k)) push("error", "E_ENTITY_TYPE", "novel.yaml", `Relationship type "${t.key}" refers to unknown entity type "${k}"`, { pointer: `/relationship_types/${i}` });
     }
   });
+
+  // Diagram layouts: positions for records that no longer exist are harmless, but stale.
+  for (const [name, layout] of Object.entries(novel.layouts)) {
+    for (const id of Object.keys(layout.nodes ?? {})) {
+      if (!index.has(id)) push("warning", "W_LAYOUT_UNKNOWN", "diagrams/layouts.yaml", `Layout "${name}" places ${id}, which isn't in the novel`, { pointer: `/layouts/${name}/nodes/${id}` });
+    }
+  }
 
   // Relationships.
   const scenePos = new Map(novel.scenes.map((s) => [s.id, s.position]));

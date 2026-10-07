@@ -4,15 +4,29 @@
   "title": "novel.yaml",
   "type": "object",
   "properties": {
-    "schema_version": { "type": "integer", "minimum": 1 },
-    "id": { "$ref": "common.schema.json#/$defs/id" },
-    "title": { "$ref": "common.schema.json#/$defs/nonEmptyText" },
-    "author": { "$ref": "common.schema.json#/$defs/text" },
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/id"
+    },
+    "title": {
+      "$ref": "common.schema.json#/$defs/nonEmptyText"
+    },
+    "author": {
+      "$ref": "common.schema.json#/$defs/text"
+    },
     "target": {
       "type": "object",
       "properties": {
-        "words": { "type": "integer", "minimum": 1 },
-        "date": { "$ref": "common.schema.json#/$defs/date" }
+        "words": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "date": {
+          "$ref": "common.schema.json#/$defs/date"
+        }
       },
       "additionalProperties": false
     },
@@ -21,13 +35,31 @@
       "items": {
         "type": "object",
         "properties": {
-          "key": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
-          "prefix": { "type": "string", "pattern": "^[a-z]{2,8}$" },
-          "folder": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$" },
-          "label": { "$ref": "common.schema.json#/$defs/nonEmptyText" },
-          "color": { "type": "string", "pattern": "^[0-9a-fA-F]{6}$" }
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "prefix": {
+            "type": "string",
+            "pattern": "^[a-z]{2,8}$"
+          },
+          "folder": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*$"
+          },
+          "label": {
+            "$ref": "common.schema.json#/$defs/nonEmptyText"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{6}$"
+          }
         },
-        "required": ["key", "prefix", "folder"],
+        "required": [
+          "key",
+          "prefix",
+          "folder"
+        ],
         "additionalProperties": false
       }
     },
@@ -36,25 +68,78 @@
       "items": {
         "type": "object",
         "properties": {
-          "key": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
-          "label": { "$ref": "common.schema.json#/$defs/nonEmptyText" },
-          "inverse_label": { "$ref": "common.schema.json#/$defs/nonEmptyText" },
-          "symmetric": { "type": "boolean" },
-          "from_types": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
-          "to_types": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$"
+          },
+          "label": {
+            "$ref": "common.schema.json#/$defs/nonEmptyText"
+          },
+          "inverse_label": {
+            "$ref": "common.schema.json#/$defs/nonEmptyText"
+          },
+          "symmetric": {
+            "type": "boolean"
+          },
+          "from_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "to_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "style": {
+            "description": "How diagrams draw this relationship: a colour from the app's palette and a line style.",
+            "type": "object",
+            "properties": {
+              "color": {
+                "enum": [
+                  "accent",
+                  "danger",
+                  "ok",
+                  "warn",
+                  "ink",
+                  "muted"
+                ]
+              },
+              "line": {
+                "enum": [
+                  "solid",
+                  "dashed",
+                  "dotted"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
         },
-        "required": ["key"],
+        "required": [
+          "key"
+        ],
         "additionalProperties": false
       }
     },
     "calendar": {
       "type": "object",
       "properties": {
-        "start": { "$ref": "common.schema.json#/$defs/date" }
+        "start": {
+          "$ref": "common.schema.json#/$defs/date"
+        }
       },
       "additionalProperties": false
     }
   },
-  "required": ["schema_version", "id", "title"],
+  "required": [
+    "schema_version",
+    "id",
+    "title"
+  ],
   "additionalProperties": false
 }

@@ -211,6 +211,14 @@ All are under `/api/novels/:id`. Other refusals are `400 BAD_REQUEST` (with what
 
 IDs never change, so references never break. Order files are edited in place. After each operation, the numbered names of the files and folders involved follow the order. Only the number changes, except for a renamed item, which takes its new slug. So moving a scene to another chapter edits two order files, and every other change is a pure rename (git's similarity 100%). Reading order (core's `novel.scenes`) is the order files' order; that's the order a compiled manuscript (#19) will use.
 
+### Diagrams
+
+| Endpoint | Does |
+|---|---|
+| `PUT /diagrams/:name/layout` `{ positions: { <id>: { x, y } } }` | Saves hand-placed positions for diagram `:name` in `diagrams/layouts.yaml`, rounded to whole pixels. Each node is one line (`char_7f3k2q: { x: 120, y: 40 }`), so moving one changes one line; a new node or diagram is added the same way, and the file is created if it isn't there. |
+
+Unlike the operations above, a layout is saved like typing: through the workspace's ordinary writes (retrying if another write got there first), and committed with the next autosave, so dragging nodes around doesn't add a commit per drag.
+
 ## Security model
 
 The server can read and write the author's files, and a git push from it reaches GitHub. Its job is to answer only the author's own gh-writer tab. The threats are other web pages open in the same browser and other machines on the network. Local processes are out of scope: they can read the files directly.
