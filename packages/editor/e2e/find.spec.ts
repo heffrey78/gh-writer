@@ -55,9 +55,15 @@ test("options: case, whole words and regular expressions", async ({ page }) => {
   await open(page, `scene=${STATION}`);
   await page.keyboard.press("ControlOrMeta+f");
   await findBox(page).fill("the");
-  const any = Number((await findStatus(page).textContent())!.match(/of (\d+)/)![1]);
+  // The count comes once the search has run: wait for it before reading it.
+  const count = async () => {
+    await expect(findStatus(page)).toHaveText(/of \d+/);
+    return Number((await findStatus(page).textContent())!.match(/of (\d+)/)![1]);
+  };
+  const any = await count();
   await panel(page).getByRole("button", { name: "Whole words" }).click();
-  const whole = Number((await findStatus(page).textContent())!.match(/of (\d+)/)![1]);
+  await expect(findStatus(page)).not.toHaveText(new RegExp(`of ${any} `));
+  const whole = await count();
   expect(whole).toBeLessThan(any);
   await panel(page).getByRole("button", { name: "Match case" }).click();
   await expect(findStatus(page)).not.toHaveText(`1 of ${whole} matches`);
