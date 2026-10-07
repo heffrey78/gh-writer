@@ -114,7 +114,9 @@ describe("autosave", () => {
     const lastChange = Date.now();
     expect(a.store.getState()).toMatchObject({ status: "unsaved", unsaved: 1 });
     await until(a, (s) => s.status === "saved");
-    expect(Date.now() - lastChange).toBeLessThan(300 + 250);
+    // The pause, then one write over HTTP and the test's polling: well under the 2 s default, with
+    // room for a busy CI runner (250 ms of slack was once 1 ms short).
+    expect(Date.now() - lastChange).toBeLessThan(300 + 500);
     expect(puts).toHaveLength(1);
     expect(disk()).toBe(`${original}${" word".repeat(10)}`);
   });
