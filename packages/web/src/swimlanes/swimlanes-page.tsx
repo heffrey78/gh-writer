@@ -1,5 +1,4 @@
-import { editYaml, readFrontMatter, type Entity, type Novel, type Scene } from "@gh-writer/core";
-import { joinSceneFile } from "@gh-writer/editor";
+import { editYaml, type Entity, type Novel, type Scene } from "@gh-writer/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { Popover } from "radix-ui";
 import { useId, useMemo, useState } from "react";
@@ -7,6 +6,7 @@ import { api, keys } from "../api.ts";
 import { readSize, SceneGrid, SizeSelect, type GridMark } from "../diagrams/scene-grid.tsx";
 import { useNotice } from "../novel/notice.tsx";
 import { plotlineEdits, type PlotlineChange } from "../novel/plotline-edits.ts";
+import { useSceneEdit } from "../novel/scene-edit.ts";
 import type { Workspace } from "../novel/workspace.ts";
 import { Button } from "../ui/button.tsx";
 import { useViewParams } from "../ui/view-params.ts";
@@ -73,21 +73,9 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
     }
   };
 
+  const sceneEdit = useSceneEdit(novelId, workspace);
   /** One change to a scene's link to a plotline, written to its front matter through the workspace. */
-  const change = async (scene: Scene, lane: Entity, what: PlotlineChange, done?: string) => {
-    try {
-      const open = workspace.store.getState().files[scene.file];
-      const text = open ? joinSceneFile(open) : (await api.readFile(novelId, scene.file)).content;
-      const edits = plotlineEdits(readFrontMatter(text) ?? {}, lane.id, what);
-      if (!edits.length) return;
-      await workspace.editFrontMatter(scene.file, edits);
-      await workspace.autosave.flush();
-      await queryClient.invalidateQueries({ queryKey: keys.novel(novelId) });
-      if (done) show({ message: done });
-    } catch (e) {
-      show({ message: `Couldn't change “${scene.title}”: ${e instanceof Error ? e.message : String(e)}` });
-    }
-  };
+  const change = (scene: Scene, lane: Entity, what: PlotlineChange, done?: string) => sceneEdit(scene, (fm) => plotlineEdits(fm, lane.id, what), done);
   /** A cell chosen (click, Enter or Space): an empty one links its scene to the plotline; a marked one opens its editor. */
   const choose = (lane: Entity, scene: Scene, el: HTMLElement) => {
     if (s.marks.has(cellKey(lane.id, scene.id))) setEditing({ lane: lane.id, scene: scene.id, el });

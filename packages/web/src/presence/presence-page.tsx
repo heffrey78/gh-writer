@@ -1,9 +1,14 @@
-import type { Novel, Scene } from "@gh-writer/core";
-import { useMemo } from "react";
+import type { Entity, Novel, Scene, YamlEdit } from "@gh-writer/core";
+import { Popover } from "radix-ui";
+import { useId, useMemo, useState } from "react";
 import { plural } from "../bible/types.ts";
 import { gridKey } from "../diagrams/columns.ts";
 import { readSize, SceneGrid, SizeSelect, type GridMark } from "../diagrams/scene-grid.tsx";
+import { useNotice } from "../novel/notice.tsx";
+import { entryEdits, type EntryChange } from "../novel/plotline-edits.ts";
+import { useSceneEdit } from "../novel/scene-edit.ts";
 import type { Workspace } from "../novel/workspace.ts";
+import { Button } from "../ui/button.tsx";
 import { zoomed } from "../swimlanes/swimlane-model.ts";
 import { useViewParams } from "../ui/view-params.ts";
 import { LISTS, presence, type Presence } from "./presence-model.ts";
@@ -40,6 +45,38 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
   const marks = useMemo(() => new Map([...m.marks].map(([k, p]) => [k, markOf(p)])), [m]);
   const shaded = useMemo(() => new Set<string>(), []);
   const listedIn = LISTS[type];
+  const show = useNotice((n) => n.show);
+  const sceneEdit = useSceneEdit(novelId, workspace);
+  const [editing, setEditing] = useState<{ row: string; scene: string; el: HTMLElement }>();
+
+  /** A change to an entry in a scene's list (and, for a character, its point of view). */
+  const change = (scene: Scene, entry: Entity, what: EntryChange | { pov: boolean }, done?: string) =>
+    listedIn &&
+    sceneEdit(
+      scene,
+      (fm): YamlEdit[] => {
+        if ("pov" in what) return what.pov ? [{ path: ["pov"], value: entry.id }] : fm.pov === entry.id ? [{ path: ["pov"], remove: true }] : [];
+        const edits = entryEdits(fm, listedIn, entry.id, what);
+        // Taken out of a scene, a character is no longer its point of view either.
+        if ("remove" in what && fm.pov === entry.id) edits.push({ path: ["pov"], remove: true });
+        return edits;
+      },
+      done,
+    );
+
+  /** A cell chosen: not listed, it's added to the scene's list; listed, its editor opens. */
+  const choose = (row: string, scene: Scene, el: HTMLElement) => {
+    const entry = m.rows.find((r) => r.id === row);
+    if (!entry) return;
+    if (!listedIn) {
+      show({ message: `${plural(label)} are in a scene where its prose mentions them: type @ in the scene to add one.` });
+      return;
+    }
+    if (m.marks.get(gridKey(row, scene.id))?.listed) setEditing({ row, scene: scene.id, el });
+    else void change(scene, entry, { add: true }, `Added ${entry.name} to “${scene.title}”.`);
+  };
+  const editingEntry = editing && m.rows.find((r) => r.id === editing.row);
+  const editingScene = editing && m.scenes.find((s) => s.id === editing.scene);
 
   return (
     <div className="grid content-start gap-3 px-6 py-6">
@@ -105,10 +142,135 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
           marks={marks}
           shaded={shaded}
           cellLabel={(row: string, scene: Scene) => describe(scene.title, m.rows.find((r) => r.id === row)?.name ?? row, m.marks.get(gridKey(row, scene.id)))}
-          onChoose={() => {}}
+          onChoose={choose}
+          hasPopup={(row, scene) => !!listedIn && !!m.marks.get(gridKey(row, scene))?.listed}
           size={size}
         />
       )}
+      {editing && editingEntry && editingScene && listedIn && (
+        <PresenceEditor
+          anchor={editing.el}
+          type={type}
+          scene={editingScene}
+          entry={editingEntry}
+          presence={m.marks.get(gridKey(editingEntry.id, editingScene.id))}
+          onChange={(what, done) => change(editingScene, editingEntry, what, done)}
+          onClose={() => {
+            const el = document.querySelector<HTMLElement>(`[data-cell="${gridKey(editing.row, editing.scene)}"]`);
+            setEditing(undefined);
+            el?.focus();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/** An entry in a scene: as its point of view (characters), its strength (themes) or weight (plotlines), or taken out. */
+function PresenceEditor({
+  anchor,
+  type,
+  scene,
+  entry,
+  presence: p,
+  onChange,
+  onClose,
+}: {
+  anchor: HTMLElement;
+  type: string;
+  scene: Scene;
+  entry: Entity;
+  presence: Presence | undefined;
+  onChange: (what: EntryChange | { pov: boolean }, done?: string) => unknown;
+  onClose: () => void;
+}) {
+  const id = useId();
+  // Answering at once; the saved value comes back with the model and replaces it.
+  const saved = { pov: p?.pov ?? false, strength: p?.strength === undefined ? "" : String(p.strength), weight: p?.weight ?? "major" };
+  const [shown, setShown] = useState(saved);
+  const [seen, setSeen] = useState(saved);
+  if (JSON.stringify(saved) !== JSON.stringify(seen)) {
+    setSeen(saved);
+    setShown(saved);
+  }
+  return (
+    <Popover.Root open onOpenChange={(o) => !o && onClose()}>
+      <Popover.Anchor virtualRef={{ current: anchor }} />
+      <Popover.Portal>
+        <Popover.Content
+          side="bottom"
+          sideOffset={4}
+          aria-labelledby={`${id}-title`}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+          className="z-[80] grid w-72 gap-3 rounded-lg border border-rule bg-raised p-4 text-sm text-ink shadow-lg"
+        >
+          <p id={`${id}-title`} className="font-semibold">
+            {entry.name} in “{scene.title}”
+          </p>
+          {type === "character" && (
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={shown.pov}
+                onChange={(e) => {
+                  setShown({ ...shown, pov: e.target.checked });
+                  void onChange({ pov: e.target.checked });
+                }}
+              />
+              The scene's point of view
+            </label>
+          )}
+          {type === "theme" && (
+            <label className="grid gap-1 font-medium">
+              Strength
+              <select
+                value={shown.strength}
+                onChange={(e) => {
+                  setShown({ ...shown, strength: e.target.value });
+                  void onChange({ field: "strength", value: e.target.value ? Number(e.target.value) : undefined });
+                }}
+                className="h-8 rounded-md border border-rule bg-raised px-2 font-normal"
+              >
+                <option value="">Not given</option>
+                <option value="1">1 (faint)</option>
+                <option value="2">2</option>
+                <option value="3">3 (strong)</option>
+              </select>
+            </label>
+          )}
+          {type === "plotline" && (
+            <label className="grid gap-1 font-medium">
+              Weight
+              <select
+                value={shown.weight}
+                onChange={(e) => {
+                  setShown({ ...shown, weight: e.target.value as "major" | "minor" });
+                  void onChange({ field: "weight", value: e.target.value === "major" ? undefined : e.target.value });
+                }}
+                className="h-8 rounded-md border border-rule bg-raised px-2 font-normal"
+              >
+                <option value="major">Major beat</option>
+                <option value="minor">Minor beat</option>
+              </select>
+            </label>
+          )}
+          <div className="flex justify-between gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                void onChange({ remove: true }, `Took ${entry.name} out of “${scene.title}”.`);
+                onClose();
+              }}
+            >
+              Remove from this scene
+            </Button>
+            <Button size="sm" onClick={onClose}>
+              Done
+            </Button>
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

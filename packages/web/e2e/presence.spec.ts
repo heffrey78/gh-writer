@@ -50,3 +50,55 @@ test("characters, places, themes and other entries against every scene, from the
   await expect(characters.getByRole("gridcell", { name: /^The Last Rivet: Ben Varn/ })).toBeFocused();
   await expect(characters.locator('[tabindex="0"]')).toHaveCount(1);
 });
+
+const STATION = "manuscript/01-return/01-arrival/01-the-station.md";
+
+test("a cell puts someone in a scene, or takes them out, through the scene's metadata", async ({ page, app }) => {
+  const novel = await open(page, app);
+  const before = novel.read(STATION);
+  const characters = grid(page, "Characters by scene");
+  const mirela = characters.getByRole("gridcell", { name: /^The Station: Mirela Kost/ });
+  await mirela.click();
+  await expect.poll(() => novel.read(STATION)).toBe(before.replace("characters: [char_7f3k2q]", "characters: [char_7f3k2q, char_m1re1a]"));
+  await expect(mirela).toHaveAccessibleName("The Station: Mirela Kost present");
+
+  // Listed: Enter opens its editor; she becomes the point of view, then leaves the scene altogether.
+  await mirela.focus();
+  await page.keyboard.press("Enter");
+  const editor = page.getByRole("dialog", { name: "Mirela Kost in “The Station”" });
+  await axe(page);
+  await editor.getByRole("checkbox", { name: "The scene's point of view" }).check();
+  await expect.poll(() => novel.read(STATION)).toContain("pov: char_m1re1a\n");
+  await editor.getByRole("button", { name: "Remove from this scene" }).click();
+  await expect(mirela).toBeFocused();
+  // Out of the list and no longer the point of view: back to the file as it was, but for the point of view.
+  await expect.poll(() => novel.read(STATION)).toBe(before.replace("pov: char_7f3k2q\n", ""));
+
+  // A theme's strength.
+  await page.getByRole("combobox", { name: "Rows" }).selectOption({ label: "Themes" });
+  const trust = grid(page, "Themes by scene").getByRole("gridcell", { name: /^The Betrayal: Trust/ });
+  await trust.click();
+  await page.getByRole("dialog").getByRole("combobox", { name: "Strength" }).selectOption("1");
+  await expect.poll(() => novel.read("manuscript/02-the-sale/01-night-crossing/01-the-betrayal.md")).toContain("  - id: theme_trvst5\n    strength: 1\n");
+  await page.keyboard.press("Escape");
+  await expect(trust).toHaveAccessibleName("The Betrayal: Trust present, strength 1");
+
+  // Custom types are there by mention only: a cell explains rather than toggles.
+  await page.getByRole("combobox", { name: "Rows" }).selectOption({ label: "Artifacts" });
+  await grid(page, "Artifacts by scene").locator("tbody").getByRole("gridcell").first().click();
+  await expect(page.getByRole("status").filter({ hasText: "Artifacts are in a scene where its prose mentions them" })).toBeVisible();
+});
+
+test("the matrix and the scene details panel agree after an edit in either", async ({ page, app }) => {
+  await open(page, app);
+  await grid(page, "Characters by scene").getByRole("gridcell", { name: /^The Station: Tomas Hale/ }).click();
+  await page.getByRole("tree", { name: "Manuscript" }).getByRole("treeitem", { name: /^The Station,/ }).click();
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.keyboard.type("show scene details");
+  await page.keyboard.press("Enter");
+  const panel = page.getByRole("complementary", { name: "Details of “The Station”" });
+  await expect(panel.getByRole("list").first()).toContainText("Tomas Hale");
+  await panel.getByRole("button", { name: "Remove “Tomas Hale”" }).click();
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Presence" }).click();
+  await expect(grid(page, "Characters by scene").getByRole("gridcell", { name: "The Station: Tomas Hale not there" })).toBeVisible();
+});
