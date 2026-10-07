@@ -112,7 +112,8 @@ export const MentionSuggestExtension = Extension.create<MentionSuggestOptions>({
       const { state } = view;
       const mention = state.schema.nodes.mention;
       if (!mention) return;
-      const marks = state.doc.resolve(active.from).marks();
+      // The marks of the @ itself (at a mark boundary, the position's would be the text before's).
+      const marks = state.doc.nodeAt(active.from)?.marks ?? [];
       const after = state.doc.textBetween(active.to, Math.min(active.to + 1, state.doc.content.size - 1), undefined, "\ufffc");
       const tr = state.tr.replaceWith(active.from, active.to, mention.create({ id: item.entity.id, label: item.label }, null, marks));
       // A space after it, unless the text goes on with one or with punctuation.

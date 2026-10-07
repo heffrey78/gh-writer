@@ -5,6 +5,7 @@ import {
   caretScene,
   findCommands,
   getMarkdown,
+  linkCommands,
   liveCounts,
   MENTION_INFO_KEYS,
   mentionAtCaret,
@@ -27,6 +28,7 @@ import { useCommands } from "../commands.ts";
 import { mentionEntities } from "../bible/types.ts";
 import { useCurrentScene } from "./current.ts";
 import { EntryPanel, leaveMention, MentionCard, useEntryPanel, useMentionCard } from "./mention-card.tsx";
+import { mentionEdits } from "./mention-sync.ts";
 import { SceneDetails, useSceneDetails } from "./scene-details.tsx";
 import { useStructure } from "./structure.ts";
 import { TitleDialog } from "./structure-dialogs.tsx";
@@ -110,6 +112,21 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
     [details.open, details.toggle],
   );
 
+  // A new mention of someone or somewhere adds them to the scene's characters or locations.
+  const latestNovel = useRef(novel);
+  latestNovel.current = novel;
+  useEffect(
+    () =>
+      workspace.onEdit((path, before, after) => {
+        const book = latestNovel.current;
+        const f = workspace.store.getState().files[path];
+        if (!f || !book.allScenes.some((s) => s.file === path)) return;
+        const edits = mentionEdits(book, joinSceneFile(f), before, after);
+        if (edits.length) void workspace.editFrontMatter(path, edits);
+      }),
+    [workspace],
+  );
+
   // Mentions: a card on hover or Alt+Enter, and the entry beside the text.
   const entryOpen = useEntryPanel((s) => s.entry !== null);
   useEffect(
@@ -166,7 +183,7 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
   // The editor's own commands, run on this editor; their shortcuts work in the text.
   useCommands(() => {
     const group = (c: EditorCommand) => (findCommands.includes(c) ? "Find" : "Writing");
-    return [...writingModeCommands, ...sessionCommands, ...findCommands, ...spellCommands].map((c: EditorCommand) => ({
+    return [...writingModeCommands, ...sessionCommands, ...findCommands, ...spellCommands, ...linkCommands].map((c: EditorCommand) => ({
       id: c.id,
       title: c.title,
       group: group(c),

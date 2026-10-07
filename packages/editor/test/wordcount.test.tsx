@@ -36,7 +36,7 @@ beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
   writingSession.setState({ startedAt: Date.now(), goal: null, scenes: {} });
-  writingModes.setState({ focus: false, dim: false, typewriter: false, pinCount: false, spellcheck: true });
+  writingModes.setState({ focus: false, dim: false, typewriter: false, pinCount: false, spellcheck: true, linkSuggestions: false });
   liveCounts.setState({ view: null, sceneId: null, scene: 0, chapter: 0 });
 });
 afterEach(cleanup);

@@ -9,6 +9,7 @@ import {
   findCommands,
   joinSceneFile,
   liveCounts,
+  linkCommands,
   sessionCommands,
   spellCommands,
   splitSceneFile,
@@ -175,7 +176,7 @@ function App() {
       <header>
         <h1>Scene editor</h1>
         <div className="modes" role="group" aria-label="Commands">
-          {[...writingModeCommands, ...sessionCommands, ...findCommands, ...spellCommands].map((c) => (
+          {[...writingModeCommands, ...sessionCommands, ...findCommands, ...spellCommands, ...linkCommands].map((c) => (
             <button
               key={c.id}
               type="button"

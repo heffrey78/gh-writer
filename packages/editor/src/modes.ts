@@ -22,6 +22,8 @@ export interface WritingModes {
   pinCount: boolean;
   /** Underline misspelled words (when the app provides a spell checker). */
   spellcheck: boolean;
+  /** Underline names of bible entries written without a mention, offering to link them. */
+  linkSuggestions: boolean;
 }
 
 export type WritingMode = keyof WritingModes;
@@ -64,13 +66,14 @@ export const writingModes = createStore<WritingModesStore>()(
       typewriter: false,
       pinCount: false,
       spellcheck: true,
+      linkSuggestions: false,
       toggle: (mode) => set((s) => ({ [mode]: !s[mode] })),
       set: (modes) => set(modes),
     }),
     {
       name: "gh-writer:writing-modes",
       storage: createJSONStorage(() => storage),
-      partialize: ({ focus, dim, typewriter, pinCount, spellcheck }) => ({ focus, dim, typewriter, pinCount, spellcheck }),
+      partialize: ({ focus, dim, typewriter, pinCount, spellcheck, linkSuggestions }) => ({ focus, dim, typewriter, pinCount, spellcheck, linkSuggestions }),
     },
   ),
 );

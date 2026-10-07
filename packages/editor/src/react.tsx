@@ -9,6 +9,7 @@ import { loadMarkdown, setInitialMarkdown } from "./editor.ts";
 import { proseContent } from "./extensions.ts";
 import { FindExtension } from "./find.ts";
 import { SearchHighlightExtension } from "./search.ts";
+import { LinkSuggestExtension } from "./link-suggest.ts";
 import { MentionInfoExtension, type MentionTarget } from "./mention-info.ts";
 import { MentionSuggestExtension, type MentionEntity } from "./mention-suggest.ts";
 import { SpellCheckExtension, type SpellService } from "./spell.ts";
@@ -72,11 +73,12 @@ function useMentionInfoExtension(callbacks: MentionCallbacks | undefined) {
   return MentionInfoExtension.configure({ onShow: (t) => latest.current?.show(t), onLeave: () => latest.current?.leave() });
 }
 
-/** @ suggestions over the latest `entities` prop, as extensions are set up once. */
+/** @ suggestions and link suggestions over the latest `entities` prop, as extensions are set up once. */
 function useMentionExtension(entities: readonly MentionEntity[] | undefined) {
   const latest = useRef(entities);
   latest.current = entities;
-  return MentionSuggestExtension.configure({ entities: () => latest.current ?? [] });
+  const read = () => latest.current ?? [];
+  return [MentionSuggestExtension.configure({ entities: read }), LinkSuggestExtension.configure({ entities: read })];
 }
 
 /** A WYSIWYG editor for one scene's prose. */
@@ -123,7 +125,7 @@ export function SceneEditor({
       FindExtension,
       SearchHighlightExtension,
       spellExtension,
-      mentionExtension,
+      ...mentionExtension,
       mentionInfo,
       Placeholder.configure({ placeholder }),
     ],
@@ -255,7 +257,7 @@ export function ChapterEditor({
   }).current;
 
   const editor = useEditor({
-    extensions: [...chapterContent, UndoRedo, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, mentionExtension, mentionInfo],
+    extensions: [...chapterContent, UndoRedo, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, ...mentionExtension, mentionInfo],
     editorProps: {
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": label, class: "ghw-prose ghw-chapter" },
     },

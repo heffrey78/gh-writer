@@ -77,6 +77,8 @@ Typing `@` in any editor (chapters, scenes, an entry's notes) suggests the bible
 
 Hovering a mention, or Alt+Enter with the caret beside one, shows a card: the entry's current name, summary, a few of its fields, and its relationships as they stand at the scene holding the mention (so Ada and Ben are allies in “The Station” and rivals in “The Betrayal”). By pointer the card stays while it's pointed at; by keyboard it takes focus, and Escape closes it and puts the caret back where it was. **Open entry** shows the whole entry beside the text, editable; **Back to the text** returns to the caret.
 
+A new mention of a character or location that the scene doesn't list yet adds it to the scene's characters or locations (one line of front matter, saved like typing). Nothing is ever taken off by itself: remove someone in the details panel and they stay off, even though they're still mentioned, until they're mentioned anew. With **Suggest links for names written without a mention** on (palette), plain-text names and aliases are underlined, and Alt+Enter links the one at the caret. Mentions never reach exported prose as markup: core's `proseText` gives their words.
+
 ## The story bible
 
 `/novels/:id/bible` lists every entry by type: the built-in characters, locations, plotlines and themes, and any custom type. Each type has its count and a "New" button, and the page searches by name and alias. **New type** adds a custom type (name, ID prefix), and its list and entries work at once.

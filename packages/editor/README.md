@@ -29,6 +29,8 @@ Mentions are atoms: the caret steps over them, typing can't split them, and Back
 
 **Mention cards.** `onMention` (`{ show, leave }`) tells the app when a mention is hovered (after a short pause) or Alt+Enter is pressed with the caret beside one: `show` gets the entity ID, the mention's element to place a card by, the scene holding it in a chapter, and whether it came by pointer or keyboard; `leave` says the pointer left it. The editor draws nothing itself. `mentionAtCaret(editor)` finds the mention beside the caret.
 
+**Link suggestions.** With the "linkSuggestions" writing mode on ("Suggest links for names written without a mention", off by default, kept with the other modes), names and aliases of the `entities` written as plain text are underlined: whole words, with their case, longest first, never inside a mention or a link. Nothing changes until the author acts: Alt+Enter (or "Link the name at the caret") turns the name at the caret into a mention showing the words as written. Results are cached per paragraph, like spell check.
+
 The typography uses CSS custom properties (`--ghw-prose-font`, `--ghw-prose-measure`, `--ghw-ink`…) and follows the OS light or dark setting, or `data-theme` on the root element.
 
 ### Writing modes

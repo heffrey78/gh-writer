@@ -53,6 +53,8 @@ export interface Workspace {
   open(paths: string[]): Promise<void>;
   /** The editor's new body for a file: saved after a pause. */
   change(path: string, body: string): void;
+  /** Hear of the author's edits to a body (not reloads from disk). Returns a function that stops it. */
+  onEdit(listener: (path: string, before: string, after: string) => void): () => void;
   /**
    * Let the workspace ask the editor for text it hasn't reported yet (typing goes on), so a change on
    * disk never replaces it. Returns a function that removes it.
@@ -80,6 +82,7 @@ export interface Workspace {
 export function createWorkspace({ api, novelId, interval, storage }: WorkspaceOptions): Workspace {
   const store = createStore<WorkspaceState>(() => ({ files: {}, conflicts: [], error: undefined }));
   const live = new Map<string, () => string | undefined>();
+  const editListeners = new Set<(path: string, before: string, after: string) => void>();
   const loading = new Map<string, Promise<void>>();
 
   const file = (path: string) => store.getState().files[path];
@@ -169,6 +172,12 @@ export function createWorkspace({ api, novelId, interval, storage }: WorkspaceOp
       const next = { ...f, body };
       setFile(path, next);
       autosave.change(path, joinSceneFile(next));
+      for (const listener of editListeners) listener(path, f.body, body);
+    },
+
+    onEdit(listener) {
+      editListeners.add(listener);
+      return () => void editListeners.delete(listener);
     },
 
     async editFrontMatter(path, edits) {

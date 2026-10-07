@@ -416,6 +416,12 @@
   }
 }
 
+.ghw-prose .ghw-unlinked {
+  text-decoration: underline dotted var(--ghw-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+
 .ghw-mention-menu {
   position: fixed;
   z-index: 50;
