@@ -7,8 +7,8 @@ import type { GitAuth } from "./git.ts";
  * response, a log line, a file, or a repository's git config.
  */
 
-/** The registered gh-writer OAuth App's client ID: public, and shipped in the app. Unset until the owner registers it (#100). */
-export const GITHUB_CLIENT_ID: string | undefined = undefined;
+/** The gh-writer OAuth App's client ID (#100): public, and shipped in the app. GH_WRITER_GITHUB_CLIENT_ID overrides it. */
+export const GITHUB_CLIENT_ID: string | undefined = "Ov23lidsTX79zar9Gxxv";
 
 /** classic OAuth scopes: private repositories (contents, issues, creating them), and who the author is. */
 export const SCOPES = ["repo", "read:user"];
