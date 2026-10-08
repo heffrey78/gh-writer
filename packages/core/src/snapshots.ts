@@ -323,18 +323,22 @@ export function timelineSvg(novel: Novel): string {
 
 // ——— The overview ———
 
-/** Every snapshot file, by path from the novel's root: the SVGs and diagrams/README.md, which embeds them. */
+/** The marker every generated file carries, so a stale one can be told from the author's own. */
+export const SNAPSHOT_MARKER = GENERATED;
+
+/** Every snapshot file, by path from the novel's root: the SVGs for the diagrams that have something to show, and diagrams/README.md, which embeds them. */
 export function snapshots(novel: Novel): Map<string, string> {
   const title = novel.config?.title ?? "the novel";
   const first = firstScene(novel);
   const last = lastScene(novel);
   const files = new Map<string, string>();
-  files.set("diagrams/relationships.svg", relationshipSvg(novel, last?.id, last ? `Relationships at the end of the book (“${last.title}”)` : "Relationships"));
-  files.set("diagrams/plotlines.svg", plotlinesSvg(novel));
-  const hasType = (key: string) => novel.entityTypes.some((t) => t.key === key) && novel.entities.some((e) => e.type === key);
-  if (hasType("character")) files.set("diagrams/presence-characters.svg", presenceSvg(novel, "character", "Characters by scene"));
-  if (hasType("theme")) files.set("diagrams/presence-themes.svg", presenceSvg(novel, "theme", "Themes by scene"));
-  files.set("diagrams/timeline.svg", timelineSvg(novel));
+  const has = (type: string) => novel.entities.some((e) => e.type === type);
+  const hasTimes = timeline(novel, "pov").items.length > 0;
+  if (has("character")) files.set("diagrams/relationships.svg", relationshipSvg(novel, last?.id, last ? `Relationships at the end of the book (“${last.title}”)` : "Relationships"));
+  if (has("plotline") && novel.scenes.length) files.set("diagrams/plotlines.svg", plotlinesSvg(novel));
+  if (has("character") && novel.scenes.length) files.set("diagrams/presence-characters.svg", presenceSvg(novel, "character", "Characters by scene"));
+  if (has("theme") && novel.scenes.length) files.set("diagrams/presence-themes.svg", presenceSvg(novel, "theme", "Themes by scene"));
+  if (hasTimes) files.set("diagrams/timeline.svg", timelineSvg(novel));
   const fence = (s: string) => "```mermaid\n" + s + "```\n";
   const md = [
     `# Diagrams of ${title}`,
@@ -343,36 +347,40 @@ export function snapshots(novel: Novel): Map<string, string> {
     "",
     "## Relationships",
     "",
-    ...(first && first.id !== last?.id ? [`At the start of the book (“${first.title}”):`, "", fence(relationshipMermaid(novel, first.id))] : []),
-    last ? `At the end of the book (“${last.title}”):` : "From the start:",
-    "",
-    fence(relationshipMermaid(novel, last?.id)),
-    "As drawn in gh-writer, where the nodes are placed by hand:",
-    "",
-    "![Relationships at the end of the book](relationships.svg)",
+    ...(has("character")
+      ? [
+          ...(first && first.id !== last?.id ? [`At the start of the book (“${first.title}”):`, "", fence(relationshipMermaid(novel, first.id))] : []),
+          last ? `At the end of the book (“${last.title}”):` : "From the start:",
+          "",
+          fence(relationshipMermaid(novel, last?.id)),
+          "As drawn in gh-writer, where the nodes are placed by hand:",
+          "",
+          "![Relationships at the end of the book](relationships.svg)",
+        ]
+      : ["No characters yet."]),
     "",
     "## Plotlines",
     "",
-    "Each column is a scene, in reading order: a large dot is a major beat, a small one a minor beat. Shaded: a plotline gone quiet for longer than the novel's threshold.",
-    "",
-    "![Plotlines by scene](plotlines.svg)",
+    ...(files.has("diagrams/plotlines.svg")
+      ? ["Each column is a scene, in reading order: a large dot is a major beat, a small one a minor beat. Shaded: a plotline gone quiet for longer than the novel's threshold.", "", "![Plotlines by scene](plotlines.svg)"]
+      : ["No plotlines yet."]),
     "",
     "## Presence",
     "",
-    "Filled where the scene lists them (ringed: its point of view; for themes, larger for a stronger one), dashed where the prose only mentions them. The number by each name is how many scenes it's in; shaded, an absence of more than three scenes.",
+    ...(files.has("diagrams/presence-characters.svg") || files.has("diagrams/presence-themes.svg")
+      ? [
+          "Filled where the scene lists them (ringed: its point of view; for themes, larger for a stronger one), dashed where the prose only mentions them. The number by each name is how many scenes it's in; shaded, an absence of more than three scenes.",
+          "",
+          ...(files.has("diagrams/presence-characters.svg") ? ["![Characters by scene](presence-characters.svg)", ""] : []),
+          ...(files.has("diagrams/presence-themes.svg") ? ["![Themes by scene](presence-themes.svg)"] : []),
+        ]
+      : ["Nothing to show yet: it needs characters or themes, and scenes."]),
     "",
-    ...(files.has("diagrams/presence-characters.svg") ? ["![Characters by scene](presence-characters.svg)", ""] : []),
-    ...(files.has("diagrams/presence-themes.svg") ? ["![Themes by scene](presence-themes.svg)", ""] : []),
     "## Timeline",
     "",
-    "When things happen in the story, next to where they come in the book.",
-    "",
-    fence(timelineMermaid(novel)),
-    "![The book in story time, and in reading order](timeline.svg)",
+    ...(hasTimes ? ["When things happen in the story, next to where they come in the book.", "", fence(timelineMermaid(novel)), "![The book in story time, and in reading order](timeline.svg)"] : ["No scene or event has a time yet."]),
     "",
   ];
-  files.set("diagrams/README.md", md.join("\n"));
+  files.set("diagrams/README.md", md.join("\n").replace(/\n{3,}/g, "\n\n"));
   return files;
 }
-
-

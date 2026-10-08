@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,6 +26,51 @@ describe("novel template", () => {
     const vendored = readFileSync(join(template, ".github/gh-writer/validate.mjs"), "utf8");
     expect(vendored === readFileSync(fresh, "utf8"), "run `npm run build:template`").toBe(true);
   }, 30_000);
+
+  it("vendors a snapshot writer that matches the current source, and its own snapshots are current", () => {
+    const fresh = join(tmp, "snapshots.mjs");
+    expect(node([join(repo, "scripts/build-validator.ts"), "--snapshots", fresh]).status).toBe(0);
+    const vendored = readFileSync(join(template, ".github/gh-writer/snapshots.mjs"), "utf8");
+    expect(vendored === readFileSync(fresh, "utf8"), "run `npm run build:template`").toBe(true);
+    for (const dir of [template, join(repo, "examples/sample-novel")]) {
+      const check = node([join(template, ".github/gh-writer/snapshots.mjs"), dir, "--check"]);
+      expect(check.status, `${dir}: ${check.stdout} (run \`npm run build:template\`)`).toBe(0);
+    }
+  }, 30_000);
+
+  it("the vendored snapshot writer redraws a novel's relationships after a relationship changes", () => {
+    const novel = join(tmp, "sample-copy");
+    cpSync(join(repo, "examples/sample-novel"), novel, { recursive: true });
+    // The sample carries its snapshots: start from none.
+    for (const f of ["README.md", "relationships.svg", "plotlines.svg", "presence-characters.svg", "presence-themes.svg", "timeline.svg"]) rmSync(join(novel, "diagrams", f), { force: true });
+    const writer = join(template, ".github/gh-writer/snapshots.mjs");
+    expect(node([writer, novel]).stdout).toContain("Wrote diagrams/relationships.svg");
+    const before = readFileSync(join(novel, "diagrams/relationships.svg"), "utf8");
+    const rels = join(novel, "bible/relationships.yaml");
+    writeFileSync(rels, readFileSync(rels, "utf8").replace("    type: allies\n    since: sc_r1vet8", "    type: rivals\n    since: sc_r1vet8"));
+    expect(node([writer, novel]).stdout).toContain("Wrote diagrams/relationships.svg, diagrams/README.md");
+    const after = readFileSync(join(novel, "diagrams/relationships.svg"), "utf8");
+    expect(before).toContain(">Allied with<");
+    expect(after).not.toContain(">Allied with<");
+    expect(after).toContain(">Rivals with<");
+  });
+
+  it("runs the snapshot writer on pushes that change the story, and commits only diagrams/", () => {
+    const wf = parse(readFileSync(join(template, ".github/workflows/diagrams.yml"), "utf8")) as {
+      on: { push: { branches: string[]; paths: string[] }; workflow_dispatch: unknown };
+      permissions: { contents: string };
+      jobs: { snapshots: { if: string; steps: { run?: string }[] } };
+    };
+    expect(wf.on.push.branches).toEqual(["main"]);
+    expect(wf.on.push.paths).toEqual(["manuscript/**", "bible/**", "novel.yaml", "diagrams/layouts.yaml"]);
+    expect(wf.permissions.contents).toBe("write");
+    expect(wf.jobs.snapshots.if).toContain("is_template");
+    const runs = wf.jobs.snapshots.steps.map((s) => s.run ?? "");
+    expect(runs).toContain("node .github/gh-writer/snapshots.mjs");
+    expect(runs.find((r) => r.includes("git commit"))).toMatch(/git add diagrams\n/);
+    const setup = readFileSync(join(template, ".github/workflows/setup.yml"), "utf8");
+    expect(setup).toContain("run: node .github/gh-writer/snapshots.mjs");
+  });
 
   it("init.mjs gives a copy fresh IDs and a title, stays valid, and is idempotent", () => {
     const copy = join(tmp, "my-great-novel");

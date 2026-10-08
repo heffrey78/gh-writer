@@ -14,6 +14,7 @@ This novel uses the [gh-writer](https://github.com/heffrey78/gh-writer) format: 
 | `bible/relationships.yaml` | Who is related to whom, and from which scene a relationship starts or ends. |
 | `bible/events.yaml` | Things that happen off the page: backstory, events between scenes. |
 | `diagrams/layouts.yaml` | Positions of hand-arranged diagrams (maintained by the app). |
+| `diagrams/README.md`, `diagrams/*.svg` | **Generated** snapshots of the diagrams: relationships, plotlines, who is in which scene, the timeline. Browse [diagrams/](diagrams/) to see them. |
 
 GitHub **Issues** are for the work around the book: plot holes, continuity errors, research questions, ideas and revision notes. Story facts belong in the files above.
 
@@ -34,5 +35,7 @@ node .github/gh-writer/validate.mjs
 ```
 
 When you create a repository from this template, the **Set up novel** workflow replaces the template's placeholder IDs with fresh ones and sets the title from the repository name. If it didn't run, start it from the Actions tab, or run `node .github/gh-writer/init.mjs "Your Title"` and commit.
+
+Every push that changes the story also runs the **Diagrams** workflow, which redraws the snapshots in `diagrams/` and commits them, so they stay current on github.com. To draw them locally: `node .github/gh-writer/snapshots.mjs`.
 
 The full format is specified in [docs/format/v1.md](https://github.com/heffrey78/gh-writer/blob/main/docs/format/v1.md).

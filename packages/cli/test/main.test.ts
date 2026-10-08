@@ -60,6 +60,8 @@ describe("gh-writer snapshots", () => {
   it("writes the diagrams, then has nothing to do; a relationship change rewrites its snapshots and nothing else", () => {
     const novel = join(tmp, "snapshots");
     cpSync(sample, novel, { recursive: true });
+    // The sample carries its snapshots: start from none.
+    for (const f of ["README.md", "relationships.svg", "plotlines.svg", "presence-characters.svg", "presence-themes.svg", "timeline.svg"]) rmSync(join(novel, "diagrams", f), { force: true });
     const first = run(main, "snapshots", novel);
     expect(first.code).toBe(0);
     expect(first.out).toContain("Wrote diagrams/relationships.svg, diagrams/plotlines.svg, diagrams/presence-characters.svg, diagrams/presence-themes.svg, diagrams/timeline.svg, diagrams/README.md");
@@ -76,6 +78,18 @@ describe("gh-writer snapshots", () => {
     const again = run(main, "snapshots", novel);
     expect(again.out).toContain("Wrote diagrams/relationships.svg, diagrams/README.md");
     expect(readFileSync(join(novel, "diagrams/README.md"), "utf8")).toContain('-.-|"Rivals with"|');
+  });
+
+  it("removes a snapshot it drew once a diagram has nothing to show, and never a file it didn't write", () => {
+    const novel = join(tmp, "snapshots-stale");
+    cpSync(sample, novel, { recursive: true });
+    run(main, "snapshots", novel);
+    writeFileSync(join(novel, "diagrams/my-sketch.svg"), "<svg xmlns='http://www.w3.org/2000/svg'/>");
+    rmSync(join(novel, "bible/plotlines"), { recursive: true });
+    const r = run(main, "snapshots", novel);
+    expect(r.out).toContain("Removed diagrams/plotlines.svg");
+    expect(readFileSync(join(novel, "diagrams/my-sketch.svg"), "utf8")).toContain("svg");
+    expect(readFileSync(join(novel, "diagrams/README.md"), "utf8")).toContain("No plotlines yet.");
   });
 
   it("says so when there's no novel", () => {

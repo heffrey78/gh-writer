@@ -1,0 +1,45 @@
+name: Diagrams
+
+# Keeps the diagram snapshots in diagrams/ (SVG and an overview page with Mermaid) up to date with
+# the story, so they show on github.com. Runs when story files change on the default branch; the
+# commit it makes doesn't run it again (pushes made with the workflow's token start no workflows).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "manuscript/**"
+      - "bible/**"
+      - "novel.yaml"
+      - "diagrams/layouts.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: diagrams
+  cancel-in-progress: true
+
+jobs:
+  snapshots:
+    if: ${{ !github.event.repository.is_template }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Draw the diagrams
+        run: node .github/gh-writer/snapshots.mjs
+      - name: Commit
+        run: |
+          git add diagrams
+          if git diff --cached --quiet; then
+            echo "The diagrams are up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update diagram snapshots"
+          git pull --rebase --autostash
+          git push
