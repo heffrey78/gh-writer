@@ -37,20 +37,27 @@ test("swimlanes for 120 scenes and 12 plotlines render and update without lag", 
     return performance.now() - start;
   });
 
-  // A new threshold re-shades every cell (pure UI: gaps worked out again across the book).
-  const reshade = await page.evaluate(async () => {
-    const input = document.querySelector<HTMLInputElement>('input[aria-label="How many"]')!;
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-    const before = document.querySelectorAll("tbody .bg-warn-soft").length;
-    const start = performance.now();
-    setter.call(input, "0");
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    await new Promise<void>((done) => {
-      const check = () => (document.querySelectorAll("tbody .bg-warn-soft").length !== before ? done() : requestAnimationFrame(check));
-      requestAnimationFrame(check);
-    });
-    return performance.now() - start;
-  });
+  // A new threshold re-shades every cell (pure UI: gaps worked out again across the book). Three
+  // changes that each change the shading, the median taken: the first also pays one-off style work.
+  const reshades: number[] = [];
+  for (const value of ["0", "40", "0"]) {
+    reshades.push(
+      await page.evaluate(async (value) => {
+        const input = document.querySelector<HTMLInputElement>('input[aria-label="How many"]')!;
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+        const before = document.querySelectorAll("tbody .bg-warn-soft").length;
+        const start = performance.now();
+        setter.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        await new Promise<void>((done) => {
+          const check = () => (document.querySelectorAll("tbody .bg-warn-soft").length !== before ? done() : requestAnimationFrame(check));
+          requestAnimationFrame(check);
+        });
+        return performance.now() - start;
+      }, value),
+    );
+  }
+  const reshade = [...reshades].sort((x, y) => x - y)[1]!;
   expect(await page.locator("tbody .bg-warn-soft").count()).toBeGreaterThan(0);
 
   // Frames while scrolling across the book and hovering cells.
@@ -89,7 +96,7 @@ test("swimlanes for 120 scenes and 12 plotlines render and update without lag", 
   await expect(page.locator(`tbody [role="gridcell"][aria-label="Scene 1.1.1: major beat in ${lane}"]`)).toHaveCount(1, { timeout: 5000 });
   const edit = Date.now() - start;
 
-  const result = `first render ${render.toFixed(0)} ms; re-shade ${reshade.toFixed(0)} ms; scroll/hover p95 ${p95.toFixed(1)} ms over ${frames.length} frames; cell edit end to end ${edit} ms`;
+  const result = `first render ${render.toFixed(0)} ms; re-shade ${reshade.toFixed(0)} ms (median of ${reshades.map((x) => x.toFixed(0)).join(", ")}); scroll/hover p95 ${p95.toFixed(1)} ms over ${frames.length} frames; cell edit end to end ${edit} ms`;
   console.log(result);
   test.info().annotations.push({ type: "performance", description: result });
   expect(render).toBeLessThan(500);

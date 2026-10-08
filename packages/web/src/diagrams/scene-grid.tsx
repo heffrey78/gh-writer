@@ -1,6 +1,6 @@
 import type { Novel, Scene } from "@gh-writer/core";
 import { GripHorizontal } from "lucide-react";
-import { memo, useCallback, useEffect, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent } from "react";
 import { Link } from "react-router";
 import { dropMove, useStructure } from "../novel/structure.ts";
 import type { Workspace } from "../novel/workspace.ts";
@@ -55,7 +55,7 @@ export interface SceneGridProps {
  * touches a few re-renders those.
  */
 export function SceneGrid({ novelId, novel, workspace, label, rowHeading, rows, scenes, marks, shaded, cellLabel, hasPopup, onChoose, size }: SceneGridProps) {
-  const { chapters, parts } = sceneColumns(novel, scenes);
+  const { chapters, parts } = useMemo(() => sceneColumns(novel, scenes), [novel, scenes]);
   const table = useRef<HTMLTableElement>(null);
   // By IDs, not positions: rows and columns can change (an edit, a reorder) under the focus.
   const [focused, setFocused] = useState<{ row: string; scene: string }>();
@@ -92,6 +92,22 @@ export function SceneGrid({ novelId, novel, workspace, label, rowHeading, rows, 
     const move = id && target ? dropMove(novel, id, target.id, target.after) : undefined;
     if (id && move) void structure.move(id, move.index, move.to);
   };
+
+  // Stable for the memoised header: the handlers read the latest state through a ref.
+  const handlers = useRef({ onHandleKey, onDragOver, onDrop });
+  handlers.current = { onHandleKey, onDragOver, onDrop };
+  const stableHandleKey = useCallback((e: KeyboardEvent, scene: Scene) => handlers.current.onHandleKey(e, scene), []);
+  const stableDragOver = useCallback((e: DragEvent, scene: Scene) => handlers.current.onDragOver(e, scene), []);
+  const stableDrop = useCallback((e: DragEvent) => handlers.current.onDrop(e), []);
+  const stableDragStart = useCallback((e: DragEvent, scene: Scene) => {
+    dragging.current = scene.id;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", scene.title);
+  }, []);
+  const stableDragEnd = useCallback(() => {
+    dragging.current = undefined;
+    setDrop(undefined);
+  }, []);
 
   // Stable for the memoised cells: they read the latest props through a ref.
   const latest = useRef({ onChoose, scenes });
@@ -140,74 +156,19 @@ export function SceneGrid({ novelId, novel, workspace, label, rowHeading, rows, 
   return (
     <div className="w-fit max-w-full overflow-x-auto rounded-lg border border-rule">
       <table ref={table} role="grid" aria-label={label} onKeyDown={onKey} style={{ "--cell": SIZES[size].cell, fontSize: SIZES[size].font } as CSSProperties} className="border-collapse">
-        <thead>
-          {parts.length > 0 && (
-            <tr>
-              <td className="sticky left-0 z-10 bg-paper" />
-              {parts.map(({ part, span }) => (
-                <th key={part.id} scope="colgroup" colSpan={span} className="border-b border-l border-rule px-2 py-1 text-left text-xs font-semibold tracking-wide text-muted uppercase">
-                  {part.title}
-                </th>
-              ))}
-            </tr>
-          )}
-          <tr>
-            <td className="sticky left-0 z-10 bg-paper" />
-            {chapters.map(({ chapter, title, span }) => (
-              <th key={chapter.id} scope="colgroup" colSpan={span} className="border-b border-l border-rule px-2 py-1 text-left font-semibold">
-                <Link to={`/novels/${novelId}/chapter/${chapter.id}`} tabIndex={-1} className="underline-offset-2 hover:underline">
-                  {title}
-                </Link>
-              </th>
-            ))}
-          </tr>
-          <tr>
-            <th scope="col" className="sticky left-0 z-10 bg-paper px-3 py-1 text-left text-xs font-medium text-muted">
-              {rowHeading}
-            </th>
-            {scenes.map((scene) => (
-              <th
-                key={scene.id}
-                scope="col"
-                onDragOver={(e) => onDragOver(e, scene)}
-                onDrop={onDrop}
-                className={cn(
-                  "h-[calc(var(--cell)*3.6)] w-[var(--cell)] border-l border-rule align-bottom",
-                  drop?.id === scene.id && (drop.after ? "shadow-[inset_-3px_0_0_var(--ghw-accent)]" : "shadow-[inset_3px_0_0_var(--ghw-accent)]"),
-                )}
-              >
-                <button
-                  type="button"
-                  data-col-handle={scene.id}
-                  draggable
-                  onDragStart={(e) => {
-                    dragging.current = scene.id;
-                    e.dataTransfer.effectAllowed = "move";
-                    e.dataTransfer.setData("text/plain", scene.title);
-                  }}
-                  onDragEnd={() => {
-                    dragging.current = undefined;
-                    setDrop(undefined);
-                  }}
-                  onKeyDown={(e) => onHandleKey(e, scene)}
-                  aria-label={`Move “${scene.title}”`}
-                  aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
-                  className="mx-auto block cursor-grab rounded p-0.5 text-muted hover:bg-panel"
-                >
-                  <GripHorizontal className="size-4" aria-hidden />
-                </button>
-                <Link
-                  to={`/novels/${novelId}/scene/${scene.id}`}
-                  tabIndex={-1}
-                  title={scene.title}
-                  className="mx-auto block max-h-[calc(var(--cell)*3.2)] truncate px-1 py-1 text-[0.85em] font-normal underline-offset-2 [writing-mode:vertical-rl] hover:underline"
-                >
-                  {scene.title}
-                </Link>
-              </th>
-            ))}
-          </tr>
-        </thead>
+        <GridHead
+          novelId={novelId}
+          scenes={scenes}
+          chapters={chapters}
+          parts={parts}
+          rowHeading={rowHeading}
+          drop={drop}
+          onHandleKey={stableHandleKey}
+          onDragStartScene={stableDragStart}
+          onDragEndScene={stableDragEnd}
+          onDragOverScene={stableDragOver}
+          onDropScene={stableDrop}
+        />
         <tbody>
           {rows.map((row, r) => (
             <tr key={row.id}>
@@ -316,3 +277,94 @@ export function SizeSelect({ value, onChange }: { value: GridSize; onChange: (si
     </label>
   );
 }
+
+/** The chapter, part and scene headers: memoised, as nothing in them changes when the cells do. */
+const GridHead = memo(function GridHead({
+  novelId,
+  scenes,
+  chapters,
+  parts,
+  rowHeading,
+  drop,
+  onHandleKey,
+  onDragStartScene,
+  onDragEndScene,
+  onDragOverScene,
+  onDropScene,
+}: {
+  novelId: string;
+  scenes: Scene[];
+  chapters: ReturnType<typeof sceneColumns>["chapters"];
+  parts: ReturnType<typeof sceneColumns>["parts"];
+  rowHeading: string;
+  drop: { id: string; after: boolean } | undefined;
+  onHandleKey: (e: KeyboardEvent, scene: Scene) => void;
+  onDragStartScene: (e: DragEvent, scene: Scene) => void;
+  onDragEndScene: () => void;
+  onDragOverScene: (e: DragEvent, scene: Scene) => void;
+  onDropScene: (e: DragEvent) => void;
+}) {
+  return (
+    <thead>
+      {parts.length > 0 && (
+        <tr>
+          <td className="sticky left-0 z-10 bg-paper" />
+          {parts.map(({ part, span }) => (
+            <th key={part.id} scope="colgroup" colSpan={span} className="border-b border-l border-rule px-2 py-1 text-left text-xs font-semibold tracking-wide text-muted uppercase">
+              {part.title}
+            </th>
+          ))}
+        </tr>
+      )}
+      <tr>
+        <td className="sticky left-0 z-10 bg-paper" />
+        {chapters.map(({ chapter, title, span }) => (
+          <th key={chapter.id} scope="colgroup" colSpan={span} className="border-b border-l border-rule px-2 py-1 text-left font-semibold">
+            <Link to={`/novels/${novelId}/chapter/${chapter.id}`} tabIndex={-1} className="underline-offset-2 hover:underline">
+              {title}
+            </Link>
+          </th>
+        ))}
+      </tr>
+      <tr>
+        <th scope="col" className="sticky left-0 z-10 bg-paper px-3 py-1 text-left text-xs font-medium text-muted">
+          {rowHeading}
+        </th>
+        {scenes.map((scene) => (
+          <th
+            key={scene.id}
+            scope="col"
+            onDragOver={(e) => onDragOverScene(e, scene)}
+            onDrop={onDropScene}
+            className={cn(
+              "h-[calc(var(--cell)*3.6)] w-[var(--cell)] border-l border-rule align-bottom",
+              drop?.id === scene.id && (drop.after ? "shadow-[inset_-3px_0_0_var(--ghw-accent)]" : "shadow-[inset_3px_0_0_var(--ghw-accent)]"),
+            )}
+          >
+            <button
+              type="button"
+              data-col-handle={scene.id}
+              draggable
+              onDragStart={(e) => onDragStartScene(e, scene)}
+              onDragEnd={onDragEndScene}
+              onKeyDown={(e) => onHandleKey(e, scene)}
+              aria-label={`Move “${scene.title}”`}
+              aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+              className="mx-auto block cursor-grab rounded p-0.5 text-muted hover:bg-panel"
+            >
+              <GripHorizontal className="size-4" aria-hidden />
+            </button>
+            <Link
+              to={`/novels/${novelId}/scene/${scene.id}`}
+              tabIndex={-1}
+              title={scene.title}
+              className="mx-auto block max-h-[calc(var(--cell)*3.2)] truncate px-1 py-1 text-[0.85em] font-normal underline-offset-2 [writing-mode:vertical-rl] hover:underline"
+            >
+              {scene.title}
+            </Link>
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+});
