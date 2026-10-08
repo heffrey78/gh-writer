@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { newId, parseYaml, slugify } from "@gh-writer/core";
 import type { SimpleGitProgressEvent } from "simple-git";
-import { classifyGitError, cloneUrl, git, repoName } from "./git.ts";
+import { classifyGitError, cloneUrl, git, repoName, type GitAuthSource } from "./git.ts";
 import { DEFAULT_TEMPLATE, NeedsIdentity, writeNewNovel, type NewNovel } from "./new-novel.ts";
 
 /** A novel the author has opened or cloned. */
@@ -43,6 +43,8 @@ export interface CloneOptions {
   into?: string;
   onProgress?: (e: SimpleGitProgressEvent) => void;
   signal?: AbortSignal;
+  /** gh-writer's GitHub credentials for the clone URL, if any. */
+  auth?: GitAuthSource;
 }
 
 interface LibraryFile {
@@ -164,7 +166,7 @@ export class Library {
   }
 
   /** Clone a novel with the system git and add it. A failed clone leaves no folder behind. */
-  async clone(repo: string, { into, onProgress, signal }: CloneOptions = {}): Promise<LibraryEntry> {
+  async clone(repo: string, { into, onProgress, signal, auth }: CloneOptions = {}): Promise<LibraryEntry> {
     const url = cloneUrl(repo);
     const dest = resolve(into ? expandHome(into) : join(this.cloneDir, repoName(url)));
     const existing = await readdir(dest).catch(() => undefined);
@@ -173,7 +175,7 @@ export class Library {
 
     await mkdir(dirname(dest), { recursive: true });
     try {
-      await git(undefined, onProgress, signal).clone(url, dest);
+      await git(undefined, onProgress, signal, await auth?.(url)).clone(url, dest);
     } catch (e) {
       await cleanUp();
       throw classifyGitError(e);

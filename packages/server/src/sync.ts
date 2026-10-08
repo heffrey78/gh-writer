@@ -1,7 +1,7 @@
 import { CHECKPOINT_PREFIX } from "./checkpoints.ts";
 import { operationInProgress, type Committer } from "./committer.ts";
 import { commitMerge, ConflictError, openConflicts, prepareMerge, type Conflicts, type FileResolution, type PreparedMerge } from "./conflicts.ts";
-import { classifyGitError, git, GitFailure } from "./git.ts";
+import { classifyGitError, git, GitFailure, type GitAuthSource } from "./git.ts";
 
 export interface SyncerOptions {
   /** Sync this often (ms), and once when the novel is opened. Default 5 minutes; 0 syncs only on demand. */
@@ -84,6 +84,10 @@ export interface SyncerDeps {
   committer?: Committer;
   /** Runs the step that changes the work tree with writes to the novel and background commits held off. Default: commits only. */
   exclusive?: <T>(fn: () => Promise<T>) => Promise<T>;
+  /** gh-writer's GitHub credentials for the remote's URL, if any (otherwise git uses the author's own). */
+  auth?: GitAuthSource;
+  /** The remote refused gh-writer's credentials: the connection should check whether they still hold. */
+  onAuthRefused?: () => void;
 }
 
 /**
@@ -98,6 +102,8 @@ export class Syncer {
   readonly root: string;
   #committer: Committer | undefined;
   #exclusive: NonNullable<SyncerDeps["exclusive"]>;
+  #auth: SyncerDeps["auth"];
+  #onAuthRefused: SyncerDeps["onAuthRefused"];
   #intervalMs: number;
   #retryMs: number;
   #schedule: NonNullable<SyncerOptions["schedule"]>;
@@ -115,9 +121,11 @@ export class Syncer {
   #tagsMade = 0;
   #tagsPushed = -1;
 
-  constructor(root: string, { intervalMs = 300_000, retryMs = 15_000, schedule = realSchedule }: SyncerOptions = {}, { committer, exclusive }: SyncerDeps = {}) {
+  constructor(root: string, { intervalMs = 300_000, retryMs = 15_000, schedule = realSchedule }: SyncerOptions = {}, { committer, exclusive, auth, onAuthRefused }: SyncerDeps = {}) {
     this.root = root;
     this.#committer = committer;
+    this.#auth = auth;
+    this.#onAuthRefused = onAuthRefused;
     this.#exclusive = exclusive ?? ((fn) => (committer ? committer.hold(fn) : fn()));
     this.#intervalMs = intervalMs;
     this.#retryMs = retryMs;
@@ -232,8 +240,23 @@ export class Syncer {
     this.#target = target;
     if (!target) return { kind: "local" };
     // Network steps can be cut short by close(); the work-tree step can't, so it never stops halfway.
-    const remote = git(this.root, undefined, signal);
+    const url = (await git(this.root).raw(["remote", "get-url", target.remote]).catch(() => "")).trim();
+    const auth = url ? await this.#auth?.(url) : undefined;
+    const remote = git(this.root, undefined, signal, auth);
     await this.#committer?.commit();
+    try {
+      return await this.#exchange(target, remote);
+    } catch (e) {
+      const failure = classifyGitError(e);
+      if (auth && failure.code === "AUTH") {
+        this.#onAuthRefused?.();
+        throw new GitFailure("AUTH", "GitHub didn't accept gh-writer's sign-in for this repository: it may have been revoked, or your account can't push to it. Connect to GitHub again, or check your access.", failure.detail);
+      }
+      throw e;
+    }
+  }
+
+  async #exchange(target: Target, remote: ReturnType<typeof git>): Promise<Outcome> {
 
     for (let attempt = 1; ; attempt++) {
       // The configured refspecs are named because naming any refspec replaces them.

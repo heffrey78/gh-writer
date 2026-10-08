@@ -26,7 +26,7 @@ export function createApp({ token, port, library, workspaces, github, web }: App
 
   app.get("/api/health", (c) => c.json({ status: "ok" }));
   app.get("/api/session", (c) => c.json({ authenticated: hasSession(c, token, port()) }));
-  app.route("/api/library", libraryRoutes(library));
+  app.route("/api/library", libraryRoutes(library, github));
   app.route("/api/novels", novelRoutes(library, workspaces));
   app.route("/api/github", githubRoutes(github));
 

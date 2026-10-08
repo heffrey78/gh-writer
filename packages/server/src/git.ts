@@ -19,7 +19,7 @@ export class GitFailure extends Error {
 
 const GUIDANCE: Record<Exclude<GitErrorCode, "GIT">, string> = {
   AUTH:
-    "GitHub didn't accept your credentials, or none are set up. For an https:// address, run `gh auth setup-git` " +
+    "GitHub didn't accept your credentials, or none are set up. Connect gh-writer to GitHub (Connect GitHub, at the top of the page); or for an https:// address, run `gh auth setup-git` " +
     "(or sign in with Git Credential Manager); for a git@github.com: address, add an SSH key to GitHub " +
     "(https://github.com/settings/keys) and load it with ssh-add. Then try again.",
   NOT_FOUND: "No repository at that address. Check the owner and name, and that your GitHub account can see it.",
@@ -80,15 +80,39 @@ export function repoName(url: string): string {
   return name && name !== ".." && name !== "." ? name : "novel";
 }
 
+/** gh-writer's GitHub token for one host's https remotes (e.g. "https://github.com"), for one git command. */
+export interface GitAuth {
+  origin: string;
+  token: string;
+}
+
+/** The credentials for a remote URL, if gh-writer has any for it. */
+export type GitAuthSource = (url: string) => Promise<GitAuth | undefined>;
+
+const TOKEN_VAR = "GH_WRITER_GIT_TOKEN";
+
+/**
+ * Configuration for one command (git -c) that answers for `origin` with the token in the command's
+ * environment, as x-access-token, and with nothing else: the empty helper first clears the author's
+ * own helpers for that host, so a stale stored credential can't win. Nothing is written to any git
+ * config file, and the token never appears in git's arguments.
+ */
+function credentialConfig(origin: string): string[] {
+  const helper = `!f() { test "$1" = get && echo username=x-access-token && echo "password=$${TOKEN_VAR}"; }; f`;
+  return [`credential.${origin}.helper=`, `credential.${origin}.helper=${helper}`];
+}
+
 /**
  * simple-git for `dir`. git must never wait for a password in the terminal the server runs in:
  * prompts are off and ssh runs in batch mode (unless the author set their own ssh command), so a
- * missing credential fails fast as AUTH. Credentials come from the author's git setup.
+ * missing credential fails fast as AUTH. Credentials come from the author's git setup, or for a
+ * GitHub remote from gh-writer's own sign-in (`auth`).
  */
-export function git(dir?: string, onProgress?: (e: SimpleGitProgressEvent) => void, signal?: AbortSignal): SimpleGit {
-  const env = gitEnv();
+export function git(dir?: string, onProgress?: (e: SimpleGitProgressEvent) => void, signal?: AbortSignal, auth?: GitAuth): SimpleGit {
+  const env = { ...gitEnv(), ...(auth ? { [TOKEN_VAR]: auth.token } : {}) };
   return simpleGit({
     ...(dir ? { baseDir: dir } : {}),
+    ...(auth ? { config: credentialConfig(auth.origin) } : {}),
     ...(onProgress ? { progress: onProgress } : {}),
     ...(signal ? { abort: signal } : {}),
     // simple-git treats the environment as untrusted input: it strips GIT_* and EDITOR-like variables
@@ -100,6 +124,7 @@ export function git(dir?: string, onProgress?: (e: SimpleGitProgressEvent) => vo
       allowUnsafeEditor: true,
       allowUnsafePager: true,
       allowUnsafeAskPass: true,
+      allowUnsafeCredentialHelper: true,
       allowUnsafeSshCommand: true,
       allowUnsafeConfigPaths: true,
       allowUnsafeConfigEnvCount: true,

@@ -1,4 +1,7 @@
+import { execFileSync, spawn } from "node:child_process";
+import { existsSync, mkdirSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { join } from "node:path";
 import type { AddressInfo } from "node:net";
 
 export interface FakeUser {
@@ -15,8 +18,9 @@ export interface FakeRepo {
 }
 
 /**
- * A stand-in for github.com and api.github.com: the OAuth device flow, GET /user, and the user's
- * repositories. The test drives the sign-in (approve, deny, slow down, revoke) through its methods,
+ * A stand-in for github.com and api.github.com: the OAuth device flow, GET /user, the user's
+ * repositories, and with `gitRoot` git over HTTP for them (git http-backend, with basic auth as
+ * x-access-token and a token GitHub knows, as github.com takes it). The test drives the sign-in (approve, deny, slow down, revoke) through its methods,
  * or over HTTP at /__fake/* from another process.
  */
 export interface FakeGitHub {
@@ -38,10 +42,12 @@ export interface FakeGitHub {
   expire(): void;
   /** GitHub stops accepting the token. */
   revoke(token: string): void;
+  /** The bare repository behind owner/name (with `gitRoot`). */
+  repoPath(owner: string, name: string): string;
   close(): Promise<void>;
 }
 
-export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", interval = 0 } = {}): Promise<FakeGitHub> {
+export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", interval = 0, gitRoot }: { clientId?: string; login?: string; interval?: number; gitRoot?: string } = {}): Promise<FakeGitHub> {
   let approved = false;
   let denied = false;
   let slow = false;
@@ -60,6 +66,7 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
     slowDown: () => void (slow = true),
     expire: () => void (expired = true),
     revoke: (token) => void fake.users.delete(token),
+    repoPath: (owner, name) => join(gitRoot ?? "", owner, `${name}.git`),
     close: () => new Promise((resolve) => server.close(() => resolve())),
   };
 
@@ -73,6 +80,8 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://fake");
+    const git = /^\/([^/]+)\/([^/]+)\.git(\/.*)$/.exec(url.pathname);
+    if (git && gitRoot) return serveGit(req, res, url, git[1]!, git[2]!);
     const auth = /^(?:Bearer|token) (.+)$/.exec(req.headers.authorization ?? "")?.[1];
     const body = await read(req);
     fake.requests.push({ method: req.method ?? "GET", path: url.pathname, ...(auth ? { token: auth } : {}), ...(body ? { body } : {}) });
@@ -118,6 +127,7 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
         }
         const repo: FakeRepo = { owner: user.login, name, private: priv ?? false, ...(description ? { description } : {}), pushedAt: new Date().toISOString() };
         fake.repos.push(repo);
+        if (gitRoot) execFileSync("git", ["init", "--quiet", "--bare", "--initial-branch=main", fake.repoPath(user.login, name)]);
         return json(res, 201, { name, full_name: `${user.login}/${name}`, private: repo.private, html_url: `${fake.url}/${user.login}/${name}`, clone_url: `${fake.url}/${user.login}/${name}.git`, owner: { login: user.login } });
       }
       case "POST /__fake/approve":
@@ -133,6 +143,58 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
         return json(res, 404, { message: "Not Found" });
     }
   });
+  /**
+   * git's smart HTTP protocol through git http-backend. Like github.com: no credentials → 401 with a
+   * Basic challenge; credentials GitHub doesn't know → 401; a repository that isn't there → 404.
+   */
+  function serveGit(req: IncomingMessage, res: ServerResponse, url: URL, owner: string, name: string) {
+    const basic = /^Basic (.+)$/.exec(req.headers.authorization ?? "")?.[1];
+    const [user, token] = basic ? Buffer.from(basic, "base64").toString().split(":") : [];
+    fake.requests.push({ method: req.method ?? "GET", path: url.pathname, ...(token ? { token } : {}) });
+    if (user !== "x-access-token" || !token || !fake.users.has(token)) {
+      req.resume();
+      return res.writeHead(401, { "WWW-Authenticate": 'Basic realm="GitHub"' }).end("Invalid username or token.");
+    }
+    if (!existsSync(fake.repoPath(owner, name))) {
+      req.resume();
+      return res.writeHead(404).end("Repository not found.");
+    }
+    const child = spawn("git", ["http-backend"], {
+      env: {
+        ...process.env,
+        GIT_PROJECT_ROOT: gitRoot,
+        GIT_HTTP_EXPORT_ALL: "1",
+        PATH_INFO: url.pathname,
+        QUERY_STRING: url.search.slice(1),
+        REQUEST_METHOD: req.method ?? "GET",
+        CONTENT_TYPE: req.headers["content-type"] ?? "",
+        REMOTE_USER: fake.users.get(token)!.login,
+        REMOTE_ADDR: "127.0.0.1",
+        ...(req.headers["content-encoding"] ? { HTTP_CONTENT_ENCODING: req.headers["content-encoding"] } : {}),
+        ...(req.headers["git-protocol"] ? { GIT_PROTOCOL: String(req.headers["git-protocol"]) } : {}),
+      },
+    });
+    req.pipe(child.stdin);
+    const chunks: Buffer[] = [];
+    child.stdout.on("data", (c: Buffer) => chunks.push(c));
+    child.on("close", () => {
+      const out = Buffer.concat(chunks);
+      const split = out.indexOf("\r\n\r\n");
+      const headerEnd = split >= 0 ? split : out.indexOf("\n\n");
+      const gap = split >= 0 ? 4 : 2;
+      const headers: Record<string, string> = {};
+      let status = 200;
+      for (const line of out.subarray(0, headerEnd).toString().split(/\r?\n/)) {
+        const [key, ...rest] = line.split(":");
+        const value = rest.join(":").trim();
+        if (key?.toLowerCase() === "status") status = Number(value.split(" ")[0]);
+        else if (key) headers[key] = value;
+      }
+      res.writeHead(status, headers).end(out.subarray(headerEnd + gap));
+    });
+  }
+
+  if (gitRoot) mkdirSync(gitRoot, { recursive: true });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   fake.url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   return fake;

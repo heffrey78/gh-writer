@@ -3,6 +3,7 @@ import { sep } from "node:path";
 import { Hono, type Context } from "hono";
 import { streamSSE } from "hono/streaming";
 import { classifyGitError, GitFailure } from "./git.ts";
+import type { GitHub } from "./github.ts";
 import { LibraryError, type Library } from "./library.ts";
 
 /**
@@ -12,7 +13,7 @@ import { LibraryError, type Library } from "./library.ts";
  * DELETE /api/library/:id    forget a novel (its folder stays) → 204
  * POST   /api/library/clone  { repo, path? } → an event stream: "progress"…, then "done" { novel } or "error"
  */
-export function libraryRoutes(library: Library): Hono {
+export function libraryRoutes(library: Library, github?: GitHub): Hono {
   const routes = new Hono();
 
   routes.get("/", async (c) => c.json({ novels: await library.list(), notices: library.notices, folder: tilde(library.cloneDir) }));
@@ -70,6 +71,7 @@ export function libraryRoutes(library: Library): Hono {
       try {
         const novel = await library.clone(repo, {
           ...(path ? { into: path } : {}),
+          ...(github ? { auth: (url: string) => github.gitAuth(url) } : {}),
           signal: abort.signal,
           onProgress: ({ stage, progress, processed, total }) => {
             // git repeats lines while it works: send only what changed.

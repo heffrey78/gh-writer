@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import type { GitAuth } from "./git.ts";
 
 /*
  * The author's GitHub connection (D5): an OAuth App's device flow, or the gh CLI's account, with the
@@ -257,6 +258,31 @@ export class GitHub {
     const gh = await this.#ghAccount();
     if (!gh) throw new GitHubError("NO_GH", "The gh CLI isn't signed in to GitHub on this computer. Run gh auth login, or sign in with a code.");
     return this.#signIn(gh.token, gh.account);
+  }
+
+  /**
+   * Credentials for git, for an http(s) remote on this GitHub when signed in. Other hosts, ssh
+   * remotes, and signed-out use get none: git then uses the author's own setup, as it always has.
+   */
+  async gitAuth(url: string): Promise<GitAuth | undefined> {
+    let origin: string;
+    try {
+      const u = new URL(url);
+      if (u.protocol !== "https:" && u.protocol !== "http:") return undefined;
+      origin = u.origin;
+    } catch {
+      return undefined;
+    }
+    if (origin !== new URL(this.webUrl).origin) return undefined;
+    const token = await this.token();
+    return token ? { origin, token } : undefined;
+  }
+
+  /** Ask GitHub again whether the token is good (after git was refused with it): a refused one is forgotten. */
+  async recheck(): Promise<void> {
+    this.#account = undefined;
+    const token = await this.token();
+    if (token) await this.#who(token).catch(() => {});
   }
 
   /** Forget the token. gh-writer has no client secret, so it can't revoke it: github.com → Settings → Applications can. */

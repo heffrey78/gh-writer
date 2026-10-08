@@ -53,7 +53,7 @@ const HOST = "127.0.0.1";
 export async function createServer({ library, token = newToken(), port = 0, shutdownTimeout = 10_000, commit, sync, web, github = GitHub.fromEnv() }: ServerOptions = {}): Promise<RunningServer> {
   library ??= await Library.open();
   let boundPort = port;
-  const workspaces = new Workspaces(library, { ...(commit !== undefined ? { commit } : {}), ...(sync !== undefined ? { sync } : {}) });
+  const workspaces = new Workspaces(library, { ...(commit !== undefined ? { commit } : {}), ...(sync !== undefined ? { sync } : {}), github });
   const app = createApp({ token, port: () => boundPort, library, workspaces, github, ...(web ? { web } : {}) });
   const server = createHttpServer(getRequestListener(app.fetch));
 

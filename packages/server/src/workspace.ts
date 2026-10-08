@@ -9,6 +9,7 @@ import { ManuscriptOperations } from "./manuscript.ts";
 import { Committer, type CommitStatus, type CommitterOptions } from "./committer.ts";
 import { atomicWrite, hashText, isVisible, readText, writablePath, type TextFile, type WriteHooks } from "./files.ts";
 import type { Library } from "./library.ts";
+import type { GitHub } from "./github.ts";
 import { Syncer, type SyncerOptions, type SyncStatus } from "./sync.ts";
 
 /** A file that changed on disk. `hash` is null once the file is gone. */
@@ -28,6 +29,8 @@ export interface WorkspaceOptions {
   commit?: CommitterOptions | false;
   /** Sync with the remote; false turns it off. */
   sync?: SyncerOptions | false;
+  /** gh-writer's GitHub sign-in, used for GitHub remotes when there is one. */
+  github?: GitHub;
 }
 
 /**
@@ -59,11 +62,17 @@ export class NovelWorkspace {
   #drained?: () => void;
   #exclusive?: Promise<unknown>;
 
-  constructor(root: string, { commit = {}, sync = {} }: WorkspaceOptions = {}) {
+  constructor(root: string, { commit = {}, sync = {}, github }: WorkspaceOptions = {}) {
     this.root = root;
     this.committer = commit === false ? undefined : new Committer(root, commit);
     this.syncer =
-      sync === false ? undefined : new Syncer(root, sync, { ...(this.committer ? { committer: this.committer } : {}), exclusive: (fn) => this.exclusive(fn) });
+      sync === false
+        ? undefined
+        : new Syncer(root, sync, {
+            ...(this.committer ? { committer: this.committer } : {}),
+            exclusive: (fn) => this.exclusive(fn),
+            ...(github ? { auth: (url: string) => github.gitAuth(url), onAuthRefused: () => void github.recheck() } : {}),
+          });
     this.checkpoints = new Checkpoints(root, {
       // Checkpoints commit saved work even when background commits are off.
       committer: this.committer ?? new Committer(root),
