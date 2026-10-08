@@ -87,6 +87,10 @@ Clicking a cell (or Enter or Space) where an entry isn't listed adds it to the s
 
 **Sort** orders the rows by first appearance (the default), by how many scenes each is in (the number beside each name), or by name. An absence longer than a threshold (scenes or words, as in the swimlanes), between two appearances or after the last one, is shaded and listed under **Long absences** ("Mirela Kost: away for 1 scene (74 words) at “The Last Rivet”, and never back."). Sort and threshold live in the address.
 
+## Timeline
+
+**Timeline** (`/novels/:id/timeline`, also in the palette) shows the scenes and the off-page events of `bible/events.yaml` in story-time order, left to right and evenly spaced, with how much time passes between neighbours above them ("4 days later", "11 years later"). **Lanes** puts them in rows by point of view (events "off page"), plotline or location. Below, the scenes in reading order, each joined by a line to its place in time: a flashback's line runs back across the others, and its card is marked. Relative days are placed through `calendar.start` (see the format's *Story time*). **In two places at once** lists characters in two overlapping scenes or events at different places (the validator's `W_TIME_OVERLAP`); scenes without a time are listed apart, and **As a table** lists everything with its time, its place in the book and its lanes.
+
 ## Relationship graph
 
 **Graph** (`/novels/:id/graph`, also in the palette) shows characters as nodes and the relationships between them as labelled edges, coloured and dashed by their type's `style` (or a colour of their own when a type has none; symmetric types have no arrow). The **Story position** slider, or the scene picker beside it, moves through the book in reading order, and the edges are the relationships holding at that scene, so Ada and Ben are allies at "The Station" and rivals from "The Betrayal". The scene is kept in the address (`?at=sc_…`). Beside the graph, the same relationships are listed as sentences, which is also what a screen reader gets.

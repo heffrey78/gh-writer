@@ -23,6 +23,7 @@ import { CorkboardPage } from "./corkboard.tsx";
 import { OutlinePage } from "./outline.tsx";
 import { SwimlanesPage } from "../swimlanes/swimlanes-page.tsx";
 import { PresencePage } from "../presence/presence-page.tsx";
+import { TimelinePage } from "../timeline/timeline-page.tsx";
 import { SaveStatus } from "./save-status.tsx";
 import { useSpell } from "./spell.ts";
 import { SyncBadge } from "./sync-badge.tsx";
@@ -90,6 +91,7 @@ export function NovelPage() {
       { id: "novel.bible", title: "Story bible", group: "Go to", run: () => void navigate(`/novels/${novelId}/bible`) },
       { id: "novel.outline", title: "Outline", group: "Go to", run: () => void navigate(`/novels/${novelId}/outline`) },
       { id: "novel.corkboard", title: "Corkboard", group: "Go to", run: () => void navigate(`/novels/${novelId}/corkboard`) },
+      { id: "novel.timeline", title: "Timeline", group: "Go to", keywords: ["chronology", "story time", "flashback", "diagram"], run: () => void navigate(`/novels/${novelId}/timeline`) },
       { id: "novel.presence", title: "Presence matrix", group: "Go to", keywords: ["diagram", "characters", "themes", "locations"], run: () => void navigate(`/novels/${novelId}/presence`) },
       { id: "novel.swimlanes", title: "Plotline swimlanes", group: "Go to", keywords: ["diagram", "plotlines"], run: () => void navigate(`/novels/${novelId}/swimlanes`) },
       { id: "novel.graph", title: "Relationship graph", group: "Go to", keywords: ["diagram", "characters"], run: () => void navigate(`/novels/${novelId}/graph`) },
@@ -162,6 +164,7 @@ export function NovelPage() {
                 ["corkboard", "Corkboard"],
                 ["swimlanes", "Plotlines"],
                 ["presence", "Presence"],
+                ["timeline", "Timeline"],
                 ["graph", "Graph"],
               ].map(([path, label]) => (
                 <NavLink key={path} to={`/novels/${novelId}/${path}`} className={({ isActive }) => `rounded-md px-2 py-1 hover:bg-paper ${isActive ? "bg-accent-soft font-medium" : ""}`}>
@@ -199,6 +202,7 @@ export function NovelPage() {
                   </Suspense>
                 }
               />
+              <Route path="timeline" element={<TimelinePage novelId={novelId} novel={book} />} />
               <Route path="presence" element={<PresencePage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="swimlanes" element={<SwimlanesPage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="corkboard" element={<CorkboardPage novelId={novelId} novel={book} workspace={workspace} />} />
