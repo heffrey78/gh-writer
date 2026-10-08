@@ -363,7 +363,7 @@ export class Syncer {
   #failure(e: unknown): Outcome {
     if (e instanceof SyncFailure) return { kind: "failed", state: "error", error: { code: e.code, message: e.message } };
     const failure = classifyGitError(e);
-    const state = failure.code === "NETWORK" ? "offline" : failure.code === "AUTH" ? "needs-sign-in" : "error";
+    const state = failure.code === "NETWORK" ? "offline" : failure.code === "AUTH" || failure.code === "SCOPE" ? "needs-sign-in" : "error";
     return { kind: "failed", state, error: { code: failure.code, message: failure.message, ...(failure.detail ? { detail: failure.detail } : {}) } };
   }
 

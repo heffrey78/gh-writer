@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
@@ -7,6 +7,8 @@ import type { AddressInfo } from "node:net";
 export interface FakeUser {
   login: string;
   name?: string;
+  /** The token's OAuth scopes; by default all a novel needs. */
+  scopes?: string[];
 }
 
 export interface FakeRepo {
@@ -55,6 +57,7 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
   let slow = false;
   let expired = false;
   let deviceStarted = false;
+  let requestedScopes: string[] = [];
   const fake: FakeGitHub = {
     url: "",
     clientId,
@@ -73,6 +76,7 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
     close: () => new Promise((resolve) => server.close(() => resolve())),
   };
 
+  const scopesOf = (user: FakeUser) => user.scopes ?? ["repo", "workflow", "read:user"];
   const json = (res: ServerResponse, status: number, body: unknown) => res.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify(body));
   const read = (req: IncomingMessage) =>
     new Promise<string>((resolve) => {
@@ -96,6 +100,7 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
         if (form.get("client_id") !== clientId) return json(res, 401, { error: "incorrect_client_credentials", error_description: "The client_id is not valid." });
         deviceStarted = true;
         approved = denied = expired = false;
+        requestedScopes = (form.get("scope") ?? "").split(/[\s,]+/).filter(Boolean);
         return json(res, 200, { device_code: "device-123", user_code: fake.userCode, verification_uri: `${fake.url}/login/device`, expires_in: 900, interval });
       case "POST /login/oauth/access_token":
         if (form.get("client_id") !== clientId || form.get("device_code") !== "device-123" || !deviceStarted) return json(res, 200, { error: "incorrect_device_code" });
@@ -107,10 +112,11 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
         if (expired) return json(res, 200, { error: "expired_token" });
         if (!approved) return json(res, 200, { error: "authorization_pending" });
         deviceStarted = false;
-        fake.users.set(fake.deviceToken, { login, name: "Ada Writer" });
-        return json(res, 200, { access_token: fake.deviceToken, token_type: "bearer", scope: "repo,read:user" });
+        fake.users.set(fake.deviceToken, { login, name: "Ada Writer", scopes: requestedScopes });
+        return json(res, 200, { access_token: fake.deviceToken, token_type: "bearer", scope: requestedScopes.join(",") });
       case "GET /user":
         if (!user) return json(res, 401, { message: "Bad credentials" });
+        res.setHeader("X-OAuth-Scopes", scopesOf(user).join(", "));
         return json(res, 200, { login: user.login, name: user.name ?? null, avatar_url: `${fake.url}/avatars/${user.login}.png` });
       case "GET /user/repos": {
         if (!user) return json(res, 401, { message: "Bad credentials" });
@@ -173,6 +179,11 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
         REQUEST_METHOD: req.method ?? "GET",
         CONTENT_TYPE: req.headers["content-type"] ?? "",
         REMOTE_USER: fake.users.get(token)!.login,
+        // GitHub's rule, enforced by the pre-receive hook: no adding or changing workflows without the workflow scope.
+        FAKE_SCOPES: scopesOf(fake.users.get(token)!).join(" "),
+        GIT_CONFIG_COUNT: "1",
+        GIT_CONFIG_KEY_0: "core.hooksPath",
+        GIT_CONFIG_VALUE_0: join(gitRoot!, ".hooks"),
         REMOTE_ADDR: "127.0.0.1",
         ...(req.headers["content-encoding"] ? { HTTP_CONTENT_ENCODING: req.headers["content-encoding"] } : {}),
         ...(req.headers["git-protocol"] ? { GIT_PROTOCOL: String(req.headers["git-protocol"]) } : {}),
@@ -198,7 +209,28 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
     });
   }
 
-  if (gitRoot) mkdirSync(gitRoot, { recursive: true });
+  if (gitRoot) {
+    mkdirSync(join(gitRoot, ".hooks"), { recursive: true });
+    const hook = join(gitRoot, ".hooks", "pre-receive");
+    writeFileSync(
+      hook,
+      `#!/bin/sh
+case " $FAKE_SCOPES " in *" workflow "*) exit 0 ;; esac
+zero=0000000000000000000000000000000000000000
+while read old new ref; do
+  [ "$new" = "$zero" ] && continue
+  if [ "$old" = "$zero" ]; then files=$(git ls-tree -r --name-only "$new"); else files=$(git diff --name-only "$old" "$new"); fi
+  file=$(printf '%s\\n' "$files" | grep '^\\.github/workflows/' | head -n 1)
+  if [ -n "$file" ]; then
+    echo "refusing to allow an OAuth App to create or update workflow \\\`$file\\\` without \\\`workflow\\\` scope" >&2
+    exit 1
+  fi
+done
+exit 0
+`,
+    );
+    chmodSync(hook, 0o755);
+  }
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   fake.url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   return fake;

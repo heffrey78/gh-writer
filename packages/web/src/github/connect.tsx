@@ -54,7 +54,7 @@ export function AccountMenu() {
   const item = "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent-soft";
 
   if (!github.data) return null;
-  const { signedIn, account, offline } = github.data;
+  const { signedIn, account, offline, missingScopes } = github.data;
   if (!signedIn) {
     return (
       <Button
@@ -74,7 +74,12 @@ export function AccountMenu() {
     <span ref={setAnchor}>
       <DropdownMenu.Root modal={false}>
         <DropdownMenu.Trigger asChild>
-          <Button size="sm" variant="ghost" aria-label={login ? `GitHub account: ${login}` : "GitHub account"}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className={cn(missingScopes && "text-warn")}
+            aria-label={`${login ? `GitHub account: ${login}` : "GitHub account"}${missingScopes ? " (needs reconnecting)" : ""}`}
+          >
             <GitHubMark className="size-4" />
             <span className="max-w-32 truncate">{login ?? "GitHub"}</span>
           </Button>
@@ -91,6 +96,16 @@ export function AccountMenu() {
               )}
               {offline && <span className="block text-xs text-muted">GitHub can't be reached right now.</span>}
             </DropdownMenu.Label>
+            {missingScopes && (
+              <>
+                <p className="max-w-64 px-2 pb-1.5 text-xs text-warn">
+                  This sign-in doesn't allow {missingScopes.join(" and ")}, which gh-writer needs to put novels on GitHub. Reconnect to grant it.
+                </p>
+                <DropdownMenu.Item className={item} onSelect={() => show()}>
+                  Reconnect GitHub…
+                </DropdownMenu.Item>
+              </>
+            )}
             <DropdownMenu.Separator className="my-1 h-px bg-rule" />
             <DropdownMenu.Item className={item} onSelect={() => signOut.mutate()}>
               Sign out of GitHub

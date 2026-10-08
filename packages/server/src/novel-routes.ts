@@ -105,7 +105,10 @@ export function novelRoutes(library: Library, workspaces: Workspaces, github?: G
       await library.add(c.var.ws.root);
       return c.json({ remote, status: await c.var.ws.syncStatus() });
     } catch (e) {
-      if (e instanceof PublishError || e instanceof GitHubError) return c.json({ code: e.code, error: e.message }, e instanceof GitHubError && e.code === "GITHUB" ? 502 : 400);
+      if (e instanceof PublishError || e instanceof GitHubError) {
+        const detail = e instanceof PublishError ? e.detail : undefined;
+        return c.json({ code: e.code, error: e.message, ...(detail ? { detail } : {}) }, e instanceof GitHubError && e.code === "GITHUB" ? 502 : 400);
+      }
       if (!unreachable(e)) throw e;
       return c.json({ code: "NETWORK", error: "Couldn't reach GitHub. Check your connection and try again." }, 502);
     }

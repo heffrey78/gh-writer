@@ -24,9 +24,9 @@ afterAll(async () => {
 });
 
 /** A server with a new local novel, signed in to the fake GitHub unless told otherwise. */
-async function setUp({ signedIn = true } = {}) {
+async function setUp({ signedIn = true, token = TOKEN } = {}) {
   const store = memoryStore();
-  if (signedIn) await store.set(TOKEN);
+  if (signedIn) await store.set(token);
   const github = new GitHub({ clientId: fake.clientId, webUrl: fake.url, apiUrl: fake.url, store, gh: async () => undefined });
   const library = await Library.open({ configDir: fresh("config"), cloneDir: fresh("novels") });
   const novel = await library.create({ title: "Salt Road" });
@@ -93,7 +93,7 @@ describe("POST /api/novels/:id/publish", () => {
       fake.brokenNextRepo = true;
       const failed = await s.post({ name: "retry-me" });
       expect(failed.status).toBe(400);
-      expect(JSON.parse(failed.body)).toMatchObject({ code: "PUSH_FAILED", error: expect.stringContaining("Try again") });
+      expect(JSON.parse(failed.body)).toMatchObject({ code: "PUSH_FAILED", error: expect.stringContaining("try again: it goes to the same repository") });
 
       // GitHub's side recovers; the author tries again.
       execFileSync("git", ["init", "--quiet", "--bare", "--initial-branch=main", fake.repoPath("ada", "retry-me")]);
@@ -101,6 +101,28 @@ describe("POST /api/novels/:id/publish", () => {
       expect(ok.status, ok.body).toBe(200);
       expect(fake.repos.filter((r) => r.name === "retry-me")).toHaveLength(1);
       expect(bareLog("retry-me")).toBe("Start Salt Road");
+    } finally {
+      await s.server.close();
+    }
+  });
+
+  it("explains a sign-in GitHub won't let push the novel's workflows, and pushes once it may", async () => {
+    const narrow = "gho_no_workflow";
+    fake.users.set(narrow, { login: "ada", scopes: ["repo", "read:user"] });
+    const s = await setUp({ token: narrow });
+    try {
+      const failed = await s.post({ name: "needs-workflow" });
+      expect(failed.status).toBe(400);
+      const body = JSON.parse(failed.body) as { code: string; error: string; detail: string };
+      expect(body).toMatchObject({ code: "PUSH_FAILED", error: expect.stringContaining("without the workflow permission") });
+      expect(body.detail).toContain("without `workflow` scope");
+
+      // Reconnected with the permission: trying again pushes to the same repository.
+      fake.users.set(narrow, { login: "ada" });
+      const ok = await s.post({ name: "needs-workflow" });
+      expect(ok.status, ok.body).toBe(200);
+      expect(bareLog("needs-workflow")).toBe("Start Salt Road");
+      expect(fake.repos.filter((r) => r.name === "needs-workflow")).toHaveLength(1);
     } finally {
       await s.server.close();
     }

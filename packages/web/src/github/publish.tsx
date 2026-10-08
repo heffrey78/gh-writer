@@ -8,7 +8,7 @@ import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { Modal } from "../ui/dialog.tsx";
 import { Field } from "../ui/field.tsx";
-import { GitHubMark, useConnect, useGitHub } from "./connect.tsx";
+import { GitHubMark, githubKey, useConnect, useGitHub } from "./connect.tsx";
 
 /** The Put on GitHub dialog, for one novel, opened from its sync badge or its book on the shelf. */
 export const usePublish = create<{ novel: { id: string; folder: string } | undefined; show: (novel: { id: string; folder: string }) => void; hide: () => void }>((set) => ({
@@ -42,6 +42,8 @@ function Publish({ novel, onClose }: { novel: { id: string; folder: string }; on
       await queryClient.invalidateQueries({ queryKey: keys.library });
       onClose();
     },
+    // A refusal may have been for the sign-in: show what the account lacks.
+    onError: () => void queryClient.invalidateQueries({ queryKey: githubKey }),
   });
   const connect = () => {
     onClose();
@@ -54,6 +56,9 @@ function Publish({ novel, onClose }: { novel: { id: string; folder: string }; on
   const signedIn = github.data?.signedIn;
   const login = github.data?.account?.login;
   const needsSignIn = publish.error instanceof ApiError && publish.error.code === "NO_SIGN_IN";
+  // GitHub refused the push for a permission the sign-in lacks: reconnecting grants it.
+  const missing = github.data?.missingScopes;
+  const needsReconnect = Boolean(missing) || (publish.error instanceof ApiError && /without `?workflow`? scope/.test(publish.error.detail ?? ""));
 
   return (
     <Modal title="Put on GitHub" onClose={onClose}>
@@ -89,12 +94,20 @@ function Publish({ novel, onClose }: { novel: { id: string; folder: string }; on
               <span className="block text-xs text-muted">Only you, and people you invite, can see it. Untick to make it public.</span>
             </span>
           </label>
+          {missing && !publish.isError && (
+            <div className="grid justify-items-start gap-2 rounded-md border border-warn/40 bg-warn-soft px-3 py-2 text-sm">
+              <p>Your GitHub sign-in doesn't allow {missing.join(" and ")}, which GitHub requires to push a novel's workflows. Reconnect first.</p>
+              <Button size="sm" onClick={connect}>
+                Reconnect GitHub
+              </Button>
+            </div>
+          )}
           {publish.isError && (
-            <ErrorAlert title="Couldn't put it on GitHub">
+            <ErrorAlert title="Couldn't put it on GitHub" detail={publish.error instanceof ApiError ? publish.error.detail : undefined}>
               {publish.error.message}
-              {needsSignIn && (
+              {(needsSignIn || needsReconnect) && (
                 <Button size="sm" className="mt-2" onClick={connect}>
-                  Connect GitHub
+                  {needsSignIn ? "Connect GitHub" : "Reconnect GitHub"}
                 </Button>
               )}
             </ErrorAlert>

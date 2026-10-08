@@ -245,8 +245,19 @@ describe("classifyGitError", () => {
     ["fatal: unable to access 'https://github.com/a/b.git/': Could not resolve host: github.com", "NETWORK"],
     ["spawn git ENOENT", "GIT_MISSING"],
     ["fatal: something unexpected", "GIT"],
+    [
+      "To https://github.com/a/b.git\n ! [remote rejected] main -> main (refusing to allow an OAuth App to create or update workflow `.github/workflows/validate.yml` without `workflow` scope)\nerror: failed to push some refs to 'https://github.com/a/b.git'",
+      "SCOPE",
+    ],
   ])("%s → %s", (message, code) => {
     expect(classifyGitError(new Error(message)).code).toBe(code);
+  });
+
+  it("says why a push failed, not that it failed", () => {
+    const rejected = "To https://github.com/a/b.git\n ! [remote rejected] main -> main (protected branch hook declined)\nerror: failed to push some refs to 'x'";
+    expect(classifyGitError(new Error(rejected)).message).toBe("git failed: protected branch hook declined");
+    const hook = "remote: error: GH006: Protected branch update failed.\nTo x\n ! [remote rejected] main -> main (pre-receive hook declined)\nerror: failed to push some refs to 'x'";
+    expect(classifyGitError(new Error(hook)).message).toBe("git failed: GH006: Protected branch update failed.");
   });
 });
 

@@ -15,6 +15,8 @@ export interface GitHubStatus {
   expired?: boolean;
   /** Signed in, but GitHub can't be reached. */
   offline?: boolean;
+  /** Signed in, but without permissions gh-writer needs: reconnect to grant them. */
+  missingScopes?: string[];
   /** Why the system keychain couldn't be read. */
   keychain?: string;
 }
@@ -251,8 +253,10 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
     } catch (e) {
       throw new ApiError(0, "UNREACHABLE", `Couldn't reach gh-writer: ${e instanceof Error ? e.message : String(e)}`);
     }
-    const data = (res.status === 204 ? undefined : await res.json().catch(() => undefined)) as T & { code?: string; error?: string };
-    if (!res.ok && !(res.status === 409 && passing !== undefined && data?.code === passing)) throw new ApiError(res.status, data?.code ?? "HTTP", data?.error ?? `${method} ${path}: HTTP ${res.status}`);
+    const data = (res.status === 204 ? undefined : await res.json().catch(() => undefined)) as T & { code?: string; error?: string; detail?: string };
+    if (!res.ok && !(res.status === 409 && passing !== undefined && data?.code === passing)) {
+      throw new ApiError(res.status, data?.code ?? "HTTP", data?.error ?? `${method} ${path}: HTTP ${res.status}`, typeof data?.detail === "string" ? data.detail : undefined);
+    }
     return { status: res.status, data };
   }
 

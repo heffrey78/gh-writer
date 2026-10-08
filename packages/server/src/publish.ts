@@ -14,11 +14,14 @@ export type PublishErrorCode = "BAD_NAME" | "HAS_REMOTE" | "NAME_TAKEN" | "PUSH_
 
 export class PublishError extends Error {
   readonly code: PublishErrorCode;
+  /** git's own output, when the push failed. */
+  readonly detail: string | undefined;
 
-  constructor(code: PublishErrorCode, message: string) {
+  constructor(code: PublishErrorCode, message: string, detail?: string) {
     super(message);
     this.name = "PublishError";
     this.code = code;
+    this.detail = detail;
   }
 }
 
@@ -56,19 +59,20 @@ export async function publish(ws: NovelWorkspace, github: GitHub, { name, descri
     await g.raw(["remote", "add", "origin", remote]);
   }
 
-  const failed = (message: string) =>
-    new PublishError("PUSH_FAILED", `The repository is on GitHub (${remote}), but sending the novel to it failed: ${message} Try again: it goes to the same repository.`);
+  const failed = (message: string, detail?: string) =>
+    new PublishError("PUSH_FAILED", `The repository is on GitHub (${remote}), but sending the novel to it failed. ${message} Then try again: it goes to the same repository.`, detail);
   if (ws.syncer) {
     // A sync that started before the remote was added wouldn't push: sync again.
     const synced = await ws.syncer.syncAgain();
-    if (synced.error) throw failed(synced.error.message);
+    if (synced.error) throw failed(synced.error.message, synced.error.detail);
     if (synced.state === "local") throw failed("the novel didn't see its new remote.");
   } else {
     const branch = (await g.raw(["symbolic-ref", "--quiet", "--short", "HEAD"])).trim();
     try {
       await git(ws.root, undefined, undefined, await github.gitAuth(remote)).raw(["push", "--quiet", "--set-upstream", "origin", `HEAD:refs/heads/${branch}`]);
     } catch (e) {
-      throw failed(classifyGitError(e).message);
+      const failure = classifyGitError(e);
+      throw failed(failure.message, failure.detail);
     }
   }
   return { remote };

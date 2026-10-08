@@ -10,8 +10,13 @@ import type { GitAuth } from "./git.ts";
 /** The gh-writer OAuth App's client ID (#100): public, and shipped in the app. GH_WRITER_GITHUB_CLIENT_ID overrides it. */
 export const GITHUB_CLIENT_ID: string | undefined = "Ov23lidsTX79zar9Gxxv";
 
-/** classic OAuth scopes: private repositories (contents, issues, creating them), and who the author is. */
-export const SCOPES = ["repo", "read:user"];
+/**
+ * Classic OAuth scopes: private repositories (contents, issues, creating them); the novel's GitHub
+ * workflows, which GitHub won't let a push add or change without `workflow`; and who the author is.
+ */
+export const SCOPES = ["repo", "workflow", "read:user"];
+/** What a push of a novel needs: a token without them can't publish or sync it. */
+const NEEDED = ["repo", "workflow"];
 
 const SERVICE = "gh-writer";
 /** A request to GitHub that takes longer is given up (as offline). */
@@ -76,6 +81,12 @@ const noKeychain = () =>
     "gh-writer keeps your GitHub sign-in in the system keychain, and couldn't reach it. On Linux, install and unlock a Secret Service keyring (GNOME Keyring or KWallet), then try again.",
   );
 
+/** The status of a signed-in account: who, and any permission gh-writer needs that the token lacks. */
+function signedInStatus({ scopes, ...account }: GitHubAccount, deviceFlow: boolean): AccountStatus {
+  const missing = scopes ? NEEDED.filter((s) => !scopes.includes(s)) : [];
+  return { signedIn: true, account, deviceFlow, ...(missing.length ? { missingScopes: missing } : {}) };
+}
+
 /** Whether `e` is fetch failing to reach GitHub (no network, refused, timed out) rather than a bug. */
 export function unreachable(e: unknown): boolean {
   return e instanceof TypeError || (e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError"));
@@ -104,6 +115,8 @@ export interface GitHubAccount {
   login: string;
   name?: string;
   avatarUrl?: string;
+  /** The token's scopes as GitHub reports them (X-OAuth-Scopes), when it does. */
+  scopes?: string[];
 }
 
 /** What the app shows about the connection. */
@@ -121,6 +134,8 @@ export interface AccountStatus {
   offline?: boolean;
   /** Why the keychain couldn't be read, when it couldn't. */
   keychain?: string;
+  /** Signed in, but without permissions gh-writer needs (e.g. an older sign-in without `workflow`): reconnect. */
+  missingScopes?: string[];
 }
 
 export interface DeviceCode {
@@ -208,7 +223,7 @@ export class GitHub {
     if (token) {
       try {
         const account = await this.#who(token);
-        if (account) return { signedIn: true, account, deviceFlow };
+        if (account) return signedInStatus(account, deviceFlow);
       } catch {
         // Offline, or GitHub is down: still signed in, as far as anyone knows.
         return { signedIn: true, ...(this.#account ? { account: this.#account } : {}), deviceFlow, offline: true };
@@ -345,7 +360,7 @@ export class GitHub {
     await this.#store.set(token);
     this.#account = account;
     this.#expired = false;
-    return { signedIn: true, account, deviceFlow: Boolean(this.clientId) };
+    return signedInStatus(account, Boolean(this.clientId));
   }
 
   /** Who the token belongs to; undefined (and the token forgotten) when GitHub refuses it. */
@@ -358,7 +373,13 @@ export class GitHub {
     }
     if (!res.ok) throw new GitHubError("GITHUB", `GitHub answered ${res.status} when asked who you are.`);
     const user = (await res.json()) as { login: string; name?: string | null; avatar_url?: string };
-    const account: GitHubAccount = { login: user.login, ...(user.name ? { name: user.name } : {}), ...(user.avatar_url ? { avatarUrl: user.avatar_url } : {}) };
+    const scopes = res.headers.get("x-oauth-scopes");
+    const account: GitHubAccount = {
+      login: user.login,
+      ...(user.name ? { name: user.name } : {}),
+      ...(user.avatar_url ? { avatarUrl: user.avatar_url } : {}),
+      ...(scopes !== null ? { scopes: scopes.split(",").map((x) => x.trim()).filter(Boolean) } : {}),
+    };
     if (remember) this.#account = account;
     return account;
   }

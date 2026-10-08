@@ -35,7 +35,7 @@ describe("GitHub", () => {
     const code = await github.startDevice();
     results.push(code);
     expect(code).toEqual({ userCode: fake.userCode, verificationUri: `${fake.url}/login/device`, expiresIn: 900, interval: 0 });
-    expect(fake.requests.at(-1)?.body).toContain("scope=repo+read%3Auser");
+    expect(fake.requests.at(-1)?.body).toContain("scope=repo+workflow+read%3Auser");
 
     results.push(await github.pollDevice());
     expect(results.at(-1)).toEqual({ status: "pending", interval: 0 });
@@ -126,6 +126,16 @@ describe("GitHub", () => {
     const broken: TokenStore = { get: () => Promise.reject(new Error("no keychain here")), set: () => Promise.reject(new Error("no")), delete: () => Promise.reject(new Error("no")) };
     const { github } = connect({ store: broken });
     expect(await github.status()).toEqual({ signedIn: false, deviceFlow: true, keychain: "no keychain here" });
+  });
+});
+
+describe("scopes", () => {
+  it("says when a sign-in lacks a permission a novel needs", async () => {
+    const token = "gho_without_workflow";
+    fake.users.set(token, { login: "ada", scopes: ["repo", "read:user"] });
+    const store = memoryStore();
+    await store.set(token);
+    expect(await connect({ store }).github.status()).toEqual({ signedIn: true, deviceFlow: true, account: { login: "ada", avatarUrl: `${fake.url}/avatars/ada.png` }, missingScopes: ["workflow"] });
   });
 });
 

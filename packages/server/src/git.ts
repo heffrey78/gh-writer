@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { simpleGit, type SimpleGit, type SimpleGitProgressEvent } from "simple-git";
 
 /** Stable codes for what went wrong, so the UI can say what to do. */
-export type GitErrorCode = "AUTH" | "NOT_FOUND" | "NETWORK" | "REJECTED" | "DESTINATION_EXISTS" | "GIT_MISSING" | "BAD_REPO" | "GIT";
+export type GitErrorCode = "AUTH" | "SCOPE" | "NOT_FOUND" | "NETWORK" | "REJECTED" | "DESTINATION_EXISTS" | "GIT_MISSING" | "BAD_REPO" | "GIT";
 
 export class GitFailure extends Error {
   readonly code: GitErrorCode;
@@ -22,6 +22,9 @@ const GUIDANCE: Record<Exclude<GitErrorCode, "GIT">, string> = {
     "GitHub didn't accept your credentials, or none are set up. Connect gh-writer to GitHub (Connect GitHub, at the top of the page); or for an https:// address, run `gh auth setup-git` " +
     "(or sign in with Git Credential Manager); for a git@github.com: address, add an SSH key to GitHub " +
     "(https://github.com/settings/keys) and load it with ssh-add. Then try again.",
+  SCOPE:
+    "GitHub won't let gh-writer add or change the novel's GitHub workflows (.github/workflows) without the workflow permission. " +
+    "Reconnect to GitHub with a code to grant it: Sign out of GitHub, then Connect GitHub. (With gh's account, run `gh auth refresh -s workflow` first.)",
   NOT_FOUND: "No repository at that address. Check the owner and name, and that your GitHub account can see it.",
   NETWORK: "Couldn't reach the server. Check your connection and try again.",
   REJECTED: "The remote has changes this copy doesn't have yet: bring them in, then push again.",
@@ -34,6 +37,8 @@ const GUIDANCE: Record<Exclude<GitErrorCode, "GIT">, string> = {
 // moved is REJECTED; one refused by the remote itself ("[remote rejected]", e.g. a protected branch) is GIT.
 const PATTERNS: [GitErrorCode, RegExp][] = [
   ["GIT_MISSING", /spawn git ENOENT|git: (command )?not found/i],
+  // GitHub refusing an OAuth token without the workflow scope a push that touches .github/workflows.
+  ["SCOPE", /without `?workflow`? scope/i],
   [
     "AUTH",
     /Authentication failed|could not read (Username|Password)|terminal prompts disabled|Permission denied \(publickey|Host key verification failed|returned error: 40[13]|invalid credentials|denied to /i,
@@ -54,7 +59,21 @@ export function classifyGitError(e: unknown): GitFailure {
   for (const [code, pattern] of PATTERNS) {
     if (pattern.test(detail)) return new GitFailure(code, GUIDANCE[code as Exclude<GitErrorCode, "GIT">], detail);
   }
-  return new GitFailure("GIT", `git failed: ${detail.split("\n").findLast((l) => l.trim()) ?? detail}`, detail);
+  return new GitFailure("GIT", `git failed: ${reason(detail)}`, detail);
+}
+
+/**
+ * The line of git's output that says why: a remote's refusal ("! [remote rejected] main -> main (why)")
+ * or what it printed ("remote: …"), rather than the summary git ends with ("failed to push some refs").
+ */
+function reason(detail: string): string {
+  const lines = detail.split("\n").map((l) => l.trim()).filter(Boolean);
+  const rejected = lines.find((l) => /\[remote rejected\]/.test(l));
+  const why = rejected && /\((.+)\)\s*$/.exec(rejected)?.[1];
+  if (why && !/^pre-receive hook declined$/.test(why)) return why;
+  const remote = lines.find((l) => /^remote: \S/.test(l) && !/^remote: (error: )?$/.test(l));
+  if (remote) return remote.replace(/^remote: (error: )?/, "");
+  return lines.findLast((l) => !/failed to push some refs/.test(l)) ?? lines.at(-1) ?? detail;
 }
 
 const OWNER_REPO = /^([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))\/([A-Za-z0-9._-]{1,100})$/;

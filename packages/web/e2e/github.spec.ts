@@ -212,3 +212,43 @@ test("clones by picking from the author's repositories", async ({ page, app }) =
   await clone.getByRole("button", { name: "Clone", exact: true }).click();
   await expect(page).toHaveTitle("The Bridge at Varn · gh-writer");
 });
+
+test("a sign-in without the workflow permission: publishing says so, and reconnecting pushes to the same repository", async ({ page, app }) => {
+  // gh's account, signed in without `workflow`, as gh's own sign-in often is.
+  const bin = join(app.home, "bin");
+  mkdirSync(bin);
+  writeFileSync(join(bin, "gh"), "#!/bin/sh\n[ \"$1 $2\" = 'auth token' ] && echo gho_narrow && exit 0\nexit 1\n");
+  chmodSync(join(bin, "gh"), 0o755);
+  app.github.users.set("gho_narrow", { login: "ada", scopes: ["repo", "read:org"] });
+  app.env.PATH = `${bin}${delimiter}${app.env.PATH}`;
+  await app.restart();
+  await launch(page, app);
+  await connectButton(page).click();
+  await dialog(page).getByRole("button", { name: "Use gh's account (ada)" }).click();
+  await expect(page.getByRole("button", { name: "GitHub account: ada (needs reconnecting)" })).toBeVisible();
+
+  const novel = await newNovel(page, app, "Bingo Parlor");
+  await page.goto(`${app.url}/novels/${novel.id}`);
+  await badge(page).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Put on GitHub…" }).click();
+  const publish = page.getByRole("dialog", { name: "Put on GitHub" });
+  await expect(publish).toContainText("doesn't allow workflow");
+  // Pushed anyway: GitHub refuses the workflows, and the dialog says why.
+  await publish.getByRole("button", { name: "Create and push" }).click();
+  const alert = publish.getByRole("alert");
+  await expect(alert).toContainText("without the workflow permission");
+  await alert.getByText("Details").click();
+  await expect(alert.locator("pre")).toContainText("without `workflow` scope");
+  await axe(page);
+
+  await alert.getByRole("button", { name: "Reconnect GitHub" }).click();
+  await signInWithCode(page, app);
+  // Back in the dialog, signed in again with the permission.
+  await expect(publish).not.toContainText("doesn't allow workflow");
+  await publish.getByRole("button", { name: "Create and push" }).click();
+  await expect(publish).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "GitHub account: ada", exact: true })).toBeVisible();
+  await expect(badge(page)).toHaveAccessibleName("Sync: Synced");
+  expect(app.github.repos.filter((r) => r.name === "bingo-parlor")).toHaveLength(1);
+  expect(app.git(app.github.repoPath("ada", "bingo-parlor"), "log", "--format=%s", "main").trim()).toBe("Start Bingo Parlor");
+});
