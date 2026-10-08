@@ -2,6 +2,7 @@
 import { parseArgs } from "node:util";
 import { newId, SCHEMA_VERSION } from "@gh-writer/core";
 import { runServe } from "./serve-command.ts";
+import { runSnapshots } from "./snapshots-command.ts";
 import { runValidate } from "./validate-command.ts";
 
 const USAGE = `Usage: gh-writer <command> [options]
@@ -13,6 +14,8 @@ Commands:
       --no-open             Print the URL without opening a browser
       --sync-every <min>    Sync with GitHub every <min> minutes (default 5; 0: only on demand)
   validate [dir] [--json]   Check a novel repository (default: current directory)
+  snapshots [dir] [--check] Write the diagram snapshots (diagrams/*.svg, diagrams/README.md);
+                            with --check, only report whether they're current (exit 1 if not)
   new-id <prefix>           Print a new random ID, e.g. "gh-writer new-id char"
 
 Options:
@@ -27,6 +30,7 @@ async function main(argv: string[]): Promise<number> {
     allowNegative: true,
     options: {
       json: { type: "boolean" },
+      check: { type: "boolean" },
       port: { type: "string" },
       "sync-every": { type: "string" },
       open: { type: "boolean", default: true },
@@ -61,6 +65,8 @@ async function main(argv: string[]): Promise<number> {
     }
     case "validate":
       return runValidate(rest[0] ?? ".", { json: values.json });
+    case "snapshots":
+      return runSnapshots(rest[0] ?? ".", { check: values.check ?? false });
     case "new-id": {
       const prefix = rest[0];
       if (!prefix || !/^[a-z]{2,8}$/.test(prefix)) {

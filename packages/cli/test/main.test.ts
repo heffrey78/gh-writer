@@ -56,6 +56,35 @@ describe("gh-writer validate", () => {
   });
 });
 
+describe("gh-writer snapshots", () => {
+  it("writes the diagrams, then has nothing to do; a relationship change rewrites its snapshots and nothing else", () => {
+    const novel = join(tmp, "snapshots");
+    cpSync(sample, novel, { recursive: true });
+    const first = run(main, "snapshots", novel);
+    expect(first.code).toBe(0);
+    expect(first.out).toContain("Wrote diagrams/relationships.svg, diagrams/plotlines.svg, diagrams/presence-characters.svg, diagrams/presence-themes.svg, diagrams/timeline.svg, diagrams/README.md");
+    expect(readFileSync(join(novel, "diagrams/README.md"), "utf8")).toMatch(/^# Diagrams of The Bridge at Varn\n/);
+    expect(run(main, "snapshots", novel).out).toContain("Diagram snapshots are up to date.");
+    expect(run(main, "snapshots", novel, "--check").code).toBe(0);
+
+    // Ben and Ada end the book as rivals, not allies.
+    const rels = join(novel, "bible/relationships.yaml");
+    writeFileSync(rels, readFileSync(rels, "utf8").replace("    type: allies\n    since: sc_r1vet8", "    type: rivals\n    since: sc_r1vet8"));
+    const check = run(main, "snapshots", novel, "--check");
+    expect(check.code).toBe(1);
+    expect(check.out).toContain("Out of date: diagrams/relationships.svg, diagrams/README.md");
+    const again = run(main, "snapshots", novel);
+    expect(again.out).toContain("Wrote diagrams/relationships.svg, diagrams/README.md");
+    expect(readFileSync(join(novel, "diagrams/README.md"), "utf8")).toContain('-.-|"Rivals with"|');
+  });
+
+  it("says so when there's no novel", () => {
+    const r = run(main, "snapshots", tmp);
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("No novel here");
+  });
+});
+
 describe("gh-writer serve", () => {
   it("opens the novel, prints a launch URL with a token, serves it, and exits cleanly on SIGTERM", async () => {
     const child = spawn("node", [main, "serve", sample, "--no-open"], { env: env() });
