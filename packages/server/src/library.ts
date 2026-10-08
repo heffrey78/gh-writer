@@ -99,7 +99,8 @@ export class Library {
   }
 
   /** Check that `dir` is a git repository holding novel.yaml, and add it (or refresh its entry). */
-  async add(dir: string): Promise<LibraryEntry> {
+  async add(folder: string): Promise<LibraryEntry> {
+    const dir = expandHome(folder);
     const info = await stat(dir).catch(() => undefined);
     if (!info?.isDirectory()) throw new LibraryError("NOT_A_DIRECTORY", `${resolve(dir)} isn't a folder.`);
     const path = await realpath(dir);
@@ -149,7 +150,7 @@ export class Library {
   /** Clone a novel with the system git and add it. A failed clone leaves no folder behind. */
   async clone(repo: string, { into, onProgress, signal }: CloneOptions = {}): Promise<LibraryEntry> {
     const url = cloneUrl(repo);
-    const dest = resolve(into ?? join(this.cloneDir, repoName(url)));
+    const dest = resolve(into ? expandHome(into) : join(this.cloneDir, repoName(url)));
     const existing = await readdir(dest).catch(() => undefined);
     if (existing?.length) throw classifyGitError(new Error(`destination path '${dest}' already exists and is not an empty directory`));
     const cleanUp = () => (existing ? rm(dest, { recursive: true, force: true }).then(() => mkdir(dest)) : rm(dest, { recursive: true, force: true }));
@@ -213,4 +214,15 @@ function withoutCredentials(url: string): string {
 function isEntry(n: unknown): n is LibraryEntry {
   const e = n as LibraryEntry;
   return typeof e === "object" && e !== null && typeof e.id === "string" && typeof e.path === "string" && typeof e.title === "string" && typeof e.lastOpened === "string";
+}
+
+/**
+ * A path as a person types it: a leading ~ is their home folder, as in a shell. Without this,
+ * "~/gh-writer/novel" would be a folder named "~" wherever gh-writer happened to start.
+ */
+export function expandHome(path: string): string {
+  const p = path.trim();
+  if (p === "~") return homedir();
+  if (p.startsWith("~/") || p.startsWith("~\\")) return join(homedir(), p.slice(2));
+  return p;
 }

@@ -2,10 +2,11 @@ import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { classifyGitError, cloneUrl, createServer, GitFailure, Library, LibraryError, sessionCookie, type LibraryEntry } from "../src/index.ts";
+import { classifyGitError, cloneUrl, createServer, expandHome, GitFailure, Library, LibraryError, sessionCookie, type LibraryEntry } from "../src/index.ts";
 import { gitIn, novelRepo as novelRepoIn, sample, scratch } from "./fixtures.ts";
 import { send, sseEvents } from "./http.ts";
 
@@ -192,6 +193,16 @@ describe("Library.clone", () => {
       const library = await openLibrary();
       await expect(library.clone(url, { into: fresh("clone") })).rejects.toMatchObject({ code: "AUTH" });
     });
+  });
+});
+
+describe("expandHome", () => {
+  it("reads a leading ~ as the home folder, as a shell does, and leaves other paths alone", () => {
+    expect(expandHome("~")).toBe(homedir());
+    expect(expandHome("~/gh-writer/varn")).toBe(join(homedir(), "gh-writer/varn"));
+    expect(expandHome("  ~/novels ")).toBe(join(homedir(), "novels"));
+    expect(expandHome("/srv/novels/~draft")).toBe("/srv/novels/~draft");
+    expect(expandHome("relative/~/x")).toBe("relative/~/x");
   });
 });
 
