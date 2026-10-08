@@ -2,6 +2,7 @@ import { idPrefix, STRUCTURE_PREFIXES } from "./ids.ts";
 import { loadNovel } from "./load.ts";
 import { allRecords, mentions, type Novel, type RecordRef } from "./model.ts";
 import type { FileSource } from "./source.ts";
+import { overlaps, storyTimeline, type TimelineItem } from "./time.ts";
 import type { Diagnostic, Severity } from "./types.ts";
 
 /** Every diagnostic code, with its severity. docs/format/v1.md documents each one. */
@@ -29,6 +30,7 @@ export const RULES: Readonly<Record<string, Severity>> = {
   W_POV_NOT_PRESENT: "warning",
   W_REL_SELF: "warning",
   W_LAYOUT_UNKNOWN: "warning",
+  W_TIME_OVERLAP: "warning",
 };
 
 export interface ValidationResult {
@@ -126,6 +128,18 @@ export function validateNovel(novel: Novel): Diagnostic[] {
       if (!typeByKey.has(k)) push("error", "E_ENTITY_TYPE", "novel.yaml", `Relationship type "${t.key}" refers to unknown entity type "${k}"`, { pointer: `/relationship_types/${i}` });
     }
   });
+
+  // Story time: someone in two places at once.
+  const entityName = (id: string) => novel.entities.find((e) => e.id === id)?.name ?? id;
+  const where = (i: TimelineItem) => {
+    const locations = i.kind === "scene" ? i.scene.locations : (i.event.locations ?? []);
+    const what = i.kind === "scene" ? `“${i.scene.title}”` : `the event “${i.event.title}”`;
+    return `at ${locations.map(entityName).join(" and ")} in ${what}`;
+  };
+  for (const o of overlaps(storyTimeline(novel))) {
+    const file = o.a.kind === "scene" ? o.a.scene.file : o.a.event.file;
+    push("warning", "W_TIME_OVERLAP", file, `${entityName(o.character)} is ${where(o.a)} and ${where(o.b)} at the same time`);
+  }
 
   // Diagram layouts: positions for records that no longer exist are harmless, but stale.
   for (const [name, layout] of Object.entries(novel.layouts)) {
