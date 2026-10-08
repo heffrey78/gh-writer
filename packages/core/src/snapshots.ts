@@ -1,4 +1,4 @@
-import { DEFAULT_GAP, gaps, graphAt, gridKey, itemTitle, jump, lanesOf, presence, sceneColumns, sortRows, swimlanes, timeline, totals, when, type GraphEdge, type GraphNode, type Presence } from "./diagrams.ts";
+import { DEFAULT_GAP, gaps, graphAt, gridKey, itemTitle, jump, type GraphFilter, type LaneMode, lanesOf, presence, sceneColumns, sortRows, swimlanes, timeline, totals, when, type GraphEdge, type GraphNode, type Presence } from "./diagrams.ts";
 import type { Novel, Scene } from "./model.ts";
 
 /*
@@ -42,8 +42,8 @@ const lastScene = (novel: Novel) => novel.scenes.at(-1);
 const label = (s: string) => `"${s.replace(/"/g, "#quot;")}"`;
 
 /** The relationship graph at a scene as a Mermaid flowchart, styled by relationship type. */
-export function relationshipMermaid(novel: Novel, sceneId: string | undefined): string {
-  const { nodes, edges } = graphAt(novel, sceneId);
+export function relationshipMermaid(novel: Novel, sceneId: string | undefined, filter: GraphFilter = {}): string {
+  const { nodes, edges } = graphAt(novel, sceneId, filter);
   const lines = ["flowchart LR"];
   for (const n of nodes) lines.push(`  ${n.id}[${label(n.label)}]`);
   const styles: string[] = [];
@@ -61,8 +61,8 @@ const NODE_W = 150;
 const NODE_H = 44;
 
 /** The relationship graph at a scene, drawn as in the app: nodes where they're placed, parallel relationships fanned out. */
-export function relationshipSvg(novel: Novel, sceneId: string | undefined, title: string): string {
-  const { nodes, edges } = graphAt(novel, sceneId);
+export function relationshipSvg(novel: Novel, sceneId: string | undefined, title: string, filter: GraphFilter = {}): string {
+  const { nodes, edges } = graphAt(novel, sceneId, filter);
   if (!nodes.length) return svg(360, 60, title, `<text x="20" y="36" ${FONT} font-size="13" fill="${C.muted}">No characters yet.</text>\n`);
   const pad = 48;
   const minX = Math.min(...nodes.map((n) => n.x)) - pad;
@@ -267,8 +267,8 @@ const SLOT = 136;
 const LANE_H = 54;
 
 /** The timeline as drawn in the app: story time in lanes by point of view, joined to reading order below. */
-export function timelineSvg(novel: Novel): string {
-  const t = timeline(novel, "pov");
+export function timelineSvg(novel: Novel, mode: LaneMode = "pov"): string {
+  const t = timeline(novel, mode);
   const title = "The book in story time, and in reading order";
   if (!t.items.length) return svg(420, 60, title, `<text x="20" y="36" ${FONT} font-size="13" fill="${C.muted}">No scene or event has a time yet.</text>\n`);
   const head = 150;
@@ -300,7 +300,7 @@ export function timelineSvg(novel: Novel): string {
     const y = lanesY + k * LANE_H;
     b += `<line x1="20" y1="${y}" x2="${w - 20}" y2="${y}" stroke="${C.rule}"/>\n<text x="20" y="${y + 30}" ${FONT} font-size="12.5" font-weight="600" fill="${C.ink}">${esc(cut(lane.name, 18))}</text>\n`;
     t.items.forEach((item, i) => {
-      if (!lanesOf(item, "pov").includes(lane.id)) return;
+      if (!lanesOf(item, mode).includes(lane.id)) return;
       const x = head + i * SLOT + 6;
       const flashback = item.kind === "scene" && t.flashbacks.has(item.scene.id);
       const event = item.kind === "event";

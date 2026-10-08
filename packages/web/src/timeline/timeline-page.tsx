@@ -3,6 +3,8 @@ import { Fragment, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
+import { timelineMermaid, timelineSvg } from "@gh-writer/core/snapshots";
+import { ExportMenu } from "../diagrams/export-menu.tsx";
 import { EventDialog } from "./event-dialog.tsx";
 import { useViewParams } from "../ui/view-params.ts";
 import { itemId, itemTitle, jump, lanesOf, timeline, when, type LaneMode } from "@gh-writer/core/diagrams";
@@ -55,9 +57,12 @@ export function TimelinePage({ novelId, novel }: { novelId: string; novel: Novel
     <div className="grid content-start gap-4 px-6 py-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="text-xl font-semibold">Timeline</h1>
-        <Button size="sm" onClick={() => setEditing("new")}>
-          New off-page event
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={() => setEditing("new")}>
+            New off-page event
+          </Button>
+          <ExportMenu name="timeline" svg={() => timelineSvg(novel, mode)} mermaid={() => timelineMermaid(novel)} />
+        </div>
       </div>
       <div className="flex flex-wrap items-end gap-4 text-sm">
         <label className="grid gap-1 font-medium">

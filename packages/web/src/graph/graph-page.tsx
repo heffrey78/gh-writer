@@ -12,6 +12,8 @@ import { useTheme } from "../theme.ts";
 import { Button } from "../ui/button.tsx";
 import { Picker } from "../ui/picker.tsx";
 import { useViewParams } from "../ui/view-params.ts";
+import { relationshipMermaid, relationshipSvg } from "@gh-writer/core/snapshots";
+import { ExportMenu } from "../diagrams/export-menu.tsx";
 import { EdgeDialog } from "./edge-dialog.tsx";
 import { GraphCanvas } from "./graph-canvas.tsx";
 import { graphAt, RELATIONSHIP_GRAPH, type GraphFilter } from "@gh-writer/core/diagrams";
@@ -117,9 +119,16 @@ export function GraphPage({ novelId, novel }: { novelId: string; novel: Novel })
       <div className="grid gap-3">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-xl font-semibold">Relationships</h1>
-          <Button size="sm" onClick={() => setEditing({ kind: "entry" })}>
-            New entry
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => setEditing({ kind: "entry" })}>
+              New entry
+            </Button>
+            <ExportMenu
+              name={scene ? `relationships-at-${scene.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : "relationships"}
+              svg={() => relationshipSvg(novel, scene?.id, scene ? `Relationships at “${scene.title}”` : "Relationships", filter)}
+              mermaid={() => relationshipMermaid(novel, scene?.id, filter)}
+            />
+          </div>
         </div>
         {scene ? (
           <div className="flex flex-wrap items-end gap-4">

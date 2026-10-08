@@ -4,6 +4,8 @@ import { useId, useMemo, useState } from "react";
 import { plural } from "../bible/types.ts";
 import { gridKey } from "@gh-writer/core/diagrams";
 import { readSize, SceneGrid, SizeSelect, type GridMark } from "../diagrams/scene-grid.tsx";
+import { ExportMenu } from "../diagrams/export-menu.tsx";
+import { presenceSvg } from "@gh-writer/core/snapshots";
 import { useNotice } from "../novel/notice.tsx";
 import { entryEdits, type EntryChange } from "../novel/plotline-edits.ts";
 import { useSceneEdit } from "../novel/scene-edit.ts";
@@ -104,7 +106,10 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
 
   return (
     <div className="grid content-start gap-3 px-6 py-6">
-      <h1 className="text-xl font-semibold">Presence</h1>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h1 className="text-xl font-semibold">Presence</h1>
+        <ExportMenu name={`presence-${plural(label).toLowerCase()}`} svg={() => presenceSvg(novel, type, `${plural(label)} by scene`)} />
+      </div>
       <div className="flex flex-wrap items-end gap-4 text-sm">
         <label className="grid gap-1 font-medium">
           Rows

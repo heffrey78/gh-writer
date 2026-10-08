@@ -6,6 +6,8 @@ import { api, keys } from "../api.ts";
 import { GapControls } from "../diagrams/gap-controls.tsx";
 import { amount, readGap, writeGap } from "../diagrams/gap-param.ts";
 import { readSize, SceneGrid, SizeSelect, type GridMark } from "../diagrams/scene-grid.tsx";
+import { ExportMenu } from "../diagrams/export-menu.tsx";
+import { plotlinesSvg } from "@gh-writer/core/snapshots";
 import { useNotice } from "../novel/notice.tsx";
 import { plotlineEdits, type PlotlineChange } from "../novel/plotline-edits.ts";
 import { useSceneEdit } from "../novel/scene-edit.ts";
@@ -99,7 +101,10 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
 
   return (
     <div className="grid content-start gap-3 px-6 py-6">
-      <h1 className="text-xl font-semibold">Plotlines</h1>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h1 className="text-xl font-semibold">Plotlines</h1>
+        <ExportMenu name="plotlines" svg={() => plotlinesSvg(novel)} />
+      </div>
       <div className="flex flex-wrap items-end gap-4 text-sm">
         <label className="grid gap-1 font-medium">
           Show
