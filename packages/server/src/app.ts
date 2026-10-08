@@ -1,4 +1,6 @@
 import { Hono } from "hono";
+import { githubRoutes } from "./github-routes.ts";
+import type { GitHub } from "./github.ts";
 import { libraryRoutes } from "./library-routes.ts";
 import type { Library } from "./library.ts";
 import { novelRoutes } from "./novel-routes.ts";
@@ -12,12 +14,13 @@ export interface AppOptions {
   port: () => number;
   library: Library;
   workspaces: Workspaces;
+  github: GitHub;
   /** The built web app's folder (packages/web/dist). Without it, a placeholder page answers. */
   web?: string;
 }
 
 /** The API, behind the security middleware. Routes added later go through it too. */
-export function createApp({ token, port, library, workspaces, web }: AppOptions): Hono {
+export function createApp({ token, port, library, workspaces, github, web }: AppOptions): Hono {
   const app = new Hono();
   app.use(security({ token, port, publicPaths: new Set(["/api/session"]) }));
 
@@ -25,6 +28,7 @@ export function createApp({ token, port, library, workspaces, web }: AppOptions)
   app.get("/api/session", (c) => c.json({ authenticated: hasSession(c, token, port()) }));
   app.route("/api/library", libraryRoutes(library));
   app.route("/api/novels", novelRoutes(library, workspaces));
+  app.route("/api/github", githubRoutes(github));
 
   if (web) {
     app.route("/", webRoutes(web));

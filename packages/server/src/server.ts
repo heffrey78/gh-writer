@@ -5,6 +5,7 @@ import { getRequestListener } from "@hono/node-server";
 import type { Hono } from "hono";
 import { createApp } from "./app.ts";
 import type { CommitterOptions } from "./committer.ts";
+import { GitHub } from "./github.ts";
 import { Library } from "./library.ts";
 import { TOKEN_PARAM } from "./security.ts";
 import type { SyncerOptions } from "./sync.ts";
@@ -25,6 +26,8 @@ export interface ServerOptions {
   sync?: SyncerOptions | false;
   /** The built web app's folder (packages/web/dist), served at every path outside /api. */
   web?: string;
+  /** The GitHub connection. Default: from the environment (GitHub.fromEnv), the token in the OS keychain. */
+  github?: GitHub;
 }
 
 export interface RunningServer {
@@ -37,6 +40,7 @@ export interface RunningServer {
   /** The launch URL for a page of the app, e.g. "/novels/lib_4k8h2c". */
   launchUrlFor(path: string): string;
   library: Library;
+  github: GitHub;
   port: number;
   token: string;
   /** Stops accepting connections, ends event streams, lets in-flight requests finish, then commits waiting work. */
@@ -46,11 +50,11 @@ export interface RunningServer {
 const HOST = "127.0.0.1";
 
 /** Starts the server on 127.0.0.1 only. */
-export async function createServer({ library, token = newToken(), port = 0, shutdownTimeout = 10_000, commit, sync, web }: ServerOptions = {}): Promise<RunningServer> {
+export async function createServer({ library, token = newToken(), port = 0, shutdownTimeout = 10_000, commit, sync, web, github = GitHub.fromEnv() }: ServerOptions = {}): Promise<RunningServer> {
   library ??= await Library.open();
   let boundPort = port;
   const workspaces = new Workspaces(library, { ...(commit !== undefined ? { commit } : {}), ...(sync !== undefined ? { sync } : {}) });
-  const app = createApp({ token, port: () => boundPort, library, workspaces, ...(web ? { web } : {}) });
+  const app = createApp({ token, port: () => boundPort, library, workspaces, github, ...(web ? { web } : {}) });
   const server = createHttpServer(getRequestListener(app.fetch));
 
   await new Promise<void>((resolve, reject) => {
@@ -80,7 +84,7 @@ export async function createServer({ library, token = newToken(), port = 0, shut
 
   const url = `http://${HOST}:${boundPort}`;
   const launchUrlFor = (path: string) => `${url}${path}?${TOKEN_PARAM}=${token}`;
-  return { app, url, launchUrl: launchUrlFor("/"), launchUrlFor, library, port: boundPort, token, close };
+  return { app, url, launchUrl: launchUrlFor("/"), launchUrlFor, library, github, port: boundPort, token, close };
 }
 
 /** A 256-bit secret, URL-safe. */

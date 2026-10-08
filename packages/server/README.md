@@ -51,7 +51,7 @@ The clone endpoint answers with `text/event-stream`. It sends `progress` events 
 
 ### git and credentials
 
-The library uses the system git through simple-git and the author's own git setup: credential helpers (`gh auth setup-git`, Git Credential Manager) and SSH keys. GitHub sign-in inside the app comes with #8. The author's environment passes to git whole. simple-git would otherwise strip `GIT_*` variables such as `GIT_SSH_COMMAND`. git must never wait for input in the terminal the server runs in. So `GIT_TERMINAL_PROMPT=0`, and ssh runs with `BatchMode=yes` unless the author set `GIT_SSH_COMMAND` or `GIT_SSH`. That means a missing credential fails at once.
+The library uses the system git through simple-git and the author's own git setup: credential helpers (`gh auth setup-git`, Git Credential Manager) and SSH keys. Signing in to GitHub inside the app is described under [GitHub connection](#github-connection). The author's environment passes to git whole. simple-git would otherwise strip `GIT_*` variables such as `GIT_SSH_COMMAND`. git must never wait for input in the terminal the server runs in. So `GIT_TERMINAL_PROMPT=0`, and ssh runs with `BatchMode=yes` unless the author set `GIT_SSH_COMMAND` or `GIT_SSH`. That means a missing credential fails at once.
 
 Failures are classified into stable codes with a message that says what to do; git's own output is in `detail`:
 
@@ -64,6 +64,19 @@ Failures are classified into stable codes with a message that says what to do; g
 | `DESTINATION_EXISTS` | the target folder has files | choose another folder |
 | `GIT_MISSING` | git isn't installed | install git |
 | `GIT` | anything else | git's last line |
+
+## GitHub connection
+
+The author signs in to GitHub once, in the app (D5, #90). `GitHub` (in `github.ts`) holds the connection; `createServer({ github })` takes one, and by default builds it with `GitHub.fromEnv()`.
+
+- **Device flow**: `POST /api/github/device` asks github.com for a code, with the scopes `repo` and `read:user`. The app shows the code and the address where the author enters it. It then calls `POST /api/github/device/poll` every `interval` seconds, which answers `pending` (with the interval, longer after a `slow_down`), `expired`, `denied`, `none` (no sign-in waiting) or `done` with the status. The device code stays on the server. This needs the OAuth App's public client ID: `GITHUB_CLIENT_ID` once the owner has registered the app (#100), or `GH_WRITER_GITHUB_CLIENT_ID`. Without one, it fails with `NO_CLIENT_ID`.
+- **gh shortcut**: while signed out, the status names the gh CLI's account (`gh auth token`, checked against `GET /user`) if there is one, and `POST /api/github/gh` signs in with it.
+- **The token** lives in the OS keychain (`keychainStore()`, @napi-rs/keyring: the macOS Keychain, Windows Credential Manager, or a Secret Service keyring on Linux). It is never written to a file and never sent to the browser. If the keychain can't be reached, the status says why (`keychain`) and signing in fails with `NO_KEYCHAIN`; there is no plain-text fallback. `GH_WRITER_TOKEN_STORE=memory` keeps it in memory instead, for tests.
+- **Status**: `GET /api/github/account` returns `{ signedIn, account?: { login, name?, avatarUrl? }, deviceFlow, gh?, expired?, offline?, keychain? }`. Who the author is gets asked once and then remembered. When GitHub refuses the token (401: revoked or expired), it is forgotten and the next status says `expired: true`, once. If GitHub can't be reached, the author stays signed in (`offline: true`).
+- **Sign out**: `DELETE /api/github/account` forgets the token. gh-writer has no client secret, so it can't revoke the token; the author can do that on github.com under Settings → Applications.
+- `GitHub.api(path)` calls the REST API as the author. A 401 forgets the token and throws `NO_SIGN_IN`.
+
+`GH_WRITER_GITHUB_URL` and `GH_WRITER_GITHUB_API_URL` point the connection at another GitHub; the tests use a fake one (`test/fake-github.ts`).
 
 ## Novel files
 
