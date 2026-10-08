@@ -195,6 +195,14 @@ Operations run in the workspace's exclusive section, so saves wait for them. The
 
 All are under `/api/novels/:id`. Other refusals are `400 BAD_REQUEST` (with what's wrong) and `404 NOT_FOUND`.
 
+### Events
+
+| Endpoint | Does | Commit |
+|---|---|---|
+| `POST /bible/events` `{ title, when?, duration?, characters?, locations?, plotlines?, note? }` | Adds an off-page event to `bible/events.yaml`; `when` is `{ at }` (a date, optionally with a time) or `{ day, time? }`, `duration` ISO 8601, and the lists must name characters, locations and plotlines | `Bible: add event “…”` |
+| `PATCH /bible/events/:id` `{ changes }` | Edits its fields in place (null removes one) | `Bible: edit event “…”` |
+| `POST /bible/events/:id/delete` | Removes it | `Bible: remove event “…”` |
+
 ### Manuscript
 
 | Endpoint | Does | Commit |

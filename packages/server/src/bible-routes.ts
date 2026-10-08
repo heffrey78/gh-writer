@@ -31,6 +31,9 @@ export async function body(c: Context): Promise<Record<string, unknown>> {
  * POST  /:id/bible/relationships/:rel/change   { at, type?, note? } → { id, commit }
  * POST  /:id/bible/relationships/:rel/end      { at }
  * POST  /:id/bible/relationships/:rel/delete
+ * POST  /:id/bible/events                      { title, when?, duration?, characters?, locations?, plotlines?, note? } → 201 { id, commit }
+ * PATCH /:id/bible/events/:event               { changes } (null removes a field)
+ * POST  /:id/bible/events/:event/delete
  * POST  /:id/bible/entity-types                { key, prefix, label, folder?, color? }
  * PATCH /:id/bible/entity-types/:key           { label?, color? }
  * POST  /:id/bible/relationship-types          { key, label, inverse_label?, symmetric?, from_types?, to_types? }
@@ -64,6 +67,9 @@ export function bibleRoutes(routes: Hono<Env>): void {
     const { at } = await body(c);
     return operation(c, () => bible(c).endRelationship(c.req.param("rel"), String(at ?? "")));
   });
+  routes.post("/:id/bible/events", async (c) => operation(c, async () => bible(c).createEvent((await body(c)) as never), 201));
+  routes.patch("/:id/bible/events/:event", async (c) => operation(c, async () => bible(c).updateEvent(c.req.param("event"), ((await body(c)).changes ?? {}) as never)));
+  routes.post("/:id/bible/events/:event/delete", async (c) => operation(c, () => bible(c).deleteEvent(c.req.param("event"))));
   routes.post("/:id/bible/relationships/:rel/delete", async (c) => operation(c, () => bible(c).deleteRelationship(c.req.param("rel"))));
   routes.post("/:id/bible/entity-types", async (c) => operation(c, async () => bible(c).createEntityType((await body(c)) as never), 201));
   routes.patch("/:id/bible/entity-types/:key", async (c) => operation(c, async () => bible(c).updateEntityType(c.req.param("key"), (await body(c)) as never)));

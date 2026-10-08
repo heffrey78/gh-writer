@@ -1,7 +1,9 @@
 import { overlaps, storyTimeline, type Novel, type TimelineItem } from "@gh-writer/core";
-import { Fragment, useMemo } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Link } from "react-router";
+import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
+import { EventDialog } from "./event-dialog.tsx";
 import { useViewParams } from "../ui/view-params.ts";
 import { itemId, itemTitle, jump, lanesOf, timeline, when, type LaneMode } from "./timeline-model.ts";
 
@@ -30,6 +32,10 @@ export function TimelinePage({ novelId, novel }: { novelId: string; novel: Novel
   const n = t.items.length;
   const readSlot = reading.length ? (n * SLOT) / reading.length : SLOT;
   const name = (id: string) => novel.entities.find((e) => e.id === id)?.name ?? id;
+  // The event being edited, or "new" for one being added.
+  const [editing, setEditing] = useState<string>();
+  const editingEvent = editing && editing !== "new" ? novel.events.find((e) => e.id === editing) : undefined;
+  const dialog = editing && <EventDialog key={editing} novelId={novelId} novel={novel} event={editingEvent} onClose={() => setEditing(undefined)} />;
   const lanesText = (i: TimelineItem) => lanesOf(i, mode).map((l) => t.lanes.find((x) => x.id === l)?.name ?? l).join(", ");
 
   if (!n) {
@@ -37,13 +43,22 @@ export function TimelinePage({ novelId, novel }: { novelId: string; novel: Novel
       <div className="grid gap-3 px-6 py-6">
         <h1 className="text-xl font-semibold">Timeline</h1>
         <p className="text-muted">No scene or event has a time yet. Give scenes a time in their details (a day of the story, or a date).</p>
+        <div>
+          <Button onClick={() => setEditing("new")}>New off-page event</Button>
+        </div>
+        {dialog}
       </div>
     );
   }
 
   return (
     <div className="grid content-start gap-4 px-6 py-6">
-      <h1 className="text-xl font-semibold">Timeline</h1>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h1 className="text-xl font-semibold">Timeline</h1>
+        <Button size="sm" onClick={() => setEditing("new")}>
+          New off-page event
+        </Button>
+      </div>
       <div className="flex flex-wrap items-end gap-4 text-sm">
         <label className="grid gap-1 font-medium">
           Lanes
@@ -82,7 +97,15 @@ export function TimelinePage({ novelId, novel }: { novelId: string; novel: Novel
                 {t.items.map((item) => (
                   <div key={itemId(item)} className="relative border-b border-l border-rule p-1.5">
                     <span className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-rule" aria-hidden />
-                    {lanesOf(item, mode).includes(lane.id) && <Card novelId={novelId} item={item} flashback={item.kind === "scene" && t.flashbacks.has(item.scene.id)} reading={item.kind === "scene" ? novel.scenes.indexOf(item.scene) + 1 : undefined} />}
+                    {lanesOf(item, mode).includes(lane.id) && (
+                      <Card
+                        novelId={novelId}
+                        item={item}
+                        flashback={item.kind === "scene" && t.flashbacks.has(item.scene.id)}
+                        reading={item.kind === "scene" ? novel.scenes.indexOf(item.scene) + 1 : undefined}
+                        onEdit={(eventId) => setEditing(eventId)}
+                      />
+                    )}
                   </div>
                 ))}
               </Fragment>
@@ -150,7 +173,12 @@ export function TimelinePage({ novelId, novel }: { novelId: string; novel: Novel
               </li>
             ))}
             {t.undatedEvents.map((e) => (
-              <li key={e.id}>{e.title} (off page)</li>
+              <li key={e.id}>
+                <button type="button" onClick={() => setEditing(e.id)} className="text-accent underline-offset-2 hover:underline">
+                  {e.title}
+                </button>{" "}
+                (off page)
+              </li>
             ))}
           </ul>
         </section>
@@ -191,6 +219,7 @@ export function TimelinePage({ novelId, novel }: { novelId: string; novel: Novel
           </tbody>
         </table>
       </details>
+      {dialog}
     </div>
   );
 }
@@ -206,7 +235,7 @@ function ItemLink({ novelId, item }: { novelId: string; item: TimelineItem }) {
 }
 
 /** A scene (linked, with its place in the book) or an off-page event (dashed). */
-function Card({ novelId, item, flashback, reading }: { novelId: string; item: TimelineItem; flashback: boolean; reading: number | undefined }) {
+function Card({ novelId, item, flashback, reading, onEdit }: { novelId: string; item: TimelineItem; flashback: boolean; reading: number | undefined; onEdit: (eventId: string) => void }) {
   return (
     <div
       className={cn(
@@ -220,7 +249,9 @@ function Card({ novelId, item, flashback, reading }: { novelId: string; item: Ti
           {itemTitle(item)}
         </Link>
       ) : (
-        <span className="font-medium">{itemTitle(item)}</span>
+        <button type="button" onClick={() => onEdit(item.event.id)} aria-label={`Edit the event “${itemTitle(item)}”`} className="text-left font-medium underline-offset-2 hover:underline">
+          {itemTitle(item)}
+        </button>
       )}
       <span className="text-muted not-italic">
         {item.kind === "scene" ? `#${reading} in the book` : "Off page"}

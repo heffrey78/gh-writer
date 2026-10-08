@@ -49,7 +49,23 @@ export function readFrontMatter(text: string): Record<string, unknown> | undefin
 
 const FRONT_MATTER = /^(﻿?---[ \t]*\r?\n)([\s\S]*?)(^---[ \t]*(?:\r?\n|$))/m;
 
-function applyEdit(text: string, edit: YamlEdit): string {
+/**
+ * Clock times ("22:00") written quoted: YAML 1.1 readers, still common, take a bare 22:00 for the
+ * number 1320. (A quoted Scalar still compares as its string: Scalar has toJSON.)
+ */
+function quoteClockTimes(value: unknown): unknown {
+  if (typeof value === "string" && /^\d{1,2}:\d{2}(:\d{2})?$/.test(value)) {
+    const s = new Scalar(value);
+    s.type = Scalar.QUOTE_DOUBLE;
+    return s;
+  }
+  if (Array.isArray(value)) return value.map(quoteClockTimes);
+  if (value && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, quoteClockTimes(v)]));
+  return value;
+}
+
+function applyEdit(text: string, original: YamlEdit): string {
+  const edit: YamlEdit = "remove" in original ? original : { path: original.path, value: quoteClockTimes(original.value) };
   const doc = parseDocument(text);
   if (doc.errors.length) throw new Error(`Can't edit invalid YAML: ${doc.errors[0]!.message.split("\n")[0]}`);
   const eol = text.includes("\r\n") ? "\r\n" : "\n";

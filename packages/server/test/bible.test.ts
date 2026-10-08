@@ -215,3 +215,41 @@ describe("through the server", () => {
     }
   });
 });
+
+describe("events", () => {
+  const EVENTS = "bible/events.yaml";
+
+  it("adds an event as one commit, changing only the end of the list", async () => {
+    const before = read(EVENTS);
+    const { id } = await bible.createEvent({ title: "Ben meets Mirela", when: { day: 2, time: "22:00" }, duration: "PT1H", characters: [BEN, "char_m1re1a"], locations: ["loc_br1dg3"] });
+    expect(id).toMatch(/^evt_[0-9a-hjkmnp-tv-z]{6}$/);
+    expect(read(EVENTS)).toBe(`${before}  - id: ${id}\n    title: Ben meets Mirela\n    when:\n      day: 2\n      time: "22:00"\n    duration: PT1H\n    characters:\n      - ${BEN}\n      - char_m1re1a\n    locations:\n      - loc_br1dg3\n`);
+    expect(lastCommit()).toBe("Bible: add event “Ben meets Mirela”");
+    clean();
+    await valid();
+  });
+
+  it("edits an event's fields in place, and removes it", async () => {
+    const before = read(EVENTS);
+    await bible.updateEvent("evt_1eave5", { when: { at: "2012-09-03" }, note: "By the night train." });
+    const after = read(EVENTS);
+    expect(after.replace("      at: 2012-09-03\n    characters", "      at: 2012-09-01\n    characters").replace("    note: By the night train.\n", "")).toBe(before);
+    expect(lastCommit()).toBe("Bible: edit event “Ada leaves for the polytechnic”");
+    await bible.updateEvent("evt_1eave5", { note: null });
+    expect(read(EVENTS)).not.toContain("By the night train.");
+    await bible.deleteEvent("evt_1eave5");
+    expect(read(EVENTS)).not.toContain("evt_1eave5");
+    expect(lastCommit()).toBe("Bible: remove event “Ada leaves for the polytechnic”");
+    clean();
+    await valid();
+  });
+
+  it("refuses an event without a title, with a bad time or duration, or naming the wrong kind of entry", async () => {
+    await expect(bible.createEvent({ title: " " })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(bible.createEvent({ title: "X", when: { day: 2, time: "25:00" } })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(bible.createEvent({ title: "X", when: { at: "yesterday" } })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(bible.createEvent({ title: "X", duration: "an hour" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(bible.createEvent({ title: "X", characters: ["loc_br1dg3"] })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(bible.updateEvent("evt_zzzzzz", { title: "Y" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});

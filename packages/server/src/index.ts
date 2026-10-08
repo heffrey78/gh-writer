@@ -12,7 +12,7 @@ export {
   type PreparedMerge,
 } from "./conflicts.ts";
 export { diagramRoutes, LAYOUTS, readPositions, saveLayout, withPositions, type Positions } from "./diagrams.ts";
-export { BibleOperations, type EntityFields, type EntityTypeFields, type RelationshipFields, type RelationshipTypeFields } from "./bible.ts";
+export { BibleOperations, type EventFields, type EntityFields, type EntityTypeFields, type RelationshipFields, type RelationshipTypeFields } from "./bible.ts";
 export { ManuscriptOperations, type DeletedItem } from "./manuscript.ts";
 export { OperationError, transaction, type FileWrite, type OperationErrorCode, type OperationResult } from "./operations.ts";
 export { commitMessage, type FileChange } from "./commit-message.ts";

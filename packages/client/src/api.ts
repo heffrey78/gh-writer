@@ -107,6 +107,17 @@ export interface EntityFields {
   tags?: string[];
 }
 
+/** An off-page event's fields (null removes one on update). */
+export interface EventFields {
+  title?: string;
+  when?: { at: string } | { day: number; time?: string } | null;
+  duration?: string | null;
+  characters?: string[] | null;
+  locations?: string[] | null;
+  plotlines?: string[] | null;
+  note?: string | null;
+}
+
 export interface RelationshipFields {
   from?: string;
   to?: string;
@@ -332,6 +343,10 @@ function bibleApi(root: (novelId: string) => string, request: Request) {
       call<OperationResult & { id: string }>("POST", novelId, `/relationships/${encodeURIComponent(id)}/change`, { at, ...changes }),
     endRelationship: (novelId: string, id: string, at: string) => call<OperationResult>("POST", novelId, `/relationships/${encodeURIComponent(id)}/end`, { at }),
     deleteRelationship: (novelId: string, id: string) => call<OperationResult>("POST", novelId, `/relationships/${encodeURIComponent(id)}/delete`),
+    /** Off-page story events (bible/events.yaml), one commit each. */
+    createEvent: (novelId: string, fields: EventFields & { title: string }) => call<OperationResult & { id: string }>("POST", novelId, "/events", fields),
+    updateEvent: (novelId: string, id: string, changes: EventFields) => call<OperationResult>("PATCH", novelId, `/events/${encodeURIComponent(id)}`, { changes }),
+    deleteEvent: (novelId: string, id: string) => call<OperationResult>("POST", novelId, `/events/${encodeURIComponent(id)}/delete`),
     createEntityType: (novelId: string, fields: { key: string; prefix: string; label: string; folder?: string; color?: string }) =>
       call<OperationResult>("POST", novelId, "/entity-types", fields),
     updateEntityType: (novelId: string, key: string, changes: { label?: string; color?: string | null }) =>

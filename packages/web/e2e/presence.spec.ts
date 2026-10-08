@@ -92,7 +92,10 @@ test("a cell puts someone in a scene, or takes them out, through the scene's met
 
 test("the matrix and the scene details panel agree after an edit in either", async ({ page, app }) => {
   await open(page, app);
-  await grid(page, "Characters by scene").getByRole("gridcell", { name: /^The Station: Tomas Hale/ }).click();
+  const cell = grid(page, "Characters by scene").getByRole("gridcell", { name: /^The Station: Tomas Hale/ });
+  await cell.click();
+  // Saved before the scene opens (a scene opened mid-save would load what was there before).
+  await expect(cell).toHaveAccessibleName("The Station: Tomas Hale present");
   await page.getByRole("tree", { name: "Manuscript" }).getByRole("treeitem", { name: /^The Station,/ }).click();
   await page.keyboard.press("ControlOrMeta+k");
   await page.keyboard.type("show scene details");

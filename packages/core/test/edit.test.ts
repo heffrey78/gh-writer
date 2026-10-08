@@ -72,6 +72,13 @@ describe("editYaml", () => {
     expect(editYaml("nodes:\n  a_1:\n    x: 0\n", [{ path: ["nodes", "b_2"], value: { x: 1 } }])).toBe("nodes:\n  a_1:\n    x: 0\n  b_2:\n    x: 1\n");
   });
 
+  it("writes clock times quoted, which YAML 1.1 readers would take for numbers", () => {
+    expect(editYaml("when:\n  day: 2\n", [{ path: ["when", "time"], value: "22:00" }])).toBe('when:\n  day: 2\n  time: "22:00"\n');
+    expect(editYaml('when:\n  day: 2\n  time: "22:00"\n', [{ path: ["when", "time"], value: "07:15" }])).toBe('when:\n  day: 2\n  time: "07:15"\n');
+    expect(editYaml("a: 1\n", [{ path: ["when"], value: { day: 3, time: "18:30" } }])).toBe('a: 1\nwhen:\n  day: 3\n  time: "18:30"\n');
+    expect(editYaml("tags: [x]\n", [{ path: ["tags", 1], value: "12:00" }])).toBe('tags: [x, "12:00"]\n');
+  });
+
   it("keeps CRLF line endings", () => {
     expect(editYaml("a: 1\r\nb: 2\r\n", [{ path: ["c"], value: { d: 1 } }])).toBe("a: 1\r\nb: 2\r\nc:\r\n  d: 1\r\n");
   });

@@ -37,6 +37,17 @@ export interface RelationshipFields {
   note?: string | null;
 }
 
+/** An off-page story event's fields (null removes one on update). */
+export interface EventFields {
+  title?: string;
+  when?: { at: string } | { day: number; time?: string } | null;
+  duration?: string | null;
+  characters?: string[] | null;
+  locations?: string[] | null;
+  plotlines?: string[] | null;
+  note?: string | null;
+}
+
 export interface EntityTypeFields {
   key: string;
   prefix: string;
@@ -55,6 +66,7 @@ export interface RelationshipTypeFields {
 }
 
 const RELATIONSHIPS = "bible/relationships.yaml";
+const EVENTS = "bible/events.yaml";
 const NOVEL = "novel.yaml";
 
 /**
@@ -208,6 +220,38 @@ export class BibleOperations {
     });
   }
 
+  /** Add an off-page event to bible/events.yaml. */
+  createEvent(fields: EventFields): Promise<OperationResult & { id: string }> {
+    return this.#run(async (novel) => {
+      const title = required(fields.title, "title");
+      this.#checkEvent(novel, fields);
+      const id = uniqueId("evt", new Set(indexById(novel).keys()));
+      const content = await this.#appendToList(EVENTS, "events", { id, ...clean({ ...fields, title }) });
+      const result = await transaction(this.root, [{ path: EVENTS, content }], `Bible: add event “${title}”`);
+      return { ...result, id };
+    });
+  }
+
+  /** Edit an event's fields in place (null removes one). */
+  updateEvent(id: string, changes: EventFields): Promise<OperationResult> {
+    return this.#run(async (novel) => {
+      const event = this.#findEvent(novel, id);
+      if (changes.title !== undefined) required(changes.title, "title");
+      this.#checkEvent(novel, changes);
+      const tidy = Object.fromEntries(Object.entries(changes).map(([k, v]) => [k, Array.isArray(v) && !v.length ? null : v === "" ? null : v]));
+      const content = editYaml(await this.#read(EVENTS), editsAt(["events", event.index], tidy));
+      return transaction(this.root, [{ path: EVENTS, content }], `Bible: edit event “${changes.title?.trim() || event.title}”`);
+    });
+  }
+
+  deleteEvent(id: string): Promise<OperationResult> {
+    return this.#run(async (novel) => {
+      const event = this.#findEvent(novel, id);
+      const content = editYaml(await this.#read(EVENTS), [{ path: ["events", event.index], remove: true }]);
+      return transaction(this.root, [{ path: EVENTS, content }], `Bible: remove event “${event.title}”`);
+    });
+  }
+
   /** Add a custom entity type to novel.yaml. Its folder is bible/<folder> (default: the key, plural). */
   createEntityType(fields: EntityTypeFields): Promise<OperationResult> {
     return this.#run(async (novel) => {
@@ -283,6 +327,29 @@ export class BibleOperations {
       if (scene && !novel.allScenes.some((s) => s.id === scene)) throw new OperationError("BAD_REQUEST", `No scene “${scene}”.`);
     }
     this.#checkSpan(novel, r.since ?? undefined, r.until ?? undefined, "A relationship must start before it ends.");
+  }
+
+  #findEvent(novel: Novel, id: string) {
+    const event = novel.events.find((e) => e.id === id);
+    if (!event) throw new OperationError("NOT_FOUND", `No event “${id}”.`);
+    return event;
+  }
+
+  /** A time, a duration and entries of the right types, where given. */
+  #checkEvent(novel: Novel, f: EventFields): void {
+    const w = f.when;
+    if (w) {
+      const ok = "at" in w ? /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/.test(w.at) : Number.isInteger(w.day) && (w.time === undefined || /^([01]\d|2[0-3]):[0-5]\d$/.test(w.time));
+      if (!ok) throw new OperationError("BAD_REQUEST", "A time is a date (YYYY-MM-DD, optionally THH:MM) or a day of the story with an optional HH:MM.");
+    }
+    if (f.duration && !/^P(?!$)(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+(\.\d+)?S)?)?$/.test(f.duration)) {
+      throw new OperationError("BAD_REQUEST", "A duration is ISO 8601, like PT45M or P2D.");
+    }
+    for (const [key, type] of [["characters", "character"], ["locations", "location"], ["plotlines", "plotline"]] as const) {
+      for (const id of f[key] ?? []) {
+        if (!novel.entities.some((e) => e.id === id && e.type === type)) throw new OperationError("BAD_REQUEST", `No ${type} “${id}”.`);
+      }
+    }
   }
 
   /** `first` must come strictly before `second` in reading order, where both are given. */
