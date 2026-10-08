@@ -1,10 +1,13 @@
 import { ApiError, type CloneProgress, type LibraryEntry } from "@gh-writer/client";
 import { slugify } from "@gh-writer/core";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Lock } from "lucide-react";
 import { useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { api, keys } from "../api.ts";
-import { GitHubMark, useConnect } from "../github/connect.tsx";
+import { ago } from "../format.ts";
+import { GitHubMark, useConnect, useGitHub } from "../github/connect.tsx";
+import { cn } from "../ui/cn.ts";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { Modal } from "../ui/dialog.tsx";
@@ -134,8 +137,9 @@ export function CloneDialog({ folder, onClose }: { folder: string | undefined; o
   };
   const cancelled = clone.error instanceof DOMException && clone.error.name === "AbortError";
   return (
-    <Modal title="Clone from GitHub" onClose={close}>
+    <Modal title="Clone from GitHub" onClose={close} className="w-[min(34rem,calc(100vw-2rem))]">
       <form onSubmit={submit} className="grid gap-3">
+        <YourRepositories chosen={repo} onChoose={setRepo} />
         <Field label="Repository" placeholder="owner/name or a URL" value={repo} onChange={(e) => setRepo(e.target.value)} required autoFocus />
         <Field label="Into folder (optional)" placeholder={`${folder ?? "~/gh-writer"}/<name>`} value={into} onChange={(e) => setInto(e.target.value)} />
         {clone.isPending && (
@@ -172,6 +176,74 @@ export function CloneDialog({ folder, onClose }: { folder: string | undefined; o
         </div>
       </form>
     </Modal>
+  );
+}
+
+/**
+ * The signed-in author's repositories, filtered as they type; choosing one fills in its address.
+ * Signed out, an offer to connect instead.
+ */
+function YourRepositories({ chosen, onChoose }: { chosen: string; onChoose: (url: string) => void }) {
+  const github = useGitHub();
+  const signedIn = github.data?.signedIn ?? false;
+  const repos = useQuery({ queryKey: ["github", "repos"], queryFn: api.github.repos, enabled: signedIn, staleTime: 60_000 });
+  const [filter, setFilter] = useState("");
+  if (!github.data) return null;
+  if (!signedIn) {
+    return (
+      <p className="text-sm text-muted">
+        <button type="button" className="text-accent underline-offset-2 hover:underline" onClick={() => useConnect.getState().show()}>
+          Connect GitHub
+        </button>{" "}
+        to pick from your repositories, or type an address below.
+      </p>
+    );
+  }
+  const words = filter.toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = (repos.data ?? []).filter((r) => words.every((w) => `${r.fullName} ${r.description ?? ""}`.toLowerCase().includes(w))).slice(0, 50);
+  return (
+    <fieldset className="grid gap-2">
+      <legend className="mb-1 text-sm font-medium">Your repositories</legend>
+      <input
+        type="search"
+        aria-label="Filter your repositories"
+        placeholder="Filter"
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        className="h-9 w-full rounded-md border border-rule bg-raised px-3 text-sm text-ink placeholder:text-muted"
+      />
+      {repos.isPending ? (
+        <p className="text-sm text-muted" role="status">
+          Loading your repositories…
+        </p>
+      ) : repos.isError ? (
+        <ErrorAlert title="Couldn't list your repositories">{repos.error.message}</ErrorAlert>
+      ) : (
+        <ul aria-label="Your repositories" className="grid max-h-56 gap-0.5 overflow-y-auto rounded-md border border-rule p-1">
+          {shown.map((r) => (
+            <li key={r.fullName}>
+              <button
+                type="button"
+                aria-pressed={chosen === r.cloneUrl}
+                onClick={() => onChoose(r.cloneUrl)}
+                className={cn("grid w-full gap-0.5 rounded px-2 py-1.5 text-left text-sm hover:bg-panel", chosen === r.cloneUrl && "bg-accent-soft hover:bg-accent-soft")}
+              >
+                <span className="flex items-center gap-1.5 font-medium">
+                  {r.fullName}
+                  {r.private && <Lock className="size-3 text-muted" aria-label="private" />}
+                </span>
+                {(r.description || r.pushedAt) && (
+                  <span className="truncate text-xs text-muted">
+                    {[r.description, r.pushedAt && `pushed ${ago(r.pushedAt)}`].filter(Boolean).join(" · ")}
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+          {!shown.length && <li className="px-2 py-1.5 text-sm text-muted">{repos.data?.length ? "None match." : "You have no repositories yet."}</li>}
+        </ul>
+      )}
+    </fieldset>
   );
 }
 

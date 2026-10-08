@@ -132,6 +132,16 @@ export interface DeviceCode {
   interval: number;
 }
 
+/** One of the author's repositories, for cloning. */
+export interface RepoSummary {
+  fullName: string;
+  description?: string;
+  private: boolean;
+  /** ISO time of the last push. */
+  pushedAt?: string;
+  cloneUrl: string;
+}
+
 export type PollResult =
   | { status: "pending"; interval: number }
   | { status: "expired" | "denied" | "none" }
@@ -265,6 +275,21 @@ export class GitHub {
     const gh = await this.#ghAccount();
     if (!gh) throw new GitHubError("NO_GH", "The gh CLI isn't signed in to GitHub on this computer. Run gh auth login, or sign in with a code.");
     return this.#signIn(gh.token, gh.account);
+  }
+
+  /** The author's repositories (their own and those they collaborate on), most recently pushed first: up to 300. */
+  async repos(): Promise<RepoSummary[]> {
+    const out: RepoSummary[] = [];
+    for (let page = 1; page <= 3; page++) {
+      const res = await this.api(`/user/repos?per_page=100&sort=pushed&affiliation=owner,collaborator&page=${page}`);
+      if (!res.ok) throw new GitHubError("GITHUB", `GitHub answered ${res.status} when asked for your repositories.`);
+      const repos = (await res.json()) as { full_name: string; description: string | null; private: boolean; pushed_at: string | null; clone_url: string }[];
+      for (const r of repos) {
+        out.push({ fullName: r.full_name, private: r.private, cloneUrl: r.clone_url, ...(r.description ? { description: r.description } : {}), ...(r.pushed_at ? { pushedAt: r.pushed_at } : {}) });
+      }
+      if (repos.length < 100) break;
+    }
+    return out;
   }
 
   /**

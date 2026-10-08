@@ -26,6 +26,15 @@ export interface DeviceCode {
   interval: number;
 }
 
+/** One of the author's GitHub repositories. */
+export interface RepoSummary {
+  fullName: string;
+  description?: string;
+  private: boolean;
+  pushedAt?: string;
+  cloneUrl: string;
+}
+
 export type DevicePoll = { status: "pending"; interval: number } | { status: "expired" | "denied" | "none" } | { status: "done"; account: GitHubStatus };
 
 export interface NewNovel {
@@ -294,6 +303,8 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
       /** Sign in with the gh CLI's account. */
       useGh: async () => (await request<GitHubStatus>("POST", "/api/github/gh")).data,
       signOut: async () => (await request<GitHubStatus>("DELETE", "/api/github/account")).data,
+      /** The author's repositories, most recently pushed first. */
+      repos: async () => (await request<{ repos: RepoSummary[] }>("GET", "/api/github/repos")).data.repos,
       /** Put a local novel on GitHub: a new repository (private unless `private: false`), pushed to and synced with. */
       publish: async (novelId: string, repo: { name: string; description?: string; private?: boolean }) =>
         (await request<{ remote: string; status: SyncStatus }>("POST", `/api/novels/${encodeURIComponent(novelId)}/publish`, repo)).data,

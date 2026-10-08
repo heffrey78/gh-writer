@@ -129,6 +129,26 @@ describe("GitHub", () => {
   });
 });
 
+describe("GitHub.repos", () => {
+  it("lists the author's repositories, most recently pushed first", async () => {
+    const token = "gho_lister";
+    fake.users.set(token, { login: "lister" });
+    fake.repos.push(
+      { owner: "lister", name: "old-book", private: false, pushedAt: "2025-01-01T00:00:00Z" },
+      { owner: "lister", name: "new-book", private: true, description: "Drafting", pushedAt: "2026-09-01T00:00:00Z" },
+      { owner: "someone-else", name: "theirs", private: false, pushedAt: "2026-10-01T00:00:00Z" },
+    );
+    const store = memoryStore();
+    await store.set(token);
+    const { github } = connect({ store });
+    expect(await github.repos()).toEqual([
+      { fullName: "lister/new-book", private: true, description: "Drafting", pushedAt: "2026-09-01T00:00:00Z", cloneUrl: `${fake.url}/lister/new-book.git` },
+      { fullName: "lister/old-book", private: false, pushedAt: "2025-01-01T00:00:00Z", cloneUrl: `${fake.url}/lister/old-book.git` },
+    ]);
+    await expect(connect().github.repos()).rejects.toMatchObject({ code: "NO_SIGN_IN" });
+  });
+});
+
 describe("/api/github", () => {
   it("signs in and out over HTTP, and the token never appears in a response", async () => {
     const { github } = connect();

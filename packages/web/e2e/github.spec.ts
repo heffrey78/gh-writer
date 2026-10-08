@@ -187,3 +187,28 @@ test("puts a novel on GitHub from its sync badge, then syncs with it", async ({ 
   await publish.getByRole("button", { name: "Create and push" }).click();
   await expect(publish.getByRole("alert")).toContainText("You already have a repository called “ferry”");
 });
+
+test("clones by picking from the author's repositories", async ({ page, app }) => {
+  githubRepo(app);
+  app.github.repos.push(
+    { owner: "ada", name: "varn", private: true, description: "The Bridge at Varn", pushedAt: "2026-10-01T00:00:00Z" },
+    { owner: "ada", name: "dotfiles", private: false, pushedAt: "2026-09-01T00:00:00Z" },
+  );
+  await launch(page, app);
+  await page.getByRole("button", { name: "Clone from GitHub" }).click();
+  const clone = page.getByRole("dialog", { name: "Clone from GitHub" });
+  await expect(clone).toContainText("Connect GitHub to pick from your repositories");
+  await clone.getByRole("button", { name: "Connect GitHub" }).click();
+  await signInWithCode(page, app);
+
+  const list = clone.getByRole("list", { name: "Your repositories" });
+  await expect(list.getByRole("button")).toHaveCount(2);
+  await expect(list.getByRole("button").first()).toContainText("ada/varn");
+  await clone.getByRole("searchbox", { name: "Filter your repositories" }).fill("bridge");
+  await expect(list.getByRole("button")).toHaveCount(1);
+  await axe(page);
+  await list.getByRole("button", { name: /ada\/varn/ }).click();
+  await expect(clone.getByRole("textbox", { name: "Repository" })).toHaveValue(`${app.github.url}/ada/varn.git`);
+  await clone.getByRole("button", { name: "Clone", exact: true }).click();
+  await expect(page).toHaveTitle("The Bridge at Varn · gh-writer");
+});
