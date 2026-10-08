@@ -94,8 +94,11 @@ test("the matrix and the scene details panel agree after an edit in either", asy
   await open(page, app);
   const cell = grid(page, "Characters by scene").getByRole("gridcell", { name: /^The Station: Tomas Hale/ });
   await cell.click();
-  // Saved before the scene opens (a scene opened mid-save would load what was there before).
   await expect(cell).toHaveAccessibleName("The Station: Tomas Hale present");
+  // The cell changes at once; the file a moment later. Opened before then, the scene would show what was
+  // there before (#101): wait for the save.
+  const station = join(app.home, "novels", "varn", "manuscript/01-return/01-arrival/01-the-station.md");
+  await expect.poll(() => readFileSync(station, "utf8").split("\n---")[0]).toContain("char_t0ma5h");
   await page.getByRole("tree", { name: "Manuscript" }).getByRole("treeitem", { name: /^The Station,/ }).click();
   await page.keyboard.press("ControlOrMeta+k");
   await page.keyboard.type("show scene details");
