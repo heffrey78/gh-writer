@@ -250,12 +250,4 @@ export function EntryPage({
 }
 
 /** "Rival of Ben Varn, from “The Betrayal”", read from this entry's side. */
-export function describe(novel: Novel, id: string, r: Relationship): string {
-  const type = novel.relationshipTypes.find((t) => t.key === r.type);
-  const forward = r.from === id;
-  const label = (forward || type?.symmetric ? type?.label : (type?.inverse_label ?? type?.label)) ?? r.type;
-  const other = novel.entities.find((e) => e.id === (forward ? r.to : r.from))?.name ?? (forward ? r.to : r.from);
-  const scene = (sceneId?: string) => novel.allScenes.find((s) => s.id === sceneId)?.title;
-  const when = [r.since && `from “${scene(r.since) ?? r.since}”`, r.until && `until “${scene(r.until) ?? r.until}”`].filter(Boolean).join(", ");
-  return `${label} ${other}${when ? `, ${when}` : ""}${r.note ? ` (${r.note})` : ""}`;
-}
+export { describeRelationship as describe } from "@gh-writer/core/diagrams";

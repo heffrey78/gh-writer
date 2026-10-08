@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { GapThreshold } from "../swimlanes/swimlane-model.ts";
+import type { GapThreshold } from "@gh-writer/core/diagrams";
 import { writeGap } from "./gap-param.ts";
 
 /** How long an absence must last to count: a number, in scenes or words. `extra` goes beside them. */

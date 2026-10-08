@@ -1,9 +1,9 @@
 import { fileURLToPath } from "node:url";
-import { loadNovel } from "@gh-writer/core";
-import { nodeSource } from "@gh-writer/core/node";
+import { loadNovel } from "../src/index.ts";
+import { nodeSource } from "../src/node.ts";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { graphAt, layout } from "../src/graph/graph-model.ts";
+import { graphAt, layout } from "../src/diagrams.ts";
 
 const novel = await loadNovel(nodeSource(fileURLToPath(new URL("../../../examples/sample-novel/", import.meta.url))));
 const ADA = "char_7f3k2q";

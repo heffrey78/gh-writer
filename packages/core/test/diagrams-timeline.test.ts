@@ -1,8 +1,8 @@
 import { fileURLToPath } from "node:url";
-import { loadNovel } from "@gh-writer/core";
-import { nodeSource } from "@gh-writer/core/node";
+import { loadNovel } from "../src/index.ts";
+import { nodeSource } from "../src/node.ts";
 import { describe, expect, it } from "vitest";
-import { itemTitle, jump, lanesOf, timeline, when } from "../src/timeline/timeline-model.ts";
+import { itemTitle, jump, lanesOf, timeline, when } from "../src/diagrams.ts";
 
 const novel = await loadNovel(nodeSource(fileURLToPath(new URL("../../../examples/sample-novel/", import.meta.url))));
 const H = 3_600_000;

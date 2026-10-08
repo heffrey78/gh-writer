@@ -12,7 +12,7 @@ import { useSceneEdit } from "../novel/scene-edit.ts";
 import type { Workspace } from "../novel/workspace.ts";
 import { Button } from "../ui/button.tsx";
 import { useViewParams } from "../ui/view-params.ts";
-import { cellKey, DEFAULT_GAP, gaps, swimlanes, zoomed, type Gap, type GapThreshold, type Mark } from "./swimlane-model.ts";
+import { cellKey, DEFAULT_GAP, gaps, swimlanes, zoomed, type Gap, type GapThreshold, type Mark } from "@gh-writer/core/diagrams";
 
 const number = new Intl.NumberFormat();
 

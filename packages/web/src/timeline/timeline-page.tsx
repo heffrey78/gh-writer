@@ -5,7 +5,7 @@ import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
 import { EventDialog } from "./event-dialog.tsx";
 import { useViewParams } from "../ui/view-params.ts";
-import { itemId, itemTitle, jump, lanesOf, timeline, when, type LaneMode } from "./timeline-model.ts";
+import { itemId, itemTitle, jump, lanesOf, timeline, when, type LaneMode } from "@gh-writer/core/diagrams";
 
 const SLOT = 152;
 const HEAD = 168;

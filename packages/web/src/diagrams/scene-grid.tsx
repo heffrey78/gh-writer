@@ -5,7 +5,7 @@ import { Link } from "react-router";
 import { dropMove, useStructure } from "../novel/structure.ts";
 import type { Workspace } from "../novel/workspace.ts";
 import { cn } from "../ui/cn.ts";
-import { gridKey, sceneColumns } from "./columns.ts";
+import { gridKey, sceneColumns } from "@gh-writer/core/diagrams";
 
 /** How big a grid is drawn: its cells and its type scale together (marks are in em). */
 export const SIZES = {

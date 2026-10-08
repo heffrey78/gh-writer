@@ -1,10 +1,8 @@
 import { fileURLToPath } from "node:url";
-import { loadNovel, mentions } from "@gh-writer/core";
-import { nodeSource } from "@gh-writer/core/node";
+import { loadNovel, mentions } from "../src/index.ts";
+import { nodeSource } from "../src/node.ts";
 import { describe, expect, it } from "vitest";
-import { gridKey } from "../src/diagrams/columns.ts";
-import { presence, sortRows, totals } from "../src/presence/presence-model.ts";
-import { gaps } from "../src/swimlanes/swimlane-model.ts";
+import { gaps, gridKey, presence, sortRows, totals } from "../src/diagrams.ts";
 
 const novel = await loadNovel(nodeSource(fileURLToPath(new URL("../../../examples/sample-novel/", import.meta.url))));
 

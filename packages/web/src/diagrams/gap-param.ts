@@ -1,4 +1,4 @@
-import type { GapThreshold } from "../swimlanes/swimlane-model.ts";
+import type { GapThreshold } from "@gh-writer/core/diagrams";
 
 const number = new Intl.NumberFormat();
 

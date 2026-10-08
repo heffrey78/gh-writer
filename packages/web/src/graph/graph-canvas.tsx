@@ -1,29 +1,9 @@
 import { Background, BaseEdge, ConnectionMode, Controls, Handle, MarkerType, Position, ReactFlow, useInternalNode, useNodesState, type ColorMode, type Edge, type EdgeChange, type EdgeProps, type Node, type NodeChange, type NodeProps } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import type { GraphEdge, GraphNode } from "@gh-writer/core/diagrams";
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 
-export interface GraphNode {
-  id: string;
-  label: string;
-  /** The entity type's label, shown under the name. */
-  type: string;
-  x: number;
-  y: number;
-}
-
-export interface GraphEdge {
-  id: string;
-  source: string;
-  target: string;
-  label: string;
-  /** A colour token name (accent, warn, ok, danger, ink, muted); muted when unset. */
-  tone?: string;
-  line?: "solid" | "dashed" | "dotted";
-  /** Symmetric relationships have no arrow. */
-  directed?: boolean;
-  /** What a screen reader says for it, e.g. "Ada Varn, Allied with, Ben Varn". */
-  ariaLabel?: string;
-}
+export type { GraphEdge, GraphNode } from "@gh-writer/core/diagrams";
 
 export interface GraphCanvasProps {
   nodes: GraphNode[];

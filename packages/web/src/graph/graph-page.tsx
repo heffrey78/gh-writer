@@ -14,7 +14,7 @@ import { Picker } from "../ui/picker.tsx";
 import { useViewParams } from "../ui/view-params.ts";
 import { EdgeDialog } from "./edge-dialog.tsx";
 import { GraphCanvas } from "./graph-canvas.tsx";
-import { graphAt, RELATIONSHIP_GRAPH, type GraphFilter } from "./graph-model.ts";
+import { graphAt, RELATIONSHIP_GRAPH, type GraphFilter } from "@gh-writer/core/diagrams";
 
 const list = (v: string | null) => (v ? v.split(",").filter(Boolean) : undefined);
 
