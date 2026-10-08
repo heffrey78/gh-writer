@@ -3,6 +3,31 @@
  * cookie and the page's own Origin; elsewhere (tests, tools) pass them as `headers`.
  */
 
+/** The GitHub connection, as the server describes it (never with the token). */
+export interface GitHubStatus {
+  signedIn: boolean;
+  account?: { login: string; name?: string; avatarUrl?: string };
+  /** Whether signing in with a code on github.com is available. */
+  deviceFlow: boolean;
+  /** The gh CLI's account, offered while signed out. */
+  gh?: { login: string };
+  /** GitHub stopped accepting the sign-in (said once). */
+  expired?: boolean;
+  /** Signed in, but GitHub can't be reached. */
+  offline?: boolean;
+  /** Why the system keychain couldn't be read. */
+  keychain?: string;
+}
+
+export interface DeviceCode {
+  userCode: string;
+  verificationUri: string;
+  expiresIn: number;
+  interval: number;
+}
+
+export type DevicePoll = { status: "pending"; interval: number } | { status: "expired" | "denied" | "none" } | { status: "done"; account: GitHubStatus };
+
 export interface NewNovel {
   title: string;
   author?: string;
@@ -259,6 +284,16 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
         }
       }
       throw new ApiError(0, "UNREACHABLE", "The clone stopped before it finished.");
+    },
+    github: {
+      account: async () => (await request<GitHubStatus>("GET", "/api/github/account")).data,
+      /** Start signing in with a code entered on github.com. */
+      startDevice: async () => (await request<DeviceCode>("POST", "/api/github/device")).data,
+      /** Ask once whether the code has been entered. */
+      pollDevice: async () => (await request<DevicePoll>("POST", "/api/github/device/poll")).data,
+      /** Sign in with the gh CLI's account. */
+      useGh: async () => (await request<GitHubStatus>("POST", "/api/github/gh")).data,
+      signOut: async () => (await request<GitHubStatus>("DELETE", "/api/github/account")).data,
     },
     removeNovel: async (id: string) => void (await request("DELETE", `/api/library/${encodeURIComponent(id)}`)),
     /** The story model (core's Novel) and the hash of each file it was read from. */

@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { api, keys } from "../api.ts";
+import { GitHubMark, useConnect } from "../github/connect.tsx";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { Modal } from "../ui/dialog.tsx";
@@ -157,6 +158,11 @@ export function CloneDialog({ folder, onClose }: { folder: string | undefined; o
           <ErrorAlert title="Couldn't clone that repository" detail={clone.error instanceof ApiError ? clone.error.detail : undefined}>
             {clone.error.message}
           </ErrorAlert>
+        )}
+        {clone.error instanceof ApiError && clone.error.code === "AUTH" && (
+          <Button className="justify-self-start" onClick={() => useConnect.getState().show(() => clone.mutate({ repo: repo.trim(), into: into.trim() }))}>
+            <GitHubMark className="size-4" /> Connect GitHub and try again
+          </Button>
         )}
         <div className="flex justify-end gap-2">
           {clone.isPending ? <Button onClick={() => abort.current?.abort()}>Cancel clone</Button> : <Button onClick={close}>Cancel</Button>}

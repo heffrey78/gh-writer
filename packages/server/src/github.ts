@@ -14,6 +14,8 @@ export const GITHUB_CLIENT_ID: string | undefined = undefined;
 export const SCOPES = ["repo", "read:user"];
 
 const SERVICE = "gh-writer";
+/** A request to GitHub that takes longer is given up (as offline). */
+const TIMEOUT_MS = 15_000;
 const ACCOUNT = "github";
 
 /** Where the token lives. */
@@ -360,6 +362,7 @@ export class GitHub {
         ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   }
 
@@ -368,6 +371,7 @@ export class GitHub {
       method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "gh-writer" },
       body: new URLSearchParams(form).toString(),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   }
 }

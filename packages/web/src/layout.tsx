@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { Link } from "react-router";
+import { AccountMenu } from "./github/connect.tsx";
 import { useTheme, type ThemeChoice } from "./theme.ts";
 import { cn } from "./ui/cn.ts";
 
@@ -24,6 +25,7 @@ export function Shell({ actions, children, wide, chrome = true, title }: { actio
         </Link>
         <div className="flex flex-1 items-center justify-end gap-2">
           {actions}
+          <AccountMenu />
           <ThemeSelect />
         </div>
       </header>

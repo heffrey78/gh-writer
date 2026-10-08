@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { AxeBuilder } from "@axe-core/playwright";
 import { test as base, expect, type Page } from "@playwright/test";
+import { fakeGitHub, type FakeGitHub } from "../../server/test/fake-github.ts";
 
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
 export const sample = join(repo, "examples/sample-novel");
@@ -21,6 +22,8 @@ export interface Server {
 export interface App {
   /** A temp folder standing in for the author's home: config, clones and novels live here. */
   home: string;
+  /** The GitHub the server talks to: a fake, with its repositories under home/github. */
+  github: FakeGitHub;
   /** The launch URL, with its token. */
   launchUrl: string;
   /** The server's own address. */
@@ -72,8 +75,15 @@ export const test = base.extend<{ app: App; csp: void }>({
   app: async ({}, use, testInfo) => {
     const home = mkdtempSync(join(tmpdir(), "gh-writer-web-"));
     writeFileSync(join(home, ".gitconfig"), "[user]\n\tname = Test Author\n\temail = author@example.com\n[init]\n\tdefaultBranch = main\n");
+    const github = await fakeGitHub({ gitRoot: join(home, "github") });
+    const { GH_TOKEN: _gh, GITHUB_TOKEN: _github, ...outside } = process.env;
     const env: NodeJS.ProcessEnv = {
-      ...process.env,
+      ...outside,
+      // Never the author's keychain or github.com: a fake GitHub, and the sign-in kept in memory.
+      GH_WRITER_GITHUB_URL: github.url,
+      GH_WRITER_GITHUB_API_URL: github.url,
+      GH_WRITER_GITHUB_CLIENT_ID: github.clientId,
+      GH_WRITER_TOKEN_STORE: "memory",
       HOME: home,
       GH_WRITER_CONFIG_DIR: join(home, "config"),
       GIT_CONFIG_GLOBAL: join(home, ".gitconfig"),
@@ -87,6 +97,7 @@ export const test = base.extend<{ app: App; csp: void }>({
     let log = "";
     const app: App = {
       home,
+      github,
       launchUrl: "",
       url: "",
       env,
@@ -126,6 +137,7 @@ export const test = base.extend<{ app: App; csp: void }>({
     await app.restart();
     await use(app);
     await Promise.all([stop(child), ...others.map((o) => stop(o))]);
+    await github.close();
     if (testInfo.status !== testInfo.expectedStatus) await testInfo.attach("gh-writer serve output", { body: log, contentType: "text/plain" });
     rmSync(home, { recursive: true, force: true });
   },

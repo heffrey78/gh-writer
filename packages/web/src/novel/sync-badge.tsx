@@ -3,6 +3,7 @@ import { AlertTriangle, Check, CloudOff, GitMerge, KeyRound, Laptop, RefreshCw, 
 import { Popover } from "radix-ui";
 import { useId } from "react";
 import { ago } from "../format.ts";
+import { useConnect } from "../github/connect.tsx";
 import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
 
@@ -110,6 +111,13 @@ export function SyncBadge({ status, onSyncNow, syncing, onResolve }: { status: S
             )}
           </dl>
           <div className="flex gap-2">
+            {status.state === "needs-sign-in" && (
+              <Popover.Close asChild>
+                <Button variant="primary" onClick={() => useConnect.getState().show(onSyncNow)}>
+                  Connect GitHub…
+                </Button>
+              </Popover.Close>
+            )}
             {status.state === "conflict" && (
               <Popover.Close asChild>
                 <Button variant="primary" onClick={onResolve}>

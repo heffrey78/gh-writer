@@ -14,6 +14,7 @@ npm run test:e2e -w @gh-writer/web   # build, then Playwright against real serve
 |---|---|
 | `src/main.tsx` | Routes: `/` the library, `/novels/:novelId/*` a novel's workspace |
 | `src/layout.tsx` | The frame: skip link, top bar, theme choice |
+| `src/github/` | The GitHub connection: the account control in the top bar (Connect GitHub, or the login with Sign out), and the Connect dialog (gh's account, or a code entered on github.com), opened from anywhere with `useConnect` |
 | `src/library/` | The library: novels as generated covers on a shelf (`cover.tsx`), and the New novel, Open a folder and Clone from GitHub dialogs (`?add=new\|open\|clone`, also in the palette) |
 | `src/novel/` | A novel's workspace: navigation, the writing view, save and sync state, conflicts, spell check |
 | `src/commands.ts`, `src/palette.tsx` | The command registry, the palette (Mod+K) and the shortcut reference (Mod+/) |
@@ -228,6 +229,8 @@ The server answers the page only with its session cookie (see the server's secur
 - removing with confirmation
 - theme choice
 - an axe audit, empty and with novels, of each dialog and the book menu, in light and dark
+
+`e2e/github.spec.ts` runs against the fake GitHub every test gets (`app.github`, from `packages/server/test/fake-github.ts`: the device flow, the API, and git over HTTP with basic auth; the server keeps the sign-in in memory). It connects with a code and signs out, uses gh's account (a fake `gh` on the PATH), clones a repository GitHub refuses by connecting from the Clone dialog and then syncs with the connection, and reconnects from the sync badge after the token is revoked. No token reaches the browser or the disk.
 
 `e2e/new-novel.spec.ts` starts a novel from the shelf's + and types into it, asks for a name and email when git has none (with an empty global git config), and reports a folder that is taken (from the palette).
 
