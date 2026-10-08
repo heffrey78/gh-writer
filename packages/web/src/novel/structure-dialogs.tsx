@@ -1,32 +1,17 @@
 import type { Novel } from "@gh-writer/core";
 import { useQuery } from "@tanstack/react-query";
-import { Dialog } from "radix-ui";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent } from "react";
 import { api } from "../api.ts";
 import { ago } from "../format.ts";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
+import { Modal } from "../ui/dialog.tsx";
 import { Field } from "../ui/field.tsx";
 import { Picker } from "../ui/picker.tsx";
 import { chapterTitle } from "./navigation.tsx";
 import type { Structure } from "./structure.ts";
 
-function Frame({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  return (
-    <Dialog.Root open onOpenChange={(o) => !o && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
-        <Dialog.Content
-          aria-describedby={undefined}
-          className="fixed top-1/2 left-1/2 z-50 grid max-h-[85vh] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-lg border border-rule bg-raised p-5 text-ink shadow-xl"
-        >
-          <Dialog.Title className="text-lg font-semibold">{title}</Dialog.Title>
-          {children}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
-}
+const Frame = Modal;
 
 /** Ask for a title, then run `submit` with it. */
 export function TitleDialog({ title, label = "Title", initial = "", required = true, action, submit, onClose }: { title: string; label?: string; initial?: string; required?: boolean; action: string; submit: (value: string) => Promise<unknown>; onClose: () => void }) {

@@ -14,7 +14,7 @@ npm run test:e2e -w @gh-writer/web   # build, then Playwright against real serve
 |---|---|
 | `src/main.tsx` | Routes: `/` the library, `/novels/:novelId/*` a novel's workspace |
 | `src/layout.tsx` | The frame: skip link, top bar, theme choice |
-| `src/library/` | The library page: novels, open a folder, clone from GitHub |
+| `src/library/` | The library: novels as generated covers on a shelf (`cover.tsx`), and the New novel, Open a folder and Clone from GitHub dialogs (`?add=new\|open\|clone`, also in the palette) |
 | `src/novel/` | A novel's workspace: navigation, the writing view, save and sync state, conflicts, spell check |
 | `src/commands.ts`, `src/palette.tsx` | The command registry, the palette (Mod+K) and the shortcut reference (Mod+/) |
 | `src/ui/` | Shared controls (button, field, alert, confirmation dialog), in the shadcn/ui manner |
@@ -220,13 +220,16 @@ The server answers the page only with its session cookie (see the server's secur
 `e2e/fixtures.ts` gives each test a temporary home: its own git identity, config folder (library.json) and clone folder. It starts `gh-writer serve --no-open` there and reads the launch URL from its output. The library tests cover:
 
 - the token exchange
-- opening a folder by keyboard
+- opening a folder by keyboard, and a book's menu showing its folder
+- covers that stay the same across reloads and differ between novels
 - cloning from a local bare repository
 - the guidance for refused credentials (an HTTP remote answering 401)
 - notices for folders that have gone
 - removing with confirmation
 - theme choice
-- an axe audit, empty and with novels, in light and dark
+- an axe audit, empty and with novels, of each dialog and the book menu, in light and dark
+
+`e2e/new-novel.spec.ts` starts a novel from the shelf's + and types into it, asks for a name and email when git has none (with an empty global git config), and reports a folder that is taken (from the palette).
 
 The workspace tests (`e2e/workspace.spec.ts`) use two clones of a local bare remote, "here" (served) and "the other machine":
 

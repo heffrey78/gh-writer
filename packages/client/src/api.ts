@@ -16,6 +16,7 @@ export interface LibraryEntry {
   id: string;
   path: string;
   title: string;
+  author?: string;
   remote?: string;
   lastOpened: string;
 }

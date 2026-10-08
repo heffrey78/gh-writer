@@ -13,6 +13,9 @@ export function GlobalCommands() {
   useCommands(
     () => [
       { id: "app.library", title: "Go to your novels", group: "Go to", run: () => void navigate("/") },
+      { id: "app.new", title: "New novel…", group: "Novels", keywords: ["start", "create"], run: () => void navigate("/?add=new") },
+      { id: "app.open-folder", title: "Open a novel's folder…", group: "Novels", keywords: ["add"], run: () => void navigate("/?add=open") },
+      { id: "app.clone", title: "Clone a novel from GitHub…", group: "Novels", keywords: ["add", "repository"], run: () => void navigate("/?add=clone") },
       ...novels.map((n) => ({ id: `app.open.${n.id}`, title: `Open “${n.title}”`, group: "Novels", keywords: [n.path], run: () => void navigate(`/novels/${n.id}`) })),
       ...(["system", "light", "dark"] as ThemeChoice[]).map((t) => ({
         id: `app.theme.${t}`,

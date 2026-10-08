@@ -81,7 +81,9 @@ for (const [name, viewport] of [
     await audit(page);
 
     // Clone from the remote, by keyboard.
-    await page.getByRole("textbox", { name: "Repository" }).focus();
+    await page.getByRole("button", { name: "Clone from GitHub" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("textbox", { name: "Repository" })).toBeFocused();
     await page.keyboard.type(`file://${remote}`);
     await page.keyboard.press("Enter");
     const text = page.getByRole("textbox", { name: "Chapter text" });

@@ -42,7 +42,7 @@ describe("Library.create", () => {
   it("starts a valid novel from the template, with fresh IDs, the title and one commit", async () => {
     const library = await openLibrary();
     const novel = await library.create({ title: "The Salt Road", author: "Jeff Wikstrom" });
-    expect(novel).toMatchObject({ title: "The Salt Road", path: join(tmp, "novels", "the-salt-road") });
+    expect(novel).toMatchObject({ title: "The Salt Road", author: "Jeff Wikstrom", path: join(tmp, "novels", "the-salt-road") });
     expect(await library.list()).toEqual([novel]);
 
     const result = await validate(nodeSource(novel.path));

@@ -12,6 +12,8 @@ export interface LibraryEntry {
   /** Absolute path of the folder holding novel.yaml. */
   path: string;
   title: string;
+  /** The author named in novel.yaml, if any. */
+  author?: string;
   /** The origin remote, without any credentials embedded in it. */
   remote?: string;
   /** ISO timestamp. */
@@ -122,10 +124,8 @@ export class Library {
     }
     if (!isRepo) throw new LibraryError("NOT_A_REPO", `${path} isn't a git repository. A novel needs one to keep its history and sync with GitHub.`);
 
-    const yaml = await readFile(join(path, "novel.yaml"), "utf8").catch(() => undefined);
-    if (yaml === undefined) throw new LibraryError("NOT_A_NOVEL", `${path} has no novel.yaml, so it isn't a gh-writer novel.`);
-    const data = parseYaml(yaml, "novel.yaml").data as { title?: unknown } | undefined;
-    const title = typeof data?.title === "string" && data.title.trim() ? data.title.trim() : basename(path);
+    const cover = await coverOf(path);
+    if (!cover) throw new LibraryError("NOT_A_NOVEL", `${path} has no novel.yaml, so it isn't a gh-writer novel.`);
     const remote = await git(path)
       .remote(["get-url", "origin"])
       .then((url) => (url ? withoutCredentials(url.trim()) : undefined))
@@ -133,7 +133,7 @@ export class Library {
 
     const lastOpened = new Date().toISOString();
     const existing = this.#novels.find((n) => n.path === path);
-    const entry: LibraryEntry = { id: existing?.id ?? newId("lib"), path, title, ...(remote ? { remote } : {}), lastOpened };
+    const entry: LibraryEntry = { id: existing?.id ?? newId("lib"), path, ...cover, ...(remote ? { remote } : {}), lastOpened };
     this.#novels = [...this.#novels.filter((n) => n !== existing), entry];
     await this.#save();
     return entry;
@@ -153,6 +153,13 @@ export class Library {
     const entry = this.get(id);
     if (!entry) throw new LibraryError("UNKNOWN_NOVEL", `No novel ${id} in the library.`);
     entry.lastOpened = new Date().toISOString();
+    // The title and author may have changed since: the shelf shows them.
+    const cover = await coverOf(entry.path);
+    if (cover) {
+      entry.title = cover.title;
+      if (cover.author) entry.author = cover.author;
+      else delete entry.author;
+    }
     await this.#save();
   }
 
@@ -241,6 +248,16 @@ export class Library {
       });
     return this.#saving;
   }
+}
+
+/** The title and author in a novel's novel.yaml (the title defaults to the folder's name), or undefined without one. */
+async function coverOf(path: string): Promise<{ title: string; author?: string } | undefined> {
+  const yaml = await readFile(join(path, "novel.yaml"), "utf8").catch(() => undefined);
+  if (yaml === undefined) return undefined;
+  const data = parseYaml(yaml, "novel.yaml").data as { title?: unknown; author?: unknown } | undefined;
+  const title = typeof data?.title === "string" && data.title.trim() ? data.title.trim() : basename(path);
+  const author = typeof data?.author === "string" ? data.author.trim() : "";
+  return { title, ...(author ? { author } : {}) };
 }
 
 /** https://user:token@host/… → https://host/… (an ssh URL's user is not a secret, and stays). */

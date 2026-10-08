@@ -13,6 +13,8 @@
   --ghw-ok: #2f6b3a;
   --ghw-warn: #8a5300;
   --ghw-warn-soft: rgb(138 83 0 / 0.1);
+  --ghw-shelf: #dccfb8;
+  --ghw-shelf-edge: #c2b294;
   color-scheme: light;
 }
 
@@ -25,6 +27,8 @@
     --ghw-ok: #8fd19e;
     --ghw-warn: #f0bf6c;
     --ghw-warn-soft: rgb(240 191 108 / 0.12);
+    --ghw-shelf: #3a342c;
+    --ghw-shelf-edge: #4a4238;
     color-scheme: dark;
   }
 }
@@ -37,6 +41,8 @@
   --ghw-ok: #8fd19e;
   --ghw-warn: #f0bf6c;
   --ghw-warn-soft: rgb(240 191 108 / 0.12);
+  --ghw-shelf: #3a342c;
+  --ghw-shelf-edge: #4a4238;
   color-scheme: dark;
 }
 

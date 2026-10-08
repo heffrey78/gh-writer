@@ -111,6 +111,16 @@ describe("persistence", () => {
     expect(existsSync(library.notices[0]!.path)).toBe(true);
   });
 
+  it("refreshes the title and author when a novel is opened", async () => {
+    const library = await openLibrary();
+    const novel = await library.add(novelRepo());
+    expect(novel.author).toBe("gh-writer sample");
+    const yaml = join(novel.path, "novel.yaml");
+    writeFileSync(yaml, readFileSync(yaml, "utf8").replace(/^title: .*$/m, "title: Varn").replace(/^author: .*$/m, "") + "author: Ada Writer\n");
+    await library.touch(novel.id);
+    expect(library.get(novel.id)).toMatchObject({ title: "Varn", author: "Ada Writer" });
+  });
+
   it("orders novels by when they were last opened", async () => {
     const library = await openLibrary();
     const a = await library.add(novelRepo());
