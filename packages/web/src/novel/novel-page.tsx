@@ -26,6 +26,7 @@ import { PresencePage } from "../presence/presence-page.tsx";
 import { TimelinePage } from "../timeline/timeline-page.tsx";
 import { SaveStatus } from "./save-status.tsx";
 import { useSpell } from "./spell.ts";
+import { usePublish } from "../github/publish.tsx";
 import { SyncBadge } from "./sync-badge.tsx";
 import { createWorkspace, type Workspace } from "./workspace.ts";
 import { WritingView } from "./writing-view.tsx";
@@ -42,6 +43,8 @@ export function NovelPage() {
   const queryClient = useQueryClient();
   const novel = useQuery({ queryKey: keys.novel(novelId), queryFn: () => api.novel<Novel>(novelId) });
   const sync = useQuery({ queryKey: keys.sync(novelId), queryFn: () => api.sync(novelId) });
+  const library = useQuery({ queryKey: keys.library, queryFn: api.library, staleTime: 30_000 });
+  const folder = library.data?.novels.find((n) => n.id === novelId)?.path;
   const [workspace, setWorkspace] = useState<Workspace>();
   const [resolving, setResolving] = useState(false);
   const [checkpointsOpen, setCheckpointsOpen] = useState(false);
@@ -120,7 +123,13 @@ export function NovelPage() {
     <>
       <SaveStatus autosave={workspace.autosave} />
       <CheckpointsButton novelId={novelId} workspace={workspace} open={checkpointsOpen} onOpenChange={setCheckpointsOpen} />
-      <SyncBadge status={sync.data} onSyncNow={() => syncNow.mutate()} syncing={syncNow.isPending} onResolve={() => setResolving(true)} />
+      <SyncBadge
+        status={sync.data}
+        onSyncNow={() => syncNow.mutate()}
+        syncing={syncNow.isPending}
+        onResolve={() => setResolving(true)}
+        {...(folder ? { onPublish: () => usePublish.getState().show({ id: novelId, folder }) } : {})}
+      />
     </>
   );
 

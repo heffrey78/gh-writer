@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { GitHubError, type GitHub } from "./github.ts";
+import { GitHubError, unreachable, type GitHub } from "./github.ts";
 
 /**
  * GET    /api/github/account       the connection's status (never the token)
@@ -15,7 +15,8 @@ export function githubRoutes(github: GitHub): Hono {
       return c.json((await fn()) as object);
     } catch (e) {
       if (e instanceof GitHubError) return c.json({ code: e.code, error: e.message }, e.code === "GITHUB" ? 502 : 400);
-      // fetch failed: no network, or GitHub unreachable. The message never carries the token.
+      if (!unreachable(e)) throw e;
+      // No network, or GitHub unreachable. The message never carries the token.
       return c.json({ code: "NETWORK", error: "Couldn't reach GitHub. Check your connection and try again." }, 502);
     }
   };

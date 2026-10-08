@@ -137,6 +137,15 @@ export class Syncer {
     if (this.#intervalMs > 0) void this.sync();
   }
 
+  /**
+   * Sync from scratch: after a sync already under way (which may have started before a change it must
+   * see, such as a new remote), another one.
+   */
+  async syncAgain(): Promise<SyncStatus> {
+    await this.#running?.catch(() => {});
+    return this.sync();
+  }
+
   /** Sync now. A sync already under way is joined, not repeated. Resolves with the status after it. */
   sync(): Promise<SyncStatus> {
     if (this.#closed) return this.status();

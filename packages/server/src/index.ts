@@ -20,8 +20,9 @@ export { Committer, hasGitIdentity, operationInProgress, type BlockedCode, type 
 export { atomicWrite, checkPath, FileError, hashText, MAX_FILE_BYTES, TEMP_SUFFIX, type FileErrorCode, type TextFile, type WriteHooks } from "./files.ts";
 export { classifyGitError, cloneUrl, GitFailure, type GitErrorCode } from "./git.ts";
 export { DEFAULT_TEMPLATE, writeNewNovel, type NewNovel } from "./new-novel.ts";
-export { ghToken, GitHub, GITHUB_CLIENT_ID, GitHubError, keychainStore, memoryStore, SCOPES, type AccountStatus, type DeviceCode, type GitHubAccount, type GitHubErrorCode, type GitHubOptions, type PollResult, type TokenStore } from "./github.ts";
+export { ghToken, GitHub, GITHUB_CLIENT_ID, GitHubError, keychainStore, memoryStore, SCOPES, unreachable, type AccountStatus, type DeviceCode, type GitHubAccount, type GitHubErrorCode, type GitHubOptions, type PollResult, type TokenStore } from "./github.ts";
 export { githubRoutes } from "./github-routes.ts";
+export { publish, PublishError, type PublishErrorCode, type PublishOptions } from "./publish.ts";
 export { defaultConfigDir, expandHome, Library, LibraryError, type CloneOptions, type LibraryEntry, type LibraryErrorCode, type LibraryNotice } from "./library.ts";
 export { createServer, newToken, type RunningServer, type ServerOptions } from "./server.ts";
 export { hasSession, security, sessionCookie, TOKEN_PARAM, type SecurityOptions } from "./security.ts";

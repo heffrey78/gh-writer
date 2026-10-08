@@ -7,7 +7,9 @@ import { manuscriptRoutes } from "./manuscript-routes.ts";
 import { CheckpointError } from "./checkpoints.ts";
 import { ConflictError, type FileResolution } from "./conflicts.ts";
 import { FileError, MAX_FILE_BYTES } from "./files.ts";
+import { GitHubError, unreachable, type GitHub } from "./github.ts";
 import type { Library } from "./library.ts";
+import { publish, PublishError } from "./publish.ts";
 import type { NovelWorkspace, Workspaces } from "./workspace.ts";
 
 const HEARTBEAT_MS = 25_000;
@@ -22,6 +24,7 @@ type NovelEnv = { Variables: { ws: NovelWorkspace } };
  *                                   and a "sync" event (the status) whenever it changes
  * GET /api/novels/:id/sync          sync status: { state, remote, branch, ahead, behind, lastSync, conflict?, error?, commit }
  * POST /api/novels/:id/sync         sync now; the status once it's done
+ * POST /api/novels/:id/publish      { name, description?, private? } → { remote, status }: a new GitHub repository, pushed to
  * GET /api/novels/:id/checkpoints   { checkpoints }, newest first
  * POST /api/novels/:id/checkpoints  { name } → 201 { checkpoint }
  * POST /api/novels/:id/checkpoints/:checkpoint/restore  { sceneId? } → { undo, commit, files }
@@ -29,7 +32,7 @@ type NovelEnv = { Variables: { ws: NovelWorkspace } };
  * POST /api/novels/:id/conflicts/resolve  { upstream, files: { <path>: resolution } } → the sync status,
  *                                   or 409 STALE { conflicts } when they changed since they were read
  */
-export function novelRoutes(library: Library, workspaces: Workspaces): Hono<NovelEnv> {
+export function novelRoutes(library: Library, workspaces: Workspaces, github?: GitHub): Hono<NovelEnv> {
   const routes = new Hono<NovelEnv>();
 
   routes.use("/:id/*", async (c, next) => {
@@ -84,6 +87,28 @@ export function novelRoutes(library: Library, workspaces: Workspaces): Hono<Nove
   routes.post("/:id/sync", async (c) => {
     await c.var.ws.syncer?.sync();
     return c.json(await c.var.ws.syncStatus());
+  });
+
+  routes.post("/:id/publish", async (c) => {
+    if (!github) return c.json({ code: "NO_SIGN_IN", error: "This server has no GitHub connection." }, 400);
+    const body = (await c.req.json().catch(() => undefined)) as { name?: unknown; description?: unknown; private?: unknown } | undefined;
+    if (typeof body?.name !== "string" || (body.description !== undefined && typeof body.description !== "string") || (body.private !== undefined && typeof body.private !== "boolean")) {
+      return c.json({ code: "BAD_REQUEST", error: "Send { name, description?, private? }." }, 400);
+    }
+    try {
+      const { remote } = await publish(c.var.ws, github, {
+        name: body.name.trim(),
+        ...(typeof body.description === "string" && body.description.trim() ? { description: body.description.trim() } : {}),
+        ...(typeof body.private === "boolean" ? { private: body.private } : {}),
+      });
+      // The library shows where the novel lives now.
+      await library.add(c.var.ws.root);
+      return c.json({ remote, status: await c.var.ws.syncStatus() });
+    } catch (e) {
+      if (e instanceof PublishError || e instanceof GitHubError) return c.json({ code: e.code, error: e.message }, e instanceof GitHubError && e.code === "GITHUB" ? 502 : 400);
+      if (!unreachable(e)) throw e;
+      return c.json({ code: "NETWORK", error: "Couldn't reach GitHub. Check your connection and try again." }, 502);
+    }
   });
 
   routes.get("/:id/checkpoints", async (c) => c.json({ checkpoints: await c.var.ws.checkpoints.list() }));

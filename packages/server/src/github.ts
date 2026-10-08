@@ -76,6 +76,11 @@ const noKeychain = () =>
     "gh-writer keeps your GitHub sign-in in the system keychain, and couldn't reach it. On Linux, install and unlock a Secret Service keyring (GNOME Keyring or KWallet), then try again.",
   );
 
+/** Whether `e` is fetch failing to reach GitHub (no network, refused, timed out) rather than a bug. */
+export function unreachable(e: unknown): boolean {
+  return e instanceof TypeError || (e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError"));
+}
+
 /** A store in memory, gone when the server stops: for tests (GH_WRITER_TOKEN_STORE=memory). */
 export function memoryStore(): TokenStore {
   let token: string | undefined;

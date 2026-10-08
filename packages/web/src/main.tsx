@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router";
 import { queryClient } from "./api.ts";
 import { ConnectDialog } from "./github/connect.tsx";
+import { PublishDialog } from "./github/publish.tsx";
 import { GlobalCommands } from "./global-commands.tsx";
 import { CommandPalette } from "./palette.tsx";
 import { LibraryPage } from "./library/library-page.tsx";
@@ -25,6 +26,7 @@ createRoot(document.getElementById("root")!).render(
         <GlobalCommands />
         <CommandPalette />
         <ConnectDialog />
+        <PublishDialog />
         <ErrorBoundary what="this page">
           <Routes>
             <Route path="/" element={<LibraryPage />} />

@@ -77,6 +77,8 @@ The author signs in to GitHub once, in the app (D5, #90). `GitHub` (in `github.t
 - `GitHub.api(path)` calls the REST API as the author. A 401 forgets the token and throws `NO_SIGN_IN`.
 - **git**: clone and sync give git the token for http(s) remotes on GitHub only (`GitHub.gitAuth(url)`), for that one command. `git -c credential.<origin>.helper=` clears the author's own helpers for that host (so a stale stored credential can't win), and a second `-c credential.<origin>.helper=!…` answers `x-access-token` and the token, read from the command's environment (`GH_WRITER_GIT_TOKEN`). Nothing is written to any git config file, and the token is never in git's arguments. Signed out, or for any other host or an ssh remote, git uses the author's own setup as before. When GitHub refuses the token during a sync, the status is `needs-sign-in`, and the connection checks the token (forgetting it if GitHub no longer accepts it).
 
+- **Publishing** (`POST /api/novels/:id/publish { name, description?, private? }` → `{ remote, status }`): creates a repository on the author's account (`POST /user/repos`, private unless `private: false`), adds it as `origin`, and pushes through the novel's own sync, which then keeps syncing with it. A name already used on the account is `NAME_TAKEN`; a novel that already has an `origin` is `HAS_REMOTE`, except the repository this publish made: after a failed push (`PUSH_FAILED`), trying again pushes there instead of creating another.
+
 `GH_WRITER_GITHUB_URL` and `GH_WRITER_GITHUB_API_URL` point the connection at another GitHub; the tests use a fake one (`test/fake-github.ts`).
 
 ## Novel files

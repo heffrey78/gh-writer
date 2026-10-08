@@ -130,3 +130,60 @@ test("when GitHub stops accepting the sign-in, sync says so and reconnecting res
   await expect(page.getByRole("button", { name: "GitHub account: ada" })).toBeVisible();
   await axe(page);
 });
+
+/** Start a novel through the API: local only, no remote. */
+async function newNovel(page: Page, app: App, title: string) {
+  const r = await page.request.post(`${app.url}/api/library/new`, { data: { title }, headers: { origin: app.url } });
+  expect(r.status()).toBe(201);
+  return ((await r.json()) as { novel: { id: string; path: string } }).novel;
+}
+
+test("signed out, puts a new novel on GitHub from the shelf: connects, creates a private repository, and pushes", async ({ page, app }) => {
+  await launch(page, app);
+  await newNovel(page, app, "The Salt Road");
+  await page.reload();
+  await page.getByRole("button", { name: "More for “The Salt Road”" }).click();
+  await page.getByRole("menuitem", { name: "Put on GitHub…" }).click();
+  const publish = page.getByRole("dialog", { name: "Put on GitHub" });
+  await expect(publish).toContainText("Connect gh-writer to GitHub first");
+  await publish.getByRole("button", { name: "Connect GitHub" }).click();
+  await signInWithCode(page, app);
+
+  // Back to publishing, now signed in.
+  await expect(publish.getByRole("textbox", { name: "Repository name" })).toHaveValue("the-salt-road");
+  await expect(publish).toContainText("github.com/ada/the-salt-road");
+  await expect(publish.getByRole("checkbox", { name: /Private/ })).toBeChecked();
+  await axe(page);
+  await publish.getByRole("button", { name: "Create and push" }).click();
+  await expect(publish).toHaveCount(0);
+
+  expect(app.github.repos.find((r) => r.name === "the-salt-road")?.private).toBe(true);
+  expect(app.git(app.github.repoPath("ada", "the-salt-road"), "log", "--format=%s", "main").trim()).toBe("Start The Salt Road");
+  await expect(page.getByRole("list", { name: "Novels" })).toContainText(`${app.github.url}/ada/the-salt-road.git`);
+});
+
+test("puts a novel on GitHub from its sync badge, then syncs with it", async ({ page, app }) => {
+  await launch(page, app);
+  await connectButton(page).click();
+  await signInWithCode(page, app);
+  const novel = await newNovel(page, app, "Night Ferry");
+  await page.goto(`${app.url}/novels/${novel.id}`);
+  await expect(badge(page)).toHaveAccessibleName("Sync: Local only");
+  await badge(page).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Put on GitHub…" }).click();
+  const publish = page.getByRole("dialog", { name: "Put on GitHub" });
+  await publish.getByRole("textbox", { name: "Repository name" }).fill("ferry");
+  await publish.getByRole("checkbox", { name: /Private/ }).uncheck();
+  await publish.getByRole("button", { name: "Create and push" }).click();
+  await expect(badge(page)).toHaveAccessibleName("Sync: Synced");
+  expect(app.github.repos.find((r) => r.name === "ferry")?.private).toBe(false);
+
+  // A name that's taken says so, in the dialog.
+  const other = await newNovel(page, app, "Second Ferry");
+  await page.goto(`${app.url}/novels/${other.id}`);
+  await badge(page).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Put on GitHub…" }).click();
+  await publish.getByRole("textbox", { name: "Repository name" }).fill("ferry");
+  await publish.getByRole("button", { name: "Create and push" }).click();
+  await expect(publish.getByRole("alert")).toContainText("You already have a repository called “ferry”");
+});

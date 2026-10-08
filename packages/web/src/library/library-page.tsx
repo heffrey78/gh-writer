@@ -10,6 +10,7 @@ import { Shell } from "../layout.tsx";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { Confirm } from "../ui/confirm.tsx";
+import { usePublish } from "../github/publish.tsx";
 import { CloneDialog, NewNovelDialog, OpenFolderDialog } from "./add-dialogs.tsx";
 import { Cover } from "./cover.tsx";
 
@@ -160,6 +161,11 @@ function Book({ novel, menus }: { novel: LibraryEntry; menus: HTMLElement | null
               <DropdownMenu.Item className={item} onSelect={() => void navigate(`/novels/${novel.id}`)}>
                 Open
               </DropdownMenu.Item>
+              {!novel.remote && (
+                <DropdownMenu.Item className={item} onSelect={() => usePublish.getState().show({ id: novel.id, folder: novel.path })}>
+                  Put on GitHub…
+                </DropdownMenu.Item>
+              )}
               <DropdownMenu.Item className={item} onSelect={() => setRemoving(true)}>
                 Remove from library…
               </DropdownMenu.Item>

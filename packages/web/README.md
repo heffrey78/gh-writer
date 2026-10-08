@@ -230,7 +230,7 @@ The server answers the page only with its session cookie (see the server's secur
 - theme choice
 - an axe audit, empty and with novels, of each dialog and the book menu, in light and dark
 
-`e2e/github.spec.ts` runs against the fake GitHub every test gets (`app.github`, from `packages/server/test/fake-github.ts`: the device flow, the API, and git over HTTP with basic auth; the server keeps the sign-in in memory). It connects with a code and signs out, uses gh's account (a fake `gh` on the PATH), clones a repository GitHub refuses by connecting from the Clone dialog and then syncs with the connection, and reconnects from the sync badge after the token is revoked. No token reaches the browser or the disk.
+`e2e/github.spec.ts` runs against the fake GitHub every test gets (`app.github`, from `packages/server/test/fake-github.ts`: the device flow, the API, and git over HTTP with basic auth; the server keeps the sign-in in memory). It connects with a code and signs out, uses gh's account (a fake `gh` on the PATH), clones a repository GitHub refuses by connecting from the Clone dialog and then syncs with the connection, reconnects from the sync badge after the token is revoked, and puts a new novel on GitHub from the shelf (connecting first) and from the sync badge (public, then a name already taken). No token reaches the browser or the disk.
 
 `e2e/new-novel.spec.ts` starts a novel from the shelf's + and types into it, asks for a name and email when git has none (with an empty global git config), and reports a folder that is taken (from the palette).
 

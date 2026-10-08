@@ -294,6 +294,9 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
       /** Sign in with the gh CLI's account. */
       useGh: async () => (await request<GitHubStatus>("POST", "/api/github/gh")).data,
       signOut: async () => (await request<GitHubStatus>("DELETE", "/api/github/account")).data,
+      /** Put a local novel on GitHub: a new repository (private unless `private: false`), pushed to and synced with. */
+      publish: async (novelId: string, repo: { name: string; description?: string; private?: boolean }) =>
+        (await request<{ remote: string; status: SyncStatus }>("POST", `/api/novels/${encodeURIComponent(novelId)}/publish`, repo)).data,
     },
     removeNovel: async (id: string) => void (await request("DELETE", `/api/library/${encodeURIComponent(id)}`)),
     /** The story model (core's Novel) and the hash of each file it was read from. */

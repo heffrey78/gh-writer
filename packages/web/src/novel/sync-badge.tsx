@@ -59,7 +59,20 @@ function explain(s: SyncStatus): string {
 }
 
 /** The sync state at a glance; its popover has the details, Sync now, and the way to conflicts. */
-export function SyncBadge({ status, onSyncNow, syncing, onResolve }: { status: SyncStatus | undefined; onSyncNow: () => void; syncing: boolean; onResolve: () => void }) {
+export function SyncBadge({
+  status,
+  onSyncNow,
+  syncing,
+  onResolve,
+  onPublish,
+}: {
+  status: SyncStatus | undefined;
+  onSyncNow: () => void;
+  syncing: boolean;
+  onResolve: () => void;
+  /** Put a local-only novel on GitHub. */
+  onPublish?: () => void;
+}) {
   const headingId = useId();
   if (!status) return null;
   const { label, icon: Icon, tone } = describe(status);
@@ -111,6 +124,13 @@ export function SyncBadge({ status, onSyncNow, syncing, onResolve }: { status: S
             )}
           </dl>
           <div className="flex gap-2">
+            {status.state === "local" && onPublish && (
+              <Popover.Close asChild>
+                <Button variant="primary" onClick={onPublish}>
+                  Put on GitHub…
+                </Button>
+              </Popover.Close>
+            )}
             {status.state === "needs-sign-in" && (
               <Popover.Close asChild>
                 <Button variant="primary" onClick={() => useConnect.getState().show(onSyncNow)}>

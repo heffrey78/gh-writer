@@ -42,6 +42,8 @@ export interface FakeGitHub {
   expire(): void;
   /** GitHub stops accepting the token. */
   revoke(token: string): void;
+  /** Set to make the next created repository refuse pushes (its git side missing), once. */
+  brokenNextRepo: boolean;
   /** The bare repository behind owner/name (with `gitRoot`). */
   repoPath(owner: string, name: string): string;
   close(): Promise<void>;
@@ -61,6 +63,7 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
     users: new Map(),
     repos: [],
     requests: [],
+    brokenNextRepo: false,
     approve: () => void (approved = true),
     deny: () => void (denied = true),
     slowDown: () => void (slow = true),
@@ -127,7 +130,8 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
         }
         const repo: FakeRepo = { owner: user.login, name, private: priv ?? false, ...(description ? { description } : {}), pushedAt: new Date().toISOString() };
         fake.repos.push(repo);
-        if (gitRoot) execFileSync("git", ["init", "--quiet", "--bare", "--initial-branch=main", fake.repoPath(user.login, name)]);
+        if (gitRoot && !fake.brokenNextRepo) execFileSync("git", ["init", "--quiet", "--bare", "--initial-branch=main", fake.repoPath(user.login, name)]);
+        fake.brokenNextRepo = false;
         return json(res, 201, { name, full_name: `${user.login}/${name}`, private: repo.private, html_url: `${fake.url}/${user.login}/${name}`, clone_url: `${fake.url}/${user.login}/${name}.git`, owner: { login: user.login } });
       }
       case "POST /__fake/approve":
