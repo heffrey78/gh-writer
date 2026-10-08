@@ -19,6 +19,7 @@ export { commitMessage, type FileChange } from "./commit-message.ts";
 export { Committer, hasGitIdentity, operationInProgress, type BlockedCode, type CommitResult, type CommitStatus, type CommitterOptions, type LastCommit } from "./committer.ts";
 export { atomicWrite, checkPath, FileError, hashText, MAX_FILE_BYTES, TEMP_SUFFIX, type FileErrorCode, type TextFile, type WriteHooks } from "./files.ts";
 export { classifyGitError, cloneUrl, GitFailure, type GitErrorCode } from "./git.ts";
+export { DEFAULT_TEMPLATE, writeNewNovel, type NewNovel } from "./new-novel.ts";
 export { defaultConfigDir, expandHome, Library, LibraryError, type CloneOptions, type LibraryEntry, type LibraryErrorCode, type LibraryNotice } from "./library.ts";
 export { createServer, newToken, type RunningServer, type ServerOptions } from "./server.ts";
 export { hasSession, security, sessionCookie, TOKEN_PARAM, type SecurityOptions } from "./security.ts";

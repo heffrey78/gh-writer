@@ -3,6 +3,15 @@
  * cookie and the page's own Origin; elsewhere (tests, tools) pass them as `headers`.
  */
 
+export interface NewNovel {
+  title: string;
+  author?: string;
+  /** The folder; default: one named after the title in the library's folder. */
+  path?: string;
+  /** Who commits, for this novel only. */
+  identity?: { name: string; email: string };
+}
+
 export interface LibraryEntry {
   id: string;
   path: string;
@@ -216,7 +225,10 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
 
   return {
     session: async () => (await request<{ authenticated: boolean }>("GET", "/api/session")).data,
-    library: async () => (await request<{ novels: LibraryEntry[]; notices: LibraryNotice[] }>("GET", "/api/library")).data,
+    /** The library, its notices, and the folder new novels and clones go in (~ for home). */
+    library: async () => (await request<{ novels: LibraryEntry[]; notices: LibraryNotice[]; folder: string }>("GET", "/api/library")).data,
+    /** Start a novel from the template. Rejects with NEEDS_IDENTITY when git doesn't know the author: send `identity` then. */
+    createNovel: async (novel: NewNovel) => (await request<{ novel: LibraryEntry }>("POST", "/api/library/new", novel)).data.novel,
     addNovel: async (path: string) => (await request<{ novel: LibraryEntry }>("POST", "/api/library", { path })).data.novel,
     /** Clone owner/name or a URL into the library. Rejects with an ApiError carrying git's code (AUTH, NOT_FOUND…) and guidance. */
     clone: async (repo: string, { path, onProgress, signal }: CloneOptions = {}): Promise<LibraryEntry> => {

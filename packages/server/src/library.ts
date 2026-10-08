@@ -1,9 +1,10 @@
 import { mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { newId, parseYaml } from "@gh-writer/core";
+import { newId, parseYaml, slugify } from "@gh-writer/core";
 import type { SimpleGitProgressEvent } from "simple-git";
 import { classifyGitError, cloneUrl, git, repoName } from "./git.ts";
+import { DEFAULT_TEMPLATE, NeedsIdentity, writeNewNovel, type NewNovel } from "./new-novel.ts";
 
 /** A novel the author has opened or cloned. */
 export interface LibraryEntry {
@@ -23,7 +24,7 @@ export interface LibraryNotice {
   path: string;
 }
 
-export type LibraryErrorCode = "NOT_A_DIRECTORY" | "NOT_A_REPO" | "NOT_A_NOVEL" | "UNKNOWN_NOVEL";
+export type LibraryErrorCode = "NOT_A_DIRECTORY" | "NOT_A_REPO" | "NOT_A_NOVEL" | "UNKNOWN_NOVEL" | "NOT_EMPTY" | "NEEDS_IDENTITY";
 
 export class LibraryError extends Error {
   readonly code: LibraryErrorCode;
@@ -62,19 +63,27 @@ export function defaultConfigDir(): string {
  */
 export class Library {
   readonly file: string;
+  /** Where new novels and clones go unless the author says otherwise. */
   readonly cloneDir: string;
+  /** The template new novels are made from. */
+  readonly templateDir: string;
   /** What changed behind the author's back: shown once by the UI, kept for the server's lifetime. */
   readonly notices: LibraryNotice[] = [];
   #novels: LibraryEntry[] = [];
   #saving: Promise<void> = Promise.resolve();
 
-  private constructor(file: string, cloneDir: string) {
+  private constructor(file: string, cloneDir: string, templateDir: string) {
     this.file = file;
     this.cloneDir = cloneDir;
+    this.templateDir = templateDir;
   }
 
-  static async open({ configDir = defaultConfigDir(), cloneDir = join(homedir(), "gh-writer") }: { configDir?: string; cloneDir?: string } = {}): Promise<Library> {
-    const library = new Library(join(configDir, "library.json"), cloneDir);
+  static async open({
+    configDir = defaultConfigDir(),
+    cloneDir = join(homedir(), "gh-writer"),
+    templateDir = DEFAULT_TEMPLATE,
+  }: { configDir?: string; cloneDir?: string; templateDir?: string } = {}): Promise<Library> {
+    const library = new Library(join(configDir, "library.json"), cloneDir, templateDir);
     await library.#load();
     await library.list();
     return library;
@@ -169,6 +178,34 @@ export class Library {
       if (e instanceof LibraryError && e.code === "NOT_A_NOVEL") {
         throw new LibraryError("NOT_A_NOVEL", `${url} has no novel.yaml, so it isn't a gh-writer novel. Nothing was kept.`);
       }
+      throw e;
+    }
+  }
+
+  /** Where a new novel called `title` goes unless the author picks a folder. */
+  defaultFolder(title: string): string {
+    return join(this.cloneDir, slugify(title) || "novel");
+  }
+
+  /**
+   * Start a novel from the template in `into` (default: a folder named after the title in the
+   * clone directory), which must be new or empty, and add it. A failure leaves nothing behind.
+   */
+  async create({ into, ...novel }: NewNovel & { into?: string }): Promise<LibraryEntry> {
+    const dest = resolve(into ? expandHome(into) : this.defaultFolder(novel.title));
+    const info = await stat(dest).catch(() => undefined);
+    if (info && !info.isDirectory()) throw new LibraryError("NOT_A_DIRECTORY", `${dest} is a file, not a folder. Choose another folder.`);
+    const existing = info && (await readdir(dest));
+    if (existing?.length) throw new LibraryError("NOT_EMPTY", `${dest} already exists and isn't empty. Choose another folder, or a new name.`);
+    const cleanUp = () => (existing ? rm(dest, { recursive: true, force: true }).then(() => mkdir(dest)) : rm(dest, { recursive: true, force: true }));
+
+    await mkdir(dest, { recursive: true });
+    try {
+      await writeNewNovel(this.templateDir, dest, novel);
+      return await this.add(dest);
+    } catch (e) {
+      await cleanUp();
+      if (e instanceof NeedsIdentity) throw new LibraryError("NEEDS_IDENTITY", e.message);
       throw e;
     }
   }

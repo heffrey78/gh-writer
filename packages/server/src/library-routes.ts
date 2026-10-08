@@ -1,18 +1,49 @@
+import { homedir } from "node:os";
+import { sep } from "node:path";
 import { Hono, type Context } from "hono";
 import { streamSSE } from "hono/streaming";
 import { classifyGitError, GitFailure } from "./git.ts";
 import { LibraryError, type Library } from "./library.ts";
 
 /**
- * GET    /api/library        { novels, notices }
+ * GET    /api/library        { novels, notices, folder }: folder is where new novels and clones go, ~ for home
  * POST   /api/library        { path } → 201 { novel }
+ * POST   /api/library/new    { title, author?, path?, identity?: { name, email } } → 201 { novel }
  * DELETE /api/library/:id    forget a novel (its folder stays) → 204
  * POST   /api/library/clone  { repo, path? } → an event stream: "progress"…, then "done" { novel } or "error"
  */
 export function libraryRoutes(library: Library): Hono {
   const routes = new Hono();
 
-  routes.get("/", async (c) => c.json({ novels: await library.list(), notices: library.notices }));
+  routes.get("/", async (c) => c.json({ novels: await library.list(), notices: library.notices, folder: tilde(library.cloneDir) }));
+
+  routes.post("/new", async (c) => {
+    const body = await jsonBody(c);
+    const identity = body?.identity as { name?: unknown; email?: unknown } | undefined;
+    const text = (v: unknown) => v === undefined || typeof v === "string";
+    if (
+      typeof body?.title !== "string" ||
+      !body.title.trim() ||
+      !text(body.author) ||
+      !text(body.path) ||
+      (identity !== undefined && (typeof identity?.name !== "string" || !identity.name.trim() || typeof identity.email !== "string" || !identity.email.trim()))
+    ) {
+      return c.json({ code: "BAD_REQUEST", error: "Send { title, author?, path?, identity?: { name, email } }." }, 400);
+    }
+    const author = (body.author as string | undefined)?.trim();
+    const path = (body.path as string | undefined)?.trim();
+    try {
+      const novel = await library.create({
+        title: body.title.trim(),
+        ...(author ? { author } : {}),
+        ...(path ? { into: path } : {}),
+        ...(identity ? { identity: { name: (identity.name as string).trim(), email: (identity.email as string).trim() } } : {}),
+      });
+      return c.json({ novel }, 201);
+    } catch (e) {
+      return failure(c, e);
+    }
+  });
 
   routes.post("/", async (c) => {
     const body = await jsonBody(c);
@@ -73,4 +104,10 @@ function describe(e: unknown): { code: string; error: string; detail?: string } 
 function failure(c: Context, e: unknown): Response {
   if (!(e instanceof LibraryError) && !(e instanceof GitFailure)) throw e;
   return c.json(describe(e), e instanceof LibraryError && e.code === "UNKNOWN_NOVEL" ? 404 : 400);
+}
+
+/** A path as the author would type it: their home folder as ~. */
+function tilde(path: string): string {
+  const home = homedir();
+  return path === home ? "~" : path.startsWith(home + sep) ? `~/${path.slice(home.length + 1).split(sep).join("/")}` : path;
 }
