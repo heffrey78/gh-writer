@@ -10,11 +10,11 @@ import { Button } from "../ui/button.tsx";
 export function ExportMenu({ name, svg, mermaid }: { name: string; svg: () => string; mermaid?: (() => string) | undefined }) {
   const show = useNotice((n) => n.show);
   const item = "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent-soft";
-  const download = () => {
-    const url = URL.createObjectURL(new Blob([svg()], { type: "image/svg+xml" }));
+  const save = (text: string, type: string, file: string) => {
+    const url = URL.createObjectURL(new Blob([text], { type }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${name}.svg`;
+    a.download = file;
     document.body.append(a);
     a.click();
     a.remove();
@@ -37,13 +37,18 @@ export function ExportMenu({ name, svg, mermaid }: { name: string; svg: () => st
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal container={document.getElementById("main")}>
         <DropdownMenu.Content align="end" className="z-50 min-w-48 rounded-md border border-rule bg-raised p-1 text-ink shadow-lg">
-          <DropdownMenu.Item className={item} onSelect={download}>
+          <DropdownMenu.Item className={item} onSelect={() => save(svg(), "image/svg+xml", `${name}.svg`)}>
             Download SVG
           </DropdownMenu.Item>
           {mermaid && (
-            <DropdownMenu.Item className={item} onSelect={() => void copy()}>
-              Copy Mermaid
-            </DropdownMenu.Item>
+            <>
+              <DropdownMenu.Item className={item} onSelect={() => save(mermaid(), "text/vnd.mermaid", `${name}.mmd`)}>
+                Download Mermaid (.mmd)
+              </DropdownMenu.Item>
+              <DropdownMenu.Item className={item} onSelect={() => void copy()}>
+                Copy Mermaid
+              </DropdownMenu.Item>
+            </>
           )}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>

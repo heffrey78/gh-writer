@@ -31,6 +31,11 @@ test("the graph exports as SVG and as Mermaid, as it stands at the page's scene"
   expect(svg.text).not.toContain(">Allied with<");
 
   await page.getByRole("button", { name: "Export" }).click();
+  const [mmd] = await Promise.all([page.waitForEvent("download"), page.getByRole("menuitem", { name: "Download Mermaid (.mmd)" }).click()]);
+  expect(mmd.suggestedFilename()).toBe("relationships-at-the-betrayal.mmd");
+  expect(readFileSync((await mmd.path())!, "utf8")).toContain('char_7f3k2q -.-|"Rivals with"| char_b3n0vs');
+
+  await page.getByRole("button", { name: "Export" }).click();
   await page.getByRole("menuitem", { name: "Copy Mermaid" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Copied the diagram as Mermaid" })).toBeVisible();
   const mermaid = await page.evaluate(() => navigator.clipboard.readText());
@@ -41,7 +46,7 @@ test("the graph exports as SVG and as Mermaid, as it stands at the page's scene"
 test("plotlines, presence and the timeline export as SVG; the timeline as Mermaid too", async ({ page, app }) => {
   await open(page, app, "Plotlines");
   await page.getByRole("button", { name: "Export" }).click();
-  await expect(page.getByRole("menuitem", { name: "Copy Mermaid" })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: /Mermaid/ })).toHaveCount(0);
   expect((await downloaded(page)).text).toContain("<title>Plotlines by scene</title>");
 
   await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Presence" }).click();

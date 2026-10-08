@@ -73,7 +73,7 @@ Items can also be dragged: before or after an item of the same kind, or onto a c
 
 ## Exporting diagrams
 
-Every diagram page (Graph, Plotlines, Presence, Timeline) has **Export**: **Download SVG** saves what the page shows (the graph at its scene with its filters, the presence type chosen, the timeline's lanes), and **Copy Mermaid**, for the graph and the timeline, puts it on the clipboard to paste into a ```` ```mermaid ```` block on GitHub. They come from the same renderers (`@gh-writer/core/snapshots`) as the snapshots that `gh-writer snapshots` and the novel's Diagrams workflow keep in `diagrams/`.
+Every diagram page (Graph, Plotlines, Presence, Timeline) has **Export**: **Download SVG** saves what the page shows (the graph at its scene with its filters, the presence type chosen, the timeline's lanes), and **Download Mermaid (.mmd)** and **Copy Mermaid**, for the graph and the timeline, give it as Mermaid text, to keep as a file or paste into a ```` ```mermaid ```` block on GitHub. They come from the same renderers (`@gh-writer/core/snapshots`) as the snapshots that `gh-writer snapshots` and the novel's Diagrams workflow keep in `diagrams/`.
 
 ## Plotline swimlanes
 
