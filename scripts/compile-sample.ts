@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { compileBook, loadNovel } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
-import { toDocx, toEpub } from "@gh-writer/export";
+import { toDocx, toEpub, toPdf } from "@gh-writer/export";
 
 const out = process.argv[2] ?? "dist/sample";
 const source = nodeSource(new URL("../examples/sample-novel/", import.meta.url).pathname);
@@ -13,4 +13,7 @@ const date = new Date("2026-01-01T00:00:00Z");
 mkdirSync(out, { recursive: true });
 writeFileSync(join(out, "the-bridge-at-varn.docx"), toDocx(book, { date }));
 writeFileSync(join(out, "the-bridge-at-varn.epub"), toEpub(book, { date }));
+const { pdf, missing } = await toPdf(book, { date });
+writeFileSync(join(out, "the-bridge-at-varn.pdf"), pdf);
+if (missing.length) console.warn(`The PDF's type has no letter for: ${missing.join(" ")}`);
 console.log(`Compiled ${book.chapters.length} chapters (${book.words} words) to ${out}`);
