@@ -1,0 +1,17 @@
+{
+  "name": "@gh-writer/export",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The compiled manuscript as DOCX (standard manuscript format), EPUB and PDF.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@gh-writer/core": "0.1.0",
+    "fflate": "^0.8.3"
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.2"
+  }
+}
