@@ -26,8 +26,8 @@ export function useIssue(novelId: string, number: number) {
   });
 }
 
-/** The repository's labels and milestones, and how the cache stands. */
-export function useIssueMeta(novelId: string): Pick<IssueList, "labels" | "milestones" | "status"> | undefined {
+/** The repository's labels and milestones, how the cache stands, and every issue (for which labels are in use). */
+export function useIssueMeta(novelId: string): IssueList | undefined {
   return useIssueList(novelId, { state: "all" }).data;
 }
 
@@ -48,12 +48,19 @@ export function useIssueChanges(novelId: string) {
     }
     show({ message: `Couldn't change the issue: ${e instanceof Error ? e.message : String(e)}` });
   };
+  // The issue as GitHub answered, at once: a change made right after this one starts from it, not
+  // from the copy shown before the refetch (which would undo this one).
+  const keep = (issue: Issue, asked = issue.number) => {
+    for (const n of new Set([asked, issue.number])) queryClient.setQueryData([...keys.issues(novelId), "issue", n], issue);
+  };
   const create = useMutation({
     mutationFn: (input: IssueInput & { title: string }) => api.issues.create(novelId, input),
+    onSuccess: (issue) => keep(issue),
     onSettled: settled,
   });
   const update = useMutation({
     mutationFn: ({ number, input }: { number: number; input: IssueInput }) => api.issues.update(novelId, number, input),
+    onSuccess: (issue, { number }) => keep(issue, number),
     onSettled: settled,
   });
   const comment = useMutation({

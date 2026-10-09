@@ -59,6 +59,9 @@ describe("POST /api/novels/:id/publish", () => {
     expect(JSON.parse(res.body)).toMatchObject({ remote, status: { state: "synced", remote: "origin", branch: "main", github: { owner: "ada", name: "salt-road", url: `${fake.url}/ada/salt-road` } } });
     expect((await sync()).github).toEqual({ owner: "ada", name: "salt-road", url: `${fake.url}/ada/salt-road` });
     expect(fake.repos.find((r) => r.name === "salt-road")).toMatchObject({ private: true, description: "A novel" });
+    // GitHub's software labels swapped for the writing kinds.
+    expect(fake.issues("ada", "salt-road").labels.map((l) => l.name)).toEqual(["kind/plot-hole", "kind/continuity", "kind/research", "kind/idea", "kind/revision"]);
+    expect(fake.issues("ada", "salt-road").labels[0]).toEqual({ name: "kind/plot-hole", color: "d73a4a", description: "Something in the story that can't happen" });
     expect(bareLog("salt-road")).toBe("Start Salt Road");
     expect(s.library.get(s.novel.id)?.remote).toBe(remote);
     expect(gitIn(s.novel.path, "rev-parse", "--abbrev-ref", "main@{upstream}").trim()).toBe("origin/main");

@@ -486,6 +486,11 @@ function issuesApi(root: (novelId: string) => string, request: Request) {
     /** Raise an issue about a passage: quoted, linked, labelled with its kind, and anchored (#9). */
     raise: (novelId: string, passage: { path: string; scene: string; sceneTitle: string; quote: string; title: string; details?: string; kind?: IssueLabel; labels?: string[] }) =>
       call<Issue>("POST", novelId, "/passage", passage),
+    /** Make a label on the repository (with its colour) if it isn't there yet. */
+    ensureLabel: (novelId: string, label: IssueLabel) => call<IssueLabel>("POST", novelId, "/labels", label),
+    /** Make a milestone on GitHub (needs GitHub: not queued offline). */
+    createMilestone: (novelId: string, title: string) => call<Milestone>("POST", novelId, "/milestones", { title }),
+    updateMilestone: (novelId: string, number: number, change: { title?: string; state?: "open" | "closed" }) => call<Milestone>("PATCH", novelId, `/milestones/${number}`, change),
     /** Bring the cache up to date with GitHub, and send changes made offline. */
     refresh: (novelId: string) => call<{ changed: boolean; status: IssuesStatus }>("POST", novelId, "/refresh"),
     /** Drop a change GitHub refused. */

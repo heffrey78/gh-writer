@@ -284,6 +284,31 @@ export class IssueStore {
     return this.create({ title: passage.title, body, labels });
   }
 
+  /** Make a milestone on GitHub (it needs GitHub: milestones aren't queued offline). */
+  async createMilestone(input: { title: string; description?: string }): Promise<Milestone> {
+    if (!input.title.trim()) throw new IssuesError("BAD_REQUEST", "A milestone needs a name.");
+    const repo = await this.#requireRepo();
+    const made = (await this.#send(repo, "/milestones", "POST", { title: input.title.trim(), ...(input.description ? { description: input.description } : {}) })) as Milestone;
+    return this.#keepMilestone(made);
+  }
+
+  /** Rename, close or reopen a milestone on GitHub. */
+  async updateMilestone(number: number, input: { title?: string; state?: "open" | "closed" }): Promise<Milestone> {
+    if (input.title !== undefined && !input.title.trim()) throw new IssuesError("BAD_REQUEST", "A milestone needs a name.");
+    const repo = await this.#requireRepo();
+    const body = { ...(input.title !== undefined ? { title: input.title.trim() } : {}), ...(input.state ? { state: input.state } : {}) };
+    return this.#keepMilestone((await this.#send(repo, `/milestones/${number}`, "PATCH", body)) as Milestone);
+  }
+
+  async #keepMilestone({ number, title, state }: Milestone): Promise<Milestone> {
+    const cache = this.#cache!;
+    const milestone = { number, title, state };
+    cache.milestones = [...cache.milestones.filter((m) => m.number !== number), milestone].sort((a, b) => a.number - b.number);
+    await this.#save();
+    this.#changed();
+    return milestone;
+  }
+
   /** Make a label on the repository if it isn't there yet, with its colour (best effort: GitHub makes a missing one anyway). */
   async ensureLabel(label: Label): Promise<void> {
     const cache = await this.#load();
@@ -293,6 +318,7 @@ export class IssueStore {
       const made = (await this.#send(repo, "/labels", "POST", { name: label.name, color: label.color, description: label.description })) as Label;
       cache.labels = [...cache.labels.filter((l) => l.name !== made.name), { name: made.name, color: made.color, description: made.description ?? "" }];
       await this.#save();
+      this.#changed();
     } catch {
       // Already there (made meanwhile), or GitHub can't be reached: the issue still gets the label.
     }

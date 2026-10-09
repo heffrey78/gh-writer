@@ -8,7 +8,7 @@ import { useNotice } from "../novel/notice.tsx";
 import { Button } from "../ui/button.tsx";
 import { Field } from "../ui/field.tsx";
 import { Markdown } from "./markdown.tsx";
-import { IssuesState, LabelsField, MilestoneSelect, when } from "./parts.tsx";
+import { ensureKind, IssuesState, kindIn, KindSelect, LabelsField, MilestoneField, pickableLabels, when, withKind } from "./parts.tsx";
 import type { Workspace } from "../novel/workspace.ts";
 import { passageOf } from "./anchors.ts";
 import { PassageLine } from "./issues-page.tsx";
@@ -25,7 +25,7 @@ export function IssuePage({ novelId, novel, workspace, number }: { novelId: stri
   const [editing, setEditing] = useState(false);
   const [comment, setComment] = useState("");
   const commentBox = useRef<HTMLTextAreaElement>(null);
-  const ids = { comment: useId(), milestone: useId(), body: useId() };
+  const ids = { comment: useId(), milestone: useId(), body: useId(), kind: useId() };
   const back = `/novels/${novelId}/issues`;
 
   // Made offline and since sent: its address becomes its number on GitHub.
@@ -49,7 +49,8 @@ export function IssuePage({ novelId, novel, workspace, number }: { novelId: stri
   }
   if (!data) return <p className="px-6 py-6 text-muted">Loading the issue…</p>;
 
-  const labels = meta?.labels ?? [];
+  const labels = pickableLabels(meta);
+  const kind = kindIn(data.labels);
   const submitComment = async () => {
     if (!comment.trim()) return;
     if (await changes.comment(data.number, comment)) {
@@ -153,12 +154,36 @@ export function IssuePage({ novelId, novel, workspace, number }: { novelId: stri
       </article>
 
       <aside aria-label="About this issue" className="grid content-start gap-4 text-sm">
-        <LabelsField label="Labels" chosen={data.labels} labels={labels} onChange={(next) => void changes.update(data.number, { labels: next })} />
+        <div className="grid gap-1.5">
+          <label htmlFor={ids.kind} className="font-medium">
+            Kind
+          </label>
+          <KindSelect
+            id={ids.kind}
+            value={kind}
+            onChange={async (k) => {
+              if (k) await ensureKind(novelId, k);
+              void changes.update(data.number, { labels: withKind(data.labels, k) });
+            }}
+          />
+        </div>
+        <LabelsField
+          label="Labels"
+          chosen={data.labels.filter((l) => !l.startsWith("kind/"))}
+          labels={labels}
+          onChange={(next) => void changes.update(data.number, { labels: withKind(next, kind) })}
+        />
         <div className="grid gap-1.5">
           <label htmlFor={ids.milestone} className="font-medium">
             Milestone
           </label>
-          <MilestoneSelect id={ids.milestone} value={data.milestone === null ? "none" : String(data.milestone)} milestones={meta?.milestones ?? []} onChange={(v) => void changes.update(data.number, { milestone: v === "none" ? null : Number(v) })} />
+          <MilestoneField
+            novelId={novelId}
+            id={ids.milestone}
+            value={data.milestone === null ? "none" : String(data.milestone)}
+            milestones={meta?.milestones ?? []}
+            onChange={(v) => void changes.update(data.number, { milestone: v === "none" ? null : Number(v) })}
+          />
         </div>
         {data.url && (
           <a href={data.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent underline">

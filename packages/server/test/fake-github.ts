@@ -212,6 +212,8 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
         }
         const repo: FakeRepo = { owner: user.login, name, private: priv ?? false, ...(description ? { description } : {}), pushedAt: new Date().toISOString() };
         fake.repos.push(repo);
+        // GitHub's stock labels, as on a real new repository.
+        fake.issues(user.login, name).labels.push(...["bug", "documentation", "duplicate", "enhancement", "good first issue", "help wanted", "invalid", "question", "wontfix"].map((n) => ({ name: n, color: "d4c5f9", description: "" })));
         if (gitRoot && !fake.brokenNextRepo) execFileSync("git", ["init", "--quiet", "--bare", "--initial-branch=main", fake.repoPath(user.login, name)]);
         fake.brokenNextRepo = false;
         return json(res, 201, { name, full_name: `${user.login}/${name}`, private: repo.private, html_url: `${fake.url}/${user.login}/${name}`, clone_url: `${fake.url}/${user.login}/${name}.git`, owner: { login: user.login } });
@@ -334,6 +336,27 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
       const label = { name: input.name, color: typeof input.color === "string" ? input.color : "ededed", description: typeof input.description === "string" ? input.description : "" };
       data.labels.push(label);
       return json(res, 201, label);
+    }
+    if ((m = /^\/labels\/(.+)$/.exec(rest)) && req.method === "DELETE") {
+      const name = decodeURIComponent(m[1]!);
+      const at = data.labels.findIndex((l) => l.name === name);
+      if (at < 0) return json(res, 404, { message: "Not Found" });
+      data.labels.splice(at, 1);
+      for (const i of data.issues) i.labels = i.labels.filter((l) => l !== name);
+      return res.writeHead(204).end();
+    }
+    if (rest === "/milestones" && req.method === "POST") {
+      if (typeof input.title !== "string" || !input.title || data.milestones.some((x) => x.title === input.title)) return json(res, 422, { message: "Validation Failed" });
+      const milestone = { number: data.milestones.length + 1, title: input.title, state: "open" as const };
+      data.milestones.push(milestone);
+      return json(res, 201, milestone);
+    }
+    if ((m = /^\/milestones\/(\d+)$/.exec(rest)) && req.method === "PATCH") {
+      const milestone = data.milestones.find((x) => x.number === Number(m![1]));
+      if (!milestone) return json(res, 404, { message: "Not Found" });
+      if (typeof input.title === "string") milestone.title = input.title;
+      if (input.state === "open" || input.state === "closed") milestone.state = input.state;
+      return json(res, 200, milestone);
     }
     if (rest === "/milestones" && req.method === "GET") {
       const state = url.searchParams.get("state") ?? "open";

@@ -1,5 +1,12 @@
-import type { IssueLabel, IssuesStatus, Milestone } from "@gh-writer/client";
+import type { IssueLabel, IssueList, IssuesStatus, Milestone } from "@gh-writer/client";
+import { ISSUE_KINDS, kindLabel, kindOf, STOCK_LABELS } from "@gh-writer/core";
+import { useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
+import { useId, useState } from "react";
+import { api, keys } from "../api.ts";
+import { useNotice } from "../novel/notice.tsx";
+import { Modal } from "../ui/dialog.tsx";
+import { Field } from "../ui/field.tsx";
 import { useGitHub, useConnect } from "../github/connect.tsx";
 import { Button } from "../ui/button.tsx";
 import { Picker } from "../ui/picker.tsx";
@@ -7,15 +14,16 @@ import { Picker } from "../ui/picker.tsx";
 const time = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 export const when = (iso: string) => time.format(new Date(iso));
 
-/** A label as GitHub colours it, optionally with a button to take it off. */
+/** A label as GitHub colours it (a kind by its name: "Plot hole"), optionally with a button to take it off. */
 export function LabelChip({ name, labels, onRemove }: { name: string; labels: IssueLabel[]; onRemove?: () => void }) {
-  const color = labels.find((l) => l.name === name)?.color ?? "ededed";
+  const kind = kindOf(name);
+  const color = labels.find((l) => l.name === name)?.color ?? kind?.color ?? "ededed";
   return (
     <span className="inline-flex items-center gap-1 rounded-full border border-rule bg-raised px-2 py-0.5 text-xs">
       <span className="inline-block size-2 rounded-full" style={{ background: `#${color}` }} aria-hidden />
-      {name}
+      {kind?.label ?? name}
       {onRemove && (
-        <button type="button" onClick={onRemove} aria-label={`Remove label “${name}”`} className="rounded text-muted hover:text-ink">
+        <button type="button" onClick={onRemove} aria-label={`Remove label “${kind?.label ?? name}”`} className="rounded text-muted hover:text-ink">
           <X className="size-3" aria-hidden />
         </button>
       )}
@@ -42,13 +50,194 @@ export function LabelsField({ label, chosen, labels, onChange }: { label: string
         value={undefined}
         onChange={(v) => v && onChange([...chosen, v])}
         placeholder="Add a label…"
-        create={{ noun: "label", create: (name) => name.trim() || undefined }}
+        // A kind is chosen as a kind, not made as a label.
+        create={{ noun: "label", create: (name) => (name.trim() && !name.trim().startsWith("kind/") ? name.trim() : undefined) }}
       />
     </div>
   );
 }
 
-export function MilestoneSelect({ id, value, milestones, onChange, any }: { id: string; value: string; milestones: Milestone[]; onChange: (v: string) => void; any?: boolean }) {
+/**
+ * The labels worth offering: not the kinds (they have their own choice), and not GitHub's stock
+ * software labels (bug, enhancement, …) unless an issue uses one.
+ */
+export function pickableLabels(meta: Pick<IssueList, "labels" | "issues"> | undefined): IssueLabel[] {
+  if (!meta) return [];
+  const used = new Set(meta.issues.flatMap((i) => i.labels));
+  return meta.labels.filter((l) => !kindOf(l.name) && !l.name.startsWith("kind/") && (!STOCK_LABELS.has(l.name) || used.has(l.name)));
+}
+
+/** The kind of an issue, from its labels. */
+export const kindIn = (labels: string[]) => ISSUE_KINDS.find((k) => labels.includes(kindLabel(k)))?.key ?? "";
+
+/** Labels with the kind changed to `key` ("" for none). */
+export const withKind = (labels: string[], key: string) => [...labels.filter((l) => !kindOf(l)), ...(key ? [`kind/${key}`] : [])];
+
+/** Make sure a kind's label is on the repository with its colour (best effort). */
+export async function ensureKind(novelId: string, key: string): Promise<void> {
+  const kind = ISSUE_KINDS.find((k) => k.key === key);
+  if (kind) await api.issues.ensureLabel(novelId, { name: kindLabel(kind), color: kind.color, description: kind.description }).catch(() => {});
+}
+
+export function KindSelect({ id, value, onChange, any }: { id: string; value: string; onChange: (key: string) => void; any?: boolean }) {
+  return (
+    <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className="h-9 rounded-md border border-rule bg-raised px-2 text-sm">
+      <option value="">{any ? "Any kind" : "No kind"}</option>
+      {ISSUE_KINDS.map((k) => (
+        <option key={k.key} value={k.key}>
+          {k.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+const NEW = "(new)";
+
+/** A milestone choice that can also make a new milestone ("New milestone…"), then choose it. */
+export function MilestoneField({ novelId, id, value, milestones, onChange, any }: { novelId: string; id: string; value: string; milestones: Milestone[]; onChange: (v: string) => void; any?: boolean }) {
+  const [naming, setNaming] = useState(false);
+  return (
+    <>
+      <MilestoneSelect id={id} value={value} milestones={milestones} onChange={(v) => (v === NEW ? setNaming(true) : onChange(v))} any={any} canCreate />
+      {naming && (
+        <NewMilestone
+          novelId={novelId}
+          onClose={(made) => {
+            setNaming(false);
+            if (made) onChange(String(made.number));
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+/** Name a new milestone: made on GitHub (it needs GitHub). */
+export function NewMilestone({ novelId, onClose }: { novelId: string; onClose: (made?: Milestone) => void }) {
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState("");
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Modal title="New milestone" onClose={() => onClose()}>
+      <form
+        className="grid gap-3"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!title.trim() || busy) return;
+          setBusy(true);
+          try {
+            const made = await api.issues.createMilestone(novelId, title);
+            void queryClient.invalidateQueries({ queryKey: keys.issues(novelId) });
+            onClose(made);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+            setBusy(false);
+          }
+        }}
+      >
+        <Field label="Name" placeholder="Second draft" value={title} onChange={(e) => setTitle(e.target.value)} required autoFocus />
+        {error && (
+          <p role="alert" className="text-sm text-danger">
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button onClick={() => onClose()}>Cancel</Button>
+          <Button type="submit" variant="primary" disabled={!title.trim() || busy}>
+            Add milestone
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/** The repository's milestones: make, rename, close and reopen them. */
+export function MilestonesDialog({ novelId, milestones, onClose }: { novelId: string; milestones: Milestone[]; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const show = useNotice((n) => n.show);
+  const [adding, setAdding] = useState(false);
+  const [renaming, setRenaming] = useState<number>();
+  const [name, setName] = useState("");
+  const renameId = useId();
+  const change = async (number: number, update: { title?: string; state?: "open" | "closed" }) => {
+    try {
+      await api.issues.updateMilestone(novelId, number, update);
+      setRenaming(undefined);
+    } catch (e) {
+      show({ message: `Couldn't change the milestone: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      void queryClient.invalidateQueries({ queryKey: keys.issues(novelId) });
+    }
+  };
+  return (
+    <Modal title="Milestones" onClose={onClose}>
+      {milestones.length ? (
+        <ul className="grid gap-2" aria-label="Milestones">
+          {[...milestones]
+            .sort((a, b) => (a.state === b.state ? a.number - b.number : a.state === "open" ? -1 : 1))
+            .map((m) => (
+              <li key={m.number} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-rule px-3 py-2">
+                {renaming === m.number ? (
+                  <form
+                    className="flex flex-1 items-center gap-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (name.trim()) void change(m.number, { title: name });
+                    }}
+                  >
+                    <label htmlFor={renameId} className="sr-only">
+                      New name for “{m.title}”
+                    </label>
+                    <input id={renameId} value={name} onChange={(e) => setName(e.target.value)} autoFocus className="h-8 flex-1 rounded-md border border-rule bg-raised px-2 text-sm" />
+                    <Button size="sm" type="submit" variant="primary" disabled={!name.trim()}>
+                      Save
+                    </Button>
+                    <Button size="sm" onClick={() => setRenaming(undefined)}>
+                      Cancel
+                    </Button>
+                  </form>
+                ) : (
+                  <>
+                    <span className={m.state === "closed" ? "text-muted line-through" : "font-medium"}>{m.title}</span>
+                    <span className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`Rename “${m.title}”`}
+                        onClick={() => {
+                          setName(m.title);
+                          setRenaming(m.number);
+                        }}
+                      >
+                        Rename
+                      </Button>
+                      <Button size="sm" variant="ghost" aria-label={`${m.state === "open" ? "Close" : "Reopen"} “${m.title}”`} onClick={() => void change(m.number, { state: m.state === "open" ? "closed" : "open" })}>
+                        {m.state === "open" ? "Close" : "Reopen"}
+                      </Button>
+                    </span>
+                  </>
+                )}
+              </li>
+            ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted">No milestones yet: plan by drafts, say, or by what goes to your editor.</p>
+      )}
+      <div className="flex justify-between gap-2">
+        <Button onClick={() => setAdding(true)}>New milestone…</Button>
+        <Button variant="primary" onClick={onClose}>
+          Done
+        </Button>
+      </div>
+      {adding && <NewMilestone novelId={novelId} onClose={() => setAdding(false)} />}
+    </Modal>
+  );
+}
+
+export function MilestoneSelect({ id, value, milestones, onChange, any, canCreate }: { id: string; value: string; milestones: Milestone[]; onChange: (v: string) => void; any?: boolean; canCreate?: boolean }) {
   return (
     <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className="h-9 rounded-md border border-rule bg-raised px-2 text-sm">
       {any && <option value="">Any milestone</option>}
@@ -59,6 +248,7 @@ export function MilestoneSelect({ id, value, milestones, onChange, any }: { id: 
           {m.state === "closed" ? " (closed)" : ""}
         </option>
       ))}
+      {canCreate && <option value={NEW}>New milestone…</option>}
     </select>
   );
 }

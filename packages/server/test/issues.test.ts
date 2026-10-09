@@ -184,6 +184,36 @@ describe("issues", () => {
   });
 });
 
+describe("milestones and labels", () => {
+  it("makes, renames, closes and reopens milestones on GitHub, the cache following", async () => {
+    seed();
+    const issues = open();
+    await issues.refresh();
+    const made = await issues.createMilestone({ title: "  First draft  " });
+    expect(made).toEqual({ number: 2, title: "First draft", state: "open" });
+    expect(issuesOf().milestones.find((m) => m.number === 2)).toMatchObject({ title: "First draft" });
+    await issues.updateMilestone(2, { title: "First full draft" });
+    await issues.updateMilestone(2, { state: "closed" });
+    expect(issuesOf().milestones.find((m) => m.number === 2)).toEqual({ number: 2, title: "First full draft", state: "closed" });
+    expect((await issues.list()).milestones).toEqual([
+      { number: 1, title: "Second draft", state: "open" },
+      { number: 2, title: "First full draft", state: "closed" },
+    ]);
+    await expect(issues.createMilestone({ title: " " })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    offline = true;
+    await expect(issues.createMilestone({ title: "Offline" })).rejects.toMatchObject({ code: "OFFLINE" });
+  });
+
+  it("makes a label with its colour once", async () => {
+    seed();
+    const issues = open();
+    await issues.refresh();
+    await issues.ensureLabel({ name: "kind/idea-new", color: "a2eeef", description: "x" });
+    await issues.ensureLabel({ name: "kind/idea-new", color: "000000", description: "y" });
+    expect(issuesOf().labels.filter((l) => l.name === "kind/idea-new")).toEqual([{ name: "kind/idea-new", color: "a2eeef", description: "x" }]);
+  });
+});
+
 describe("offline", () => {
   /** Let background sends (a queued change tries straight away) settle. */
   const settle = () => new Promise((r) => setTimeout(r, 50));

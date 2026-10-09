@@ -13,3 +13,4 @@ export { backlinks, relationshipHistory, type Backlinks, type RelationshipSpan, 
 export { durationMs, overlaps, storyInstant, storyTimeline, type Overlap, type StoryInstant, type StoryTimeline, type TimelineItem } from "./time.ts";
 export { passageIssueBody, readAnchor, writeAnchor, type IssueAnchor, type PassageIssue } from "./issue-anchor.ts";
 export { resolveAnchor, type AnchorMatch, type AnchorOptions } from "./anchor-match.ts";
+export { ISSUE_KINDS, kindLabel, kindOf, STOCK_LABELS, type IssueKind } from "./issue-kinds.ts";

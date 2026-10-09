@@ -1,5 +1,5 @@
 import { ApiError } from "@gh-writer/client";
-import type { Novel } from "@gh-writer/core";
+import { ISSUE_KINDS, type Novel } from "@gh-writer/core";
 import { caretScene } from "@gh-writer/editor";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Editor } from "@tiptap/core";
@@ -12,17 +12,11 @@ import { githubKey, useConnect } from "../github/connect.tsx";
 import { useNotice } from "../novel/notice.tsx";
 import { Button } from "../ui/button.tsx";
 import { Field } from "../ui/field.tsx";
-import { LabelsField } from "./parts.tsx";
+import { LabelsField, pickableLabels } from "./parts.tsx";
 import { useIssueMeta } from "./use-issues.ts";
 
 /** The kinds of note about a passage: each a label (kind/…) with its colour. */
-export const KINDS = [
-  { key: "plot-hole", label: "Plot hole", color: "d73a4a", description: "Something in the story that can't happen" },
-  { key: "continuity", label: "Continuity", color: "fbca04", description: "Facts that don't agree" },
-  { key: "research", label: "Research", color: "0075ca", description: "Something to look up" },
-  { key: "idea", label: "Idea", color: "a2eeef", description: "Something to try" },
-  { key: "revision", label: "Revision", color: "7057ff", description: "Something to rewrite" },
-] as const;
+export const KINDS = ISSUE_KINDS;
 
 export interface Passage {
   /** The scene file, its ID and title. */
@@ -80,7 +74,7 @@ function Raise({ novelId, passage, close }: { novelId: string; passage: Passage;
   const navigate = useNavigate();
   const show = useNotice((n) => n.show);
   const meta = useIssueMeta(novelId);
-  const [kind, setKind] = useState<string>(KINDS[0].key);
+  const [kind, setKind] = useState<string>(KINDS[0]!.key);
   const [title, setTitle] = useState("");
   const [details, setDetails] = useState("");
   const [labels, setLabels] = useState<string[]>([]);
@@ -161,7 +155,7 @@ function Raise({ novelId, passage, close }: { novelId: string; passage: Passage;
           </label>
           <textarea id={ids.details} value={details} onChange={(e) => setDetails(e.target.value)} rows={4} className="rounded-md border border-rule bg-raised px-3 py-2" placeholder="Optional; Markdown, as on GitHub" />
         </div>
-        <LabelsField label="Labels" chosen={labels} labels={(meta?.labels ?? []).filter((l) => !l.name.startsWith("kind/"))} onChange={setLabels} />
+        <LabelsField label="Labels" chosen={labels} labels={pickableLabels(meta)} onChange={setLabels} />
         <div className="flex justify-end gap-2">
           <Button onClick={close}>Cancel</Button>
           <Button type="submit" variant="primary" disabled={!title.trim() || busy}>

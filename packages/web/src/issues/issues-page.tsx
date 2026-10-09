@@ -11,22 +11,25 @@ import { Modal } from "../ui/dialog.tsx";
 import { Field } from "../ui/field.tsx";
 import { Picker } from "../ui/picker.tsx";
 import { useViewParams } from "../ui/view-params.ts";
-import { IssuesState, LabelChip, LabelsField, MilestoneSelect, when } from "./parts.tsx";
+import { ensureKind, IssuesState, KindSelect, LabelChip, LabelsField, MilestoneField, MilestoneSelect, MilestonesDialog, pickableLabels, when, withKind } from "./parts.tsx";
 import type { Workspace } from "../novel/workspace.ts";
 import { passageOf } from "./anchors.ts";
-import { useIssueChanges, useIssueList } from "./use-issues.ts";
+import { useIssueChanges, useIssueList, useIssueMeta } from "./use-issues.ts";
 
 /** The novel's GitHub issues: filtered by state, labels, milestone and words, with the filter in the address. */
 export function IssuesPage({ novelId, novel, workspace }: { novelId: string; novel: Novel; workspace: Workspace }) {
   const [params, setParams] = useViewParams();
   const queryClient = useQueryClient();
   const show = useNotice((n) => n.show);
-  const ids = { search: useId(), state: useId(), milestone: useId() };
+  const ids = { search: useId(), state: useId(), milestone: useId(), kind: useId() };
+  const meta = useIssueMeta(novelId);
+  const [managing, setManaging] = useState(false);
   const state = (params.get("state") ?? "open") as NonNullable<IssueFilter["state"]>;
   const labels = (params.get("labels") ?? "").split(",").filter(Boolean);
   const milestone = params.get("milestone") ?? "";
   const q = params.get("q") ?? "";
-  const filter: IssueFilter = { state, ...(labels.length ? { labels } : {}), ...(milestone ? { milestone: milestone === "none" ? "none" : Number(milestone) } : {}), ...(q ? { q } : {}) };
+  const kind = params.get("kind") ?? "";
+  const filter: IssueFilter = { state, ...(labels.length || kind ? { labels: withKind(labels, kind) } : {}), ...(milestone ? { milestone: milestone === "none" ? "none" : Number(milestone) } : {}), ...(q ? { q } : {}) };
   const list = useIssueList(novelId, filter);
   const [creating, setCreating] = useState(params.get("new") === "1");
 
@@ -50,6 +53,7 @@ export function IssuesPage({ novelId, novel, workspace }: { novelId: string; nov
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Issues</h1>
         <div className="flex gap-2">
+          <Button onClick={() => setManaging(true)}>Milestones</Button>
           <Button onClick={refresh} aria-label="Refresh from GitHub">
             <RefreshCw className="size-4" aria-hidden /> Refresh
           </Button>
@@ -92,13 +96,19 @@ export function IssuesPage({ novelId, novel, workspace }: { novelId: string; nov
           <MilestoneSelect id={ids.milestone} value={milestone} milestones={data?.milestones ?? []} onChange={(v) => setParams({ milestone: v })} any />
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:col-span-3">
+          <label htmlFor={ids.kind} className="text-sm font-medium">
+            Kind
+          </label>
+          <KindSelect id={ids.kind} value={kind} onChange={(v) => setParams({ kind: v })} any />
           {labels.map((l) => (
             <LabelChip key={l} name={l} labels={data?.labels ?? []} onRemove={() => setParams({ labels: labels.filter((x) => x !== l).join(",") })} />
           ))}
           <Picker
             className="w-56"
             label="Filter by label"
-            items={(data?.labels ?? []).filter((l) => !labels.includes(l.name)).map((l) => ({ value: l.name, label: l.name }))}
+            items={pickableLabels(meta)
+              .filter((l) => !labels.includes(l.name))
+              .map((l) => ({ value: l.name, label: l.name }))}
             value={undefined}
             onChange={(v) => v && setParams({ labels: [...labels, v].join(",") })}
             placeholder="Any label"
@@ -109,7 +119,7 @@ export function IssuesPage({ novelId, novel, workspace }: { novelId: string; nov
       {!data ? (
         <p className="text-muted">Loading issues…</p>
       ) : !data.issues.length ? (
-        <p className="text-muted">{q || labels.length || milestone ? "No issues match." : state === "closed" ? "No closed issues." : "No open issues."}</p>
+        <p className="text-muted">{q || labels.length || milestone || kind ? "No issues match." : state === "closed" ? "No closed issues." : "No open issues."}</p>
       ) : (
         <ul aria-label="Issues" className="grid divide-y divide-rule rounded-lg border border-rule bg-raised">
           {data.issues.map((i) => (
@@ -138,6 +148,7 @@ export function IssuesPage({ novelId, novel, workspace }: { novelId: string; nov
           ))}
         </ul>
       )}
+      {managing && <MilestonesDialog novelId={novelId} milestones={meta?.milestones ?? []} onClose={() => setManaging(false)} />}
       {creating && (
         <NewIssue
           novelId={novelId}
@@ -175,13 +186,14 @@ export function PassageLine({ novelId, passage }: { novelId: string; passage: Re
 /** A new issue: its title, details, labels and milestone. */
 function NewIssue({ novelId, onClose }: { novelId: string; onClose: () => void }) {
   const navigate = useNavigate();
-  const meta = useIssueList(novelId, { state: "all" }).data;
+  const meta = useIssueMeta(novelId);
   const changes = useIssueChanges(novelId);
+  const [kind, setKind] = useState("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [labels, setLabels] = useState<string[]>([]);
   const [milestone, setMilestone] = useState("none");
-  const ids = { body: useId(), milestone: useId() };
+  const ids = { body: useId(), milestone: useId(), kind: useId() };
   return (
     <Modal title="New issue" onClose={onClose} className="w-[min(36rem,calc(100vw-2rem))]">
       <form
@@ -189,7 +201,8 @@ function NewIssue({ novelId, onClose }: { novelId: string; onClose: () => void }
         onSubmit={async (e) => {
           e.preventDefault();
           if (!title.trim()) return;
-          const made = await changes.create({ title, body, labels, ...(milestone !== "none" ? { milestone: Number(milestone) } : {}) });
+          if (kind) await ensureKind(novelId, kind);
+          const made = await changes.create({ title, body, labels: withKind(labels, kind), ...(milestone !== "none" ? { milestone: Number(milestone) } : {}) });
           if (!made) return;
           onClose();
           void navigate(`/novels/${novelId}/issues/${made.number}`);
@@ -202,12 +215,18 @@ function NewIssue({ novelId, onClose }: { novelId: string; onClose: () => void }
           </label>
           <textarea id={ids.body} value={body} onChange={(e) => setBody(e.target.value)} rows={6} className="rounded-md border border-rule bg-raised px-3 py-2 text-sm" placeholder="Markdown, as on GitHub" />
         </div>
-        <LabelsField label="Labels" chosen={labels} labels={meta?.labels ?? []} onChange={setLabels} />
+        <div className="flex items-center gap-2">
+          <label htmlFor={ids.kind} className="text-sm font-medium">
+            Kind
+          </label>
+          <KindSelect id={ids.kind} value={kind} onChange={setKind} />
+        </div>
+        <LabelsField label="Labels" chosen={labels} labels={pickableLabels(meta)} onChange={setLabels} />
         <div className="flex items-center gap-2">
           <label htmlFor={ids.milestone} className="text-sm font-medium">
             Milestone
           </label>
-          <MilestoneSelect id={ids.milestone} value={milestone} milestones={(meta?.milestones ?? []).filter((m) => m.state === "open")} onChange={setMilestone} />
+          <MilestoneField novelId={novelId} id={ids.milestone} value={milestone} milestones={(meta?.milestones ?? []).filter((m) => m.state === "open")} onChange={setMilestone} />
         </div>
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Cancel</Button>

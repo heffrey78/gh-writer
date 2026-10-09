@@ -11,6 +11,9 @@ import { IssuesError, type IssueFilter, type IssueInput } from "./issues.ts";
  * PATCH /:id/issues/:number                    { title?, body?, labels?, milestone?, state? } → the issue
  * POST  /:id/issues/:number/comments           { body } → 201 the comment
  * POST  /:id/issues/passage                    { path, scene, sceneTitle, quote, title, details?, kind?: { name, color, description }, labels? } → 201 the issue
+ * POST  /:id/issues/labels                     { name, color, description? } → the label made, if it wasn't there
+ * POST  /:id/issues/milestones                 { title, description? } → 201 the milestone (needs GitHub: 503 OFFLINE otherwise)
+ * PATCH /:id/issues/milestones/:number         { title?, state? } → the milestone
  * POST  /:id/issues/refresh                    → { changed, status } (and sends changes queued offline)
  * DELETE /:id/issues/queue/:change             → drop a queued change (one GitHub refused)
  * While GitHub can't be reached, changes are made in the cache and queued: the answers say `pending`.
@@ -86,6 +89,33 @@ export function issueRoutes(routes: Hono<Env>): void {
       },
       201,
     ),
+  );
+  routes.post("/:id/issues/labels", (c) =>
+    answer(c, async () => {
+      const raw = await body(c);
+      if (typeof raw.name !== "string" || !raw.name.trim()) throw new IssuesError("BAD_REQUEST", "A label needs a name.");
+      const label = { name: raw.name.trim(), color: typeof raw.color === "string" ? raw.color : "ededed", description: typeof raw.description === "string" ? raw.description : "" };
+      await issues(c).ensureLabel(label);
+      return label;
+    }),
+  );
+  routes.post("/:id/issues/milestones", (c) =>
+    answer(
+      c,
+      async () => {
+        const raw = await body(c);
+        return issues(c).createMilestone({ title: typeof raw.title === "string" ? raw.title : "", ...(typeof raw.description === "string" ? { description: raw.description } : {}) });
+      },
+      201,
+    ),
+  );
+  routes.patch("/:id/issues/milestones/:number", (c) =>
+    answer(c, async () => {
+      const raw = await body(c);
+      const n = Number(c.req.param("number"));
+      if (!Number.isInteger(n) || n < 1) throw new IssuesError("NOT_FOUND", "No such milestone.");
+      return issues(c).updateMilestone(n, { ...(typeof raw.title === "string" ? { title: raw.title } : {}), ...(raw.state === "open" || raw.state === "closed" ? { state: raw.state } : {}) });
+    }),
   );
   routes.post("/:id/issues/refresh", (c) => answer(c, async () => ({ changed: await issues(c).refresh(), status: await issues(c).status() })));
   routes.delete("/:id/issues/queue/:change", (c) =>
