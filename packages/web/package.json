@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test:e2e": "vite build && playwright test"
+    "test:e2e": "vite build && playwright test",
+    "screenshots": "vite build && playwright test -c screenshots.config.ts"
   },
   "dependencies": {
     "@gh-writer/client": "0.1.0",
