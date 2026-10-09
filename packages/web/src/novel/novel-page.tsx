@@ -29,6 +29,11 @@ import { useSpell } from "./spell.ts";
 import { usePublish } from "../github/publish.tsx";
 import { SyncBadge } from "./sync-badge.tsx";
 import { createWorkspace, type Workspace } from "./workspace.ts";
+import { createQuickEntries, type QuickEntries } from "../bible/quick-entries.ts";
+import { unlink } from "../bible/quick-entry.ts";
+import { useEntryPanel } from "./mention-card.tsx";
+import { useNotice } from "./notice.tsx";
+import { useWritingEditor } from "./writing-view.tsx";
 import { WritingView } from "./writing-view.tsx";
 
 // React Flow comes with the graph, loaded when it's first opened.
@@ -46,18 +51,58 @@ export function NovelPage() {
   const library = useQuery({ queryKey: keys.library, queryFn: api.library, staleTime: 30_000 });
   const folder = library.data?.novels.find((n) => n.id === novelId)?.path;
   const [workspace, setWorkspace] = useState<Workspace>();
+  const [entries, setEntries] = useState<QuickEntries>();
   const [resolving, setResolving] = useState(false);
   const [checkpointsOpen, setCheckpointsOpen] = useState(false);
   const [newEntry, setNewEntry] = useState<string | null>(null);
   const focus = useWritingModes((m) => m.focus);
   const spell = useSpell(api, novelId, novel.data?.novel);
 
+  // What the entries made in place report with: the latest model and navigation.
+  const latest = useRef({ novel: novel.data?.novel, navigate: (_to: string) => {} });
+  latest.current.novel = novel.data?.novel;
+
   useEffect(() => {
     const ws = createWorkspace({ api, novelId, onFrontMatterSaved: () => void queryClient.invalidateQueries({ queryKey: keys.novel(novelId) }) });
     const detach = ws.autosave.attach(window);
+    const show = useNotice.getState().show;
+    const label = (type: string) => latest.current.novel?.entityTypes.find((t) => t.key === type)?.label.toLowerCase() ?? "entry";
+    const made = createQuickEntries({
+      api,
+      novelId,
+      onMade: async (e) => {
+        await queryClient.invalidateQueries({ queryKey: keys.novel(novelId) });
+        show({
+          message: `Added ${label(e.type)} “${e.name}” to the story bible.`,
+          action: {
+            label: "Add details",
+            run: () => {
+              // Beside the text when writing; otherwise its page.
+              const editor = useWritingEditor.getState().editor;
+              if (editor && !editor.isDestroyed) useEntryPanel.getState().open(e.id, editor);
+              else latest.current.navigate(`/novels/${novelId}/bible/${e.id}`);
+            },
+          },
+        });
+      },
+      onRefused: (e, why) =>
+        show({
+          message: `Couldn't add “${e.name}” to the story bible: ${why}`,
+          action: { label: "Try again", run: () => made.retry(e.id) },
+          secondary: {
+            label: "Unlink",
+            run: () => {
+              unlink(ws, e.id);
+              made.discard(e.id);
+            },
+          },
+        }),
+    });
     setWorkspace(ws);
+    setEntries(made);
     return () => {
       detach();
+      made.dispose();
       ws.dispose();
     };
   }, [novelId]);
@@ -84,6 +129,7 @@ export function NovelPage() {
   });
 
   const navigate = useNavigate();
+  latest.current.navigate = (to) => void navigate(to);
   const model = novel.data?.novel;
   const conflict = sync.data?.state === "conflict";
   useCommands(
@@ -121,7 +167,7 @@ export function NovelPage() {
 
   const actions = workspace && (
     <>
-      <SaveStatus autosave={workspace.autosave} />
+      <SaveStatus autosave={workspace.autosave} entries={entries?.store} />
       <CheckpointsButton novelId={novelId} workspace={workspace} open={checkpointsOpen} onOpenChange={setCheckpointsOpen} />
       <SyncBadge
         status={sync.data}
@@ -201,8 +247,8 @@ export function NovelPage() {
           <ErrorBoundary what="this view" remount>
             <Routes>
               <Route index element={book.chapters[0] ? <Navigate to={`/novels/${novelId}/chapter/${book.chapters[0].id}`} replace /> : <EmptyManuscript />} />
-              <Route path="chapter/:chapterId" element={<ChapterRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
-              <Route path="scene/:sceneId" element={<SceneRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
+              <Route path="chapter/:chapterId" element={<ChapterRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} entries={entries} />} />
+              <Route path="scene/:sceneId" element={<SceneRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} entries={entries} />} />
               <Route
                 path="graph"
                 element={
@@ -231,7 +277,7 @@ export function NovelPage() {
   );
 }
 
-type RouteProps = { novelId: string; novel: Novel; workspace: Workspace; spell: ReturnType<typeof useSpell> };
+type RouteProps = { novelId: string; novel: Novel; workspace: Workspace; spell: ReturnType<typeof useSpell>; entries?: QuickEntries | undefined };
 
 function ChapterRoute(props: RouteProps) {
   const { chapterId } = useParams();

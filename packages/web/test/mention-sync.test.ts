@@ -33,6 +33,16 @@ describe("keeping a scene's people and places in step with its mentions", () => 
     expect(mentionEdits(novel, file, withBen, body)).toEqual([]);
   });
 
+  it("lists custom types in entities, and an entry just made (not in the model yet) by its ID's prefix", () => {
+    expect(mentionEdits(novel, file, body, `${body}\n[the plans](#art_p1an5x).\n`)).toEqual([{ path: ["entities"], value: ["art_p1an5x"] }]);
+    expect(mentionEdits(novel, file, body, `${body}\n[Mira](#char_m1rak0) and [the ledger](#art_1edg3r).\n`)).toEqual([
+      { path: ["characters", (readFrontMatter(file)!.characters as string[]).length], value: "char_m1rak0" },
+      { path: ["entities"], value: ["art_1edg3r"] },
+    ]);
+    // A new plotline or theme is still the author's to list.
+    expect(mentionEdits(novel, file, body, `${body}\n[A Debt](#plot_n3wd3b).\n`)).toEqual([]);
+  });
+
   it("starts a list the scene doesn't have yet", () => {
     const bare = file.replace(/^characters:.*\n/m, "");
     expect(mentionEdits(novel, bare, body, `${body}\n[Ben](#char_b3n0vs).\n`)).toEqual([{ path: ["characters"], value: ["char_b3n0vs"] }]);

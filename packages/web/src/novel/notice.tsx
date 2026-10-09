@@ -6,6 +6,8 @@ import { Button } from "../ui/button.tsx";
 export interface Notice {
   message: string;
   action?: { label: string; run: () => void };
+  /** A second, lesser choice beside the action. */
+  secondary?: { label: string; run: () => void };
 }
 
 /** One notice at a time, at the bottom of the workspace, until dismissed or replaced. */
@@ -31,6 +33,20 @@ export function NoticeBar() {
                 run();
               },
             },
+            ...(notice.secondary
+              ? [
+                  {
+                    id: "notice.secondary",
+                    title: `${notice.secondary.label}: ${notice.message}`,
+                    group: "Checkpoints",
+                    run: () => {
+                      const run = notice.secondary!.run;
+                      show(undefined);
+                      run();
+                    },
+                  },
+                ]
+              : []),
           ]
         : [],
     [notice],
@@ -51,6 +67,19 @@ export function NoticeBar() {
               }}
             >
               {notice.action.label}
+            </Button>
+          )}
+          {notice.secondary && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                const run = notice.secondary!.run;
+                show(undefined);
+                run();
+              }}
+            >
+              {notice.secondary.label}
             </Button>
           )}
           <Button size="sm" variant="ghost" aria-label="Dismiss" onClick={() => show(undefined)}>

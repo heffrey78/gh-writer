@@ -23,10 +23,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Plus } from "lucide-react";
 import { Button } from "../ui/button.tsx";
-import { useStore } from "zustand";
+import { create, useStore } from "zustand";
 import { joinSceneFile, splitSceneFile } from "@gh-writer/editor";
 import { api } from "../api.ts";
 import { useCommands } from "../commands.ts";
+import type { QuickEntries } from "../bible/quick-entries.ts";
+import { useQuickEntry } from "../bible/quick-entry.ts";
 import { mentionEntities } from "../bible/types.ts";
 import { useCurrentScene } from "./current.ts";
 import { EntryPanel, leaveMention, MentionCard, useEntryPanel, useMentionCard } from "./mention-card.tsx";
@@ -45,10 +47,15 @@ interface Props {
   /** A chapter (continuous) or a single scene. */
   view: { chapter: Chapter } | { scene: Scene; chapter: Chapter | undefined };
   spell: { service: SpellService; onAddWord: (word: string) => void } | undefined;
+  /** Where entries made from the @ menu go (see createQuickEntries). */
+  entries?: QuickEntries | undefined;
 }
 
+/** The editor of the writing view on screen, if any: where a panel opened from elsewhere returns focus. */
+export const useWritingEditor = create<{ editor: Editor | undefined }>(() => ({ editor: undefined }));
+
 /** The editor for a chapter or a scene, wired to the workspace's files, with word counts and find and replace. */
-export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
+export function WritingView({ novelId, novel, workspace, view, spell, entries }: Props) {
   const navigate = useNavigate();
   const files = useStore(workspace.store, (s) => s.files);
   const [editor, setEditor] = useState<Editor>();
@@ -59,6 +66,14 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
   );
   const paths = scenes.map((s) => s.file);
   const entities = useMemo(() => mentionEntities(novel), [novel]);
+  const newEntry = useQuickEntry(novel, entries);
+  useEffect(() => {
+    if (!editor) return;
+    useWritingEditor.setState({ editor });
+    return () => {
+      if (useWritingEditor.getState().editor === editor) useWritingEditor.setState({ editor: undefined });
+    };
+  }, [editor]);
   // Focus goes to the text when a chapter or scene is opened, not when it reloads (files renamed by a move).
   const viewId = "scene" in view ? view.scene.id : view.chapter.id;
   const focusedView = useRef<string | undefined>(undefined);
@@ -270,6 +285,7 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
             onReady={setEditor}
             autofocus={autofocus}
             entities={entities}
+            newEntry={newEntry}
             onMention={onMention}
             {...(spell ? { spell } : {})}
           />
@@ -281,6 +297,7 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
             onReady={setEditor}
             autofocus={autofocus}
             entities={entities}
+            newEntry={newEntry}
             onMention={onMention}
             {...(spell ? { spell } : {})}
           />

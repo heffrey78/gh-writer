@@ -58,6 +58,8 @@ export interface Workspace {
   open(paths: string[]): Promise<void>;
   /** The editor's new body for a file: saved after a pause. */
   change(path: string, body: string): void;
+  /** An open file's body as it stands, with text typed but not reported yet. */
+  current(path: string): string | undefined;
   /** Hear of the author's edits to a body (not reloads from disk). Returns a function that stops it. */
   onEdit(listener: (path: string, before: string, after: string) => void): () => void;
   /**
@@ -181,6 +183,11 @@ export function createWorkspace({ api, novelId, interval, storage, onFrontMatter
       setFile(path, next);
       autosave.change(path, joinSceneFile(next));
       for (const listener of editListeners) listener(path, f.body, body);
+    },
+
+    current(path) {
+      const f = file(path);
+      return f && (live.get(path)?.() ?? f.body);
     },
 
     onEdit(listener) {
