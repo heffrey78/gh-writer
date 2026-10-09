@@ -12,7 +12,7 @@ import { SearchHighlightExtension } from "./search.ts";
 import { SelectFocusExtension } from "./select-focus.ts";
 import { LinkSuggestExtension } from "./link-suggest.ts";
 import { MentionInfoExtension, type MentionTarget } from "./mention-info.ts";
-import { MentionSuggestExtension, type MentionEntity } from "./mention-suggest.ts";
+import { MentionSuggestExtension, type MentionEntity, type MentionType } from "./mention-suggest.ts";
 import { SpellCheckExtension, type SpellService } from "./spell.ts";
 import { writingModes, WritingModesExtension, type WritingModes } from "./modes.ts";
 import { liveCounts, sessionWords, WordCountExtension, writingSession } from "./wordcount.ts";
@@ -42,6 +42,8 @@ export interface SceneEditorProps {
   spell?: SpellProps;
   /** What @ suggests: the story bible's entries. */
   entities?: readonly MentionEntity[];
+  /** "New <type>" in the @ menu: the types, and a function making an entry that returns its ID at once. */
+  newEntry?: NewEntryProps;
   /** A mention was hovered, or Alt+Enter pressed beside one: for a card about its entity. */
   onMention?: MentionCallbacks;
 }
@@ -74,12 +76,24 @@ function useMentionInfoExtension(callbacks: MentionCallbacks | undefined) {
   return MentionInfoExtension.configure({ onShow: (t) => latest.current?.show(t), onLeave: () => latest.current?.leave() });
 }
 
-/** @ suggestions and link suggestions over the latest `entities` prop, as extensions are set up once. */
-function useMentionExtension(entities: readonly MentionEntity[] | undefined) {
-  const latest = useRef(entities);
-  latest.current = entities;
-  const read = () => latest.current ?? [];
-  return [MentionSuggestExtension.configure({ entities: read }), LinkSuggestExtension.configure({ entities: read })];
+export interface NewEntryProps {
+  types: readonly MentionType[];
+  create: (type: string, name: string) => string | undefined;
+}
+
+/** @ suggestions and link suggestions over the latest `entities` and `newEntry` props, as extensions are set up once. */
+function useMentionExtension(entities: readonly MentionEntity[] | undefined, newEntry: NewEntryProps | undefined) {
+  const latest = useRef({ entities, newEntry });
+  latest.current = { entities, newEntry };
+  const read = () => latest.current.entities ?? [];
+  return [
+    MentionSuggestExtension.configure({
+      entities: read,
+      types: () => latest.current.newEntry?.types ?? [],
+      onCreate: (type, name) => latest.current.newEntry?.create(type, name),
+    }),
+    LinkSuggestExtension.configure({ entities: read }),
+  ];
 }
 
 /** A WYSIWYG editor for one scene's prose. */
@@ -95,10 +109,11 @@ export function SceneEditor({
   sceneId = "scene",
   spell,
   entities,
+  newEntry,
   onMention,
 }: SceneEditorProps) {
   const spellExtension = useSpellExtension(spell);
-  const mentionExtension = useMentionExtension(entities);
+  const mentionExtension = useMentionExtension(entities, newEntry);
   const mentionInfo = useMentionInfoExtension(onMention);
   const callbacks = useRef({ onChange, onReady });
   callbacks.current = { onChange, onReady };
@@ -204,6 +219,8 @@ export interface ChapterEditorProps {
   spell?: SpellProps;
   /** What @ suggests: the story bible's entries. */
   entities?: readonly MentionEntity[];
+  /** "New <type>" in the @ menu: the types, and a function making an entry that returns its ID at once. */
+  newEntry?: NewEntryProps;
   /** A mention was hovered, or Alt+Enter pressed beside one: for a card about its entity. */
   onMention?: MentionCallbacks;
 }
@@ -222,10 +239,11 @@ export function ChapterEditor({
   onReady,
   spell,
   entities,
+  newEntry,
   onMention,
 }: ChapterEditorProps) {
   const spellExtension = useSpellExtension(spell);
-  const mentionExtension = useMentionExtension(entities);
+  const mentionExtension = useMentionExtension(entities, newEntry);
   const mentionInfo = useMentionInfoExtension(onMention);
   const callbacks = useRef({ onChange, onReady });
   callbacks.current = { onChange, onReady };

@@ -102,6 +102,74 @@ describe("MentionSuggestExtension", () => {
     expect(active()).toBeNull();
   });
 
+  describe("New <type> for a name the bible doesn't have", () => {
+    const types = [
+      { key: "character", label: "Character" },
+      { key: "location", label: "Location" },
+      { key: "artifact", label: "Artifact" },
+    ];
+    let made: [string, string][];
+    function openWithCreate(markdown: string, id: string | null = "char_n3w000") {
+      made = [];
+      editor = new Editor({
+        element: document.body.appendChild(document.createElement("div")),
+        extensions: [...proseContent, MentionSuggestExtension.configure({ entities: () => entities, types: () => types, onCreate: (type, name) => (made.push([type, name]), id ?? undefined) })],
+      });
+      loadMarkdown(editor, markdown);
+      editor.commands.focus("end");
+    }
+    const options = () => [...listbox()!.querySelectorAll('[role="option"]')].map((o) => o.textContent);
+
+    test("rows per type after the matches; with no match none is chosen, so Enter is still Enter", () => {
+      openWithCreate("She waved at");
+      type(" @Mira Kostova");
+      expect(options()).toEqual(["New character “Mira Kostova”", "New location “Mira Kostova”", "New artifact “Mira Kostova”"]);
+      expect(listbox()!.querySelector('[role="group"]')!.textContent).toMatch(/^New entry/);
+      expect(active()?.index).toBe(-1);
+      expect(editor.view.dom.hasAttribute("aria-activedescendant")).toBe(false);
+      expect(key("Enter")).toBe(false);
+      expect(key("Tab")).toBe(false);
+      expect(made).toEqual([]);
+    });
+
+    test("an arrow chooses a row; Enter makes the entry and inserts its mention, the name as typed", () => {
+      openWithCreate("She waved at");
+      type(" @Mira Kostova");
+      key("ArrowDown");
+      expect(editor.view.dom.getAttribute("aria-activedescendant")).toBe(listbox()!.querySelector('[aria-selected="true"]')!.id);
+      expect(key("Enter")).toBe(true);
+      expect(made).toEqual([["character", "Mira Kostova"]]);
+      type("and went.");
+      expect(getMarkdown(editor)).toBe("She waved at [Mira Kostova](#char_n3w000) and went.\n");
+      expect(listbox()).toBeNull();
+    });
+
+    test("with matches the first is chosen as before; up from it reaches the last row", () => {
+      openWithCreate("");
+      type("@ad");
+      expect(options()).toEqual(["Ada Varn as “Ada”", "New character “ad”", "New location “ad”", "New artifact “ad”"]);
+      expect(active()?.index).toBe(0);
+      key("ArrowUp");
+      key("Tab");
+      expect(made).toEqual([["artifact", "ad"]]);
+    });
+
+    test("no row for a type that already has that name or alias", () => {
+      openWithCreate("");
+      type("@the bridge");
+      expect(options()).toEqual(["The Varn Bridge as “the bridge”", "New character “the bridge”", "New artifact “the bridge”"]);
+    });
+
+    test("an entry that can't be made inserts nothing", () => {
+      openWithCreate("", null);
+      type("@Nobody");
+      key("ArrowDown");
+      key("Enter");
+      expect(made).toEqual([["character", "Nobody"]]);
+      expect(getMarkdown(editor)).toBe("@Nobody\n");
+    });
+  });
+
   test("keeps no space before punctuation that follows", () => {
     open("Then .");
     editor.commands.setTextSelection(6);

@@ -1,6 +1,6 @@
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { caretAfter, open, savedContains, textbox } from "./helpers.ts";
+import { caretAfter, open, savedContains, savedText, textbox } from "./helpers.ts";
 
 const STATION = "scene=manuscript/01-return/01-arrival/01-the-station.md";
 const CHAPTER = "chapter=manuscript/01-return/01-arrival";
@@ -11,7 +11,7 @@ test("@ and a few letters suggest from the bible; Enter inserts a mention by key
   await caretAfter(page, "in a wound.");
   await page.keyboard.type(" @ad");
   await expect(listbox(page)).toBeVisible();
-  await expect(listbox(page).getByRole("option")).toHaveText(["Ada Varn as “Ada”"]);
+  await expect(listbox(page).getByRole("group", { name: "Character" }).getByRole("option")).toHaveText(["Ada Varn as “Ada”"]);
   await expect(textbox(page)).toHaveAttribute("aria-activedescendant", (await listbox(page).getByRole("option", { selected: true }).getAttribute("id"))!);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.keyboard.press("Enter");
@@ -27,7 +27,8 @@ test("an alias inserts as typed, arrows choose, Tab inserts; Escape leaves the t
   await expect(listbox(page).getByRole("option", { selected: true })).toHaveText("The Varn Bridge as “the bridge”");
   await page.keyboard.press("Tab");
   await page.keyboard.type("waited. @varn");
-  await expect(listbox(page).getByRole("group")).toHaveCount(2);
+  // Characters and locations, then New entry.
+  await expect(listbox(page).getByRole("group")).toHaveCount(3);
   await page.keyboard.press("ArrowDown");
   await expect(listbox(page).getByRole("option", { selected: true })).toHaveText("Ben Varn");
   await page.keyboard.press("Enter");
@@ -36,4 +37,33 @@ test("an alias inserts as typed, arrows choose, Tab inserts; Escape leaves the t
   await expect(listbox(page)).toHaveCount(0);
   await page.keyboard.type("orrow.");
   await savedContains(page, "in a wound. [the bridge](#loc_br1dg3) waited. [Ben Varn](#char_b3n0vs) came. @Tomorrow.", "saved:manuscript/01-return/01-arrival/01-the-station.md");
+});
+
+test("a name the bible doesn't have: New <type> by keyboard, and Enter is still Enter until one is chosen", async ({ page }) => {
+  await open(page, STATION);
+  await caretAfter(page, "in a wound.");
+  await page.keyboard.type(" @Mira Kostova");
+  await expect(listbox(page).getByRole("group", { name: "New entry" }).getByRole("option")).toHaveText([
+    "New character “Mira Kostova”",
+    "New location “Mira Kostova”",
+    "New plotline “Mira Kostova”",
+    "New theme “Mira Kostova”",
+    "New artifact “Mira Kostova”",
+  ]);
+  await expect(listbox(page).getByRole("option", { selected: true })).toHaveCount(0);
+  await expect(textbox(page)).not.toHaveAttribute("aria-activedescendant");
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.keyboard.press("ArrowDown");
+  await expect(listbox(page).getByRole("option", { selected: true })).toHaveText("New character “Mira Kostova”");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("waved. @Mira");
+  // Made: now it's suggested like any other, and New character is no longer offered for that name.
+  await expect(listbox(page).getByRole("option", { selected: true })).toHaveText("Mira Kostova");
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("@home");
+  await expect(listbox(page)).toBeVisible();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Next.");
+  await expect.poll(() => savedText(page, "saved")).toMatch(/in a wound\. \[Mira Kostova\]\(#char_[0-9a-hjkmnp-tv-z]{6}\) waved\. @Mira\n\n@home\n\nNext\./);
 });

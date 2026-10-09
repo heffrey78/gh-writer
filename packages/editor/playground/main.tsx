@@ -1,7 +1,7 @@
 import type { Editor } from "@tiptap/core";
 import { StrictMode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { countWords, loadNovel, memorySource } from "@gh-writer/core";
+import { countWords, loadNovel, memorySource, uniqueId } from "@gh-writer/core";
 import { addToDictionary, knownWords, parseDictionary } from "@gh-writer/core/dictionary";
 import { useStore } from "zustand";
 import {
@@ -18,7 +18,7 @@ import {
   type MentionEntity,
   type SceneSource,
 } from "../src/index.ts";
-import { ChapterEditor, FindReplace, SceneEditor, useWritingModes, WordCount } from "../src/react.tsx";
+import { ChapterEditor, FindReplace, SceneEditor, useWritingModes, WordCount, type NewEntryProps } from "../src/react.tsx";
 import { generatedChapter } from "./generated.ts";
 import { ResolverDemo } from "./resolver.tsx";
 import aff from "../../../node_modules/dictionary-en/index.aff?raw";
@@ -146,13 +146,25 @@ function App() {
     void sampleNovel.then((novel) => spellService.setKnown(knownWords(novel, parseDictionary(dictionary))));
   }, [dictionary]);
   const spell = { service: spellService, onAddWord: (word: string) => setDictionary((text) => addToDictionary(text, word)) };
-  // @ suggests the sample novel's bible.
+  // @ suggests the sample novel's bible; "New <type>" adds to it here (the app writes a file).
   const [entities, setEntities] = useState<MentionEntity[]>([]);
+  const [types, setTypes] = useState<{ key: string; label: string; prefix: string }[]>([]);
   useEffect(() => {
-    void sampleNovel.then((novel) =>
-      setEntities(novel.entityTypes.flatMap((t) => novel.entities.filter((e) => e.type === t.key).map((e) => ({ id: e.id, name: e.name, aliases: e.aliases, type: t.label })))),
-    );
+    void sampleNovel.then((novel) => {
+      setEntities(novel.entityTypes.flatMap((t) => novel.entities.filter((e) => e.type === t.key).map((e) => ({ id: e.id, name: e.name, aliases: e.aliases, type: t.label }))));
+      setTypes(novel.entityTypes.map((t) => ({ key: t.key, label: t.label, prefix: t.prefix })));
+    });
   }, []);
+  const newEntry: NewEntryProps = {
+    types,
+    create: (key, name) => {
+      const t = types.find((x) => x.key === key);
+      if (!t) return undefined;
+      const id = uniqueId(t.prefix, new Set(entities.map((e) => e.id)));
+      setEntities((list) => [...list, { id, name, aliases: [], type: t.label }]);
+      return id;
+    },
+  };
 
   // The whole manuscript for find and replace, with edits as saved. The generated chapter is
   // left out: its paragraphs are copies of the sample novel's.
@@ -227,6 +239,7 @@ function App() {
             onReady={ready}
             spell={spell}
             entities={entities}
+            newEntry={newEntry}
           />
         ) : (
           <SceneEditor
@@ -239,6 +252,7 @@ function App() {
             onReady={ready}
             spell={spell}
             entities={entities}
+            newEntry={newEntry}
           />
         )}
       </main>
