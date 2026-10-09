@@ -29,10 +29,15 @@ export interface PickerProps {
    * (then chosen as if picked), or undefined if it can't be made.
    */
   create?: { noun: string; create: (name: string) => string | undefined };
+  /**
+   * For a field holding several values (labels): the ones chosen, checked in the list. Choosing an
+   * item then hands it to onChange to add or take off, and the list stays open for the next.
+   */
+  chosen?: readonly string[];
 }
 
-/** Choose one item from a long list by typing: a button that opens a searchable, grouped list. */
-export function Picker({ label, items, value, onChange, placeholder = "Choose…", allowNone, className, create }: PickerProps) {
+/** Choose one item (or, with `chosen`, several) from a long list by typing: a button that opens a searchable, grouped list. */
+export function Picker({ label, items, value, onChange, placeholder = "Choose…", allowNone, className, create, chosen: many }: PickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const typed = search.trim();
@@ -40,10 +45,11 @@ export function Picker({ label, items, value, onChange, placeholder = "Choose…
   const id = useId();
   const chosen = items.find((i) => i.value === value);
   const groups = [...new Set(items.map((i) => i.group ?? ""))];
+  const checked = (v: string) => (many ? many.includes(v) : v === value);
   const pick = (v: string | undefined) => {
     onChange(v);
-    setOpen(false);
     setSearch("");
+    if (!many) setOpen(false);
   };
   return (
     <div className={cn("grid gap-1.5", className)}>
@@ -70,7 +76,7 @@ export function Picker({ label, items, value, onChange, placeholder = "Choose…
           </button>
         </Popover.Trigger>
         <Popover.Portal>
-          <Popover.Content align="start" sideOffset={4} className="z-[80] w-[var(--radix-popover-trigger-width)] min-w-64 rounded-md border border-rule bg-raised text-ink shadow-lg">
+          <Popover.Content aria-label={label} align="start" sideOffset={4} className="z-[80] w-[var(--radix-popover-trigger-width)] min-w-64 rounded-md border border-rule bg-raised text-ink shadow-lg">
             <Cmdk label={label} filter={rank} loop>
               <Cmdk.Input value={search} onValueChange={setSearch} placeholder="Type to search…" aria-label={`Search ${label.toLowerCase()}`} className="h-9 w-full border-b border-rule bg-transparent px-3 text-sm outline-none" />
               <Cmdk.List className="max-h-72 overflow-y-auto p-1">
@@ -93,7 +99,7 @@ export function Picker({ label, items, value, onChange, placeholder = "Choose…
                           className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1.5 text-sm data-[selected=true]:bg-accent-soft"
                         >
                           {i.label}
-                          {i.value === value && <Check className="size-4 text-accent" aria-label="chosen" />}
+                          {checked(i.value) && <Check className="size-4 text-accent" aria-label="chosen" />}
                         </Cmdk.Item>
                       ))}
                   </Cmdk.Group>

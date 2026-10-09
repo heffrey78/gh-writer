@@ -106,11 +106,10 @@ export function IssuesPage({ novelId, novel, workspace }: { novelId: string; nov
           <Picker
             className="w-56"
             label="Filter by label"
-            items={pickableLabels(meta)
-              .filter((l) => !labels.includes(l.name))
-              .map((l) => ({ value: l.name, label: l.name }))}
+            items={[...new Set([...pickableLabels(meta).map((l) => l.name), ...labels])].map((name) => ({ value: name, label: name }))}
             value={undefined}
-            onChange={(v) => v && setParams({ labels: [...labels, v].join(",") })}
+            chosen={labels}
+            onChange={(v) => v && setParams({ labels: (labels.includes(v) ? labels.filter((x) => x !== v) : [...labels, v]).join(",") })}
             placeholder="Any label"
           />
         </div>

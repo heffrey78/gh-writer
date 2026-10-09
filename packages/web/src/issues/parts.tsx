@@ -31,8 +31,13 @@ export function LabelChip({ name, labels, onRemove }: { name: string; labels: Is
   );
 }
 
-/** Labels chosen, as chips, with a picker to add another (an existing label, or a new one by name). */
+/**
+ * Labels chosen, as chips, and a picker listing every label with the chosen ones checked: choosing
+ * one adds it or takes it off; a name no label has can be made a new label.
+ */
 export function LabelsField({ label, chosen, labels, onChange }: { label: string; chosen: string[]; labels: IssueLabel[]; onChange: (labels: string[]) => void }) {
+  // The chosen ones are listed even when they're not among those offered (a stock label already on it).
+  const names = [...labels.map((l) => l.name), ...chosen.filter((c) => !labels.some((l) => l.name === c))];
   return (
     <div className="grid gap-1.5">
       {chosen.length > 0 && (
@@ -46,9 +51,13 @@ export function LabelsField({ label, chosen, labels, onChange }: { label: string
       )}
       <Picker
         label={`Add to ${label.toLowerCase()}`}
-        items={labels.filter((l) => !chosen.includes(l.name)).map((l) => ({ value: l.name, label: l.name, ...(l.description ? { keywords: [l.description] } : {}) }))}
+        items={names.map((name) => {
+          const description = labels.find((l) => l.name === name)?.description;
+          return { value: name, label: name, ...(description ? { keywords: [description] } : {}) };
+        })}
         value={undefined}
-        onChange={(v) => v && onChange([...chosen, v])}
+        chosen={chosen}
+        onChange={(v) => v && onChange(chosen.includes(v) ? chosen.filter((x) => x !== v) : [...chosen, v])}
         placeholder="Add a label…"
         // A kind is chosen as a kind, not made as a label.
         create={{ noun: "label", create: (name) => (name.trim() && !name.trim().startsWith("kind/") ? name.trim() : undefined) }}

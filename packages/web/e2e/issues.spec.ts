@@ -103,6 +103,9 @@ test("lists, filters, creates, comments on, labels, edits, closes and reopens is
   await page.keyboard.type("char/ada");
   await page.keyboard.press("Enter");
   await axe(page);
+  // The list stays open for more; Escape closes it, not the form.
+  await page.keyboard.press("Escape");
+  await expect(form).toBeVisible();
   await form.getByRole("button", { name: "Create issue" }).click();
   await expect(page.getByRole("heading", { level: 1, name: /The ferry's name changes in chapter four #4/ })).toBeVisible();
   await expect(page).toHaveURL(/\/issues\/4$/);
@@ -118,10 +121,26 @@ test("lists, filters, creates, comments on, labels, edits, closes and reopens is
   await about.getByRole("button", { name: /^Add to labels/ }).click();
   await page.keyboard.type("loc/ferry");
   await page.getByRole("option", { name: "New label “loc/ferry”" }).click();
+  await page.keyboard.press("Escape");
   await expect.poll(() => repo.issues.find((i) => i.number === 4)?.labels).toEqual(["char/ada", "loc/ferry", "kind/continuity"]);
   await about.getByRole("combobox", { name: "Kind" }).selectOption({ label: "Revision" });
   await expect.poll(() => repo.issues.find((i) => i.number === 4)?.labels).toEqual(["char/ada", "loc/ferry", "kind/revision"]);
   expect(repo.labels.find((l) => l.name === "kind/revision")?.color).toBe("7057ff");
+  // Chosen labels stay in the list, checked: choosing one again takes it off, and its name isn't offered as new.
+  await about.getByRole("button", { name: /^Add to labels/ }).click();
+  await expect(page.getByRole("option", { name: "char/ada chosen", exact: true })).toBeVisible();
+  await expect(page.getByRole("option", { name: "loc/ferry chosen", exact: true })).toBeVisible();
+  await page.keyboard.type("char/ada");
+  await expect(page.getByRole("option", { name: /New label/ })).toHaveCount(0);
+  await page.keyboard.press("Enter");
+  await expect.poll(() => repo.issues.find((i) => i.number === 4)?.labels).toEqual(["loc/ferry", "kind/revision"]);
+  // Still listed, now unchecked, and the list stays open for the next.
+  await expect(page.getByRole("option", { name: "char/ada", exact: true })).toBeVisible();
+  await page.keyboard.type("char/ada");
+  await page.keyboard.press("Enter");
+  await expect.poll(() => repo.issues.find((i) => i.number === 4)?.labels).toEqual(["loc/ferry", "char/ada", "kind/revision"]);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("option", { name: "char/ada chosen", exact: true })).toHaveCount(0);
   await about.getByRole("combobox", { name: "Milestone" }).selectOption({ label: "Second draft" });
   await expect.poll(() => repo.issues.find((i) => i.number === 4)?.milestone).toBe(1);
   // A new milestone, from here.
