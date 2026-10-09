@@ -1,0 +1,203 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createServer, GitHub, Library, memoryStore, sessionCookie, type TokenStore } from "../src/index.ts";
+import { IssueStore, type IssuesError } from "../src/issues.ts";
+import { fakeGitHub, type FakeGitHub } from "./fake-github.ts";
+import { gitIn, novelRepo, scratch } from "./fixtures.ts";
+import { send } from "./http.ts";
+
+const TOKEN = "gho_issues";
+let fake: FakeGitHub;
+let fresh: (name: string) => string;
+let cleanUp: () => void;
+let dir: string;
+let store: TokenStore;
+let github: GitHub;
+/** Answers to the API's GET requests, as "STATUS path?query". */
+let answers: string[];
+
+beforeAll(async () => {
+  ({ fresh, cleanUp } = scratch("issues"));
+  fake = await fakeGitHub();
+  fake.users.set(TOKEN, { login: "ada" });
+});
+afterAll(async () => {
+  await fake.close();
+  cleanUp();
+});
+
+beforeEach(async () => {
+  dir = novelRepo(fresh("novel"));
+  const name = `salt-${Math.random().toString(36).slice(2, 8)}`;
+  gitIn(dir, "remote", "add", "origin", `${fake.url}/ada/${name}.git`);
+  fake.repos.push({ owner: "ada", name, private: true, pushedAt: fake.now() });
+  store = memoryStore();
+  await store.set(TOKEN);
+  answers = [];
+  const recording: typeof fetch = async (input, init) => {
+    const res = await fetch(input, init);
+    if ((init?.method ?? "GET") === "GET") answers.push(`${res.status} ${new URL(String(input)).pathname}${new URL(String(input)).search}`);
+    return res;
+  };
+  github = new GitHub({ clientId: fake.clientId, webUrl: fake.url, apiUrl: fake.url, store, gh: async () => undefined, fetch: recording });
+  fake.rateLimitedUntil = undefined;
+});
+
+const repoName = () => gitIn(dir, "remote", "get-url", "origin").trim().replace(/^.*\/ada\/(.*)\.git$/, "$1");
+const issuesOf = () => fake.issues("ada", repoName());
+const open = () => new IssueStore(dir, github, async () => ({ owner: "ada", name: repoName(), url: `${fake.url}/ada/${repoName()}` }));
+
+/** A repository with a few issues, a pull request, comments, labels and a milestone. */
+function seed() {
+  const data = issuesOf();
+  data.milestones.push({ number: 1, title: "Second draft", state: "open" });
+  const hole = fake.addIssue("ada", repoName(), { title: "Ada can't be on the bridge and at the station", labels: ["kind/continuity", "char/ada"], milestone: 1 });
+  fake.comment(hole, "The clock in chapter two says otherwise.");
+  const research = fake.addIssue("ada", repoName(), { title: "Research 1920s rail timetables", labels: ["kind/research"] });
+  fake.addIssue("ada", repoName(), { title: "A pull request", pullRequest: true });
+  const done = fake.addIssue("ada", repoName(), { title: "Rename the ferry", labels: ["kind/idea"] });
+  fake.touch(done, { state: "closed" });
+  return { hole, research, done };
+}
+
+describe("issues", () => {
+  it("brings the repository's issues, comments, labels and milestones into the cache, not its pull requests", async () => {
+    seed();
+    const issues = open();
+    expect(await issues.refresh()).toBe(true);
+    const { issues: open_, labels, milestones, status } = await issues.list();
+    expect(open_.map((i) => i.title)).toEqual(["Research 1920s rail timetables", "Ada can't be on the bridge and at the station"]);
+    expect(open_[1]).toMatchObject({ number: 1, state: "open", labels: ["kind/continuity", "char/ada"], milestone: 1, author: "ada", commentCount: 1, url: `${fake.url}/ada/${repoName()}/issues/1` });
+    expect(labels.map((l) => l.name).sort()).toEqual(["char/ada", "kind/continuity", "kind/idea", "kind/research"]);
+    expect(milestones).toEqual([{ number: 1, title: "Second draft", state: "open" }]);
+    expect(status).toMatchObject({ repo: { owner: "ada" }, refreshedAt: expect.any(String) });
+    expect((await issues.get(1)).comments.map((c) => c.body)).toEqual(["The clock in chapter two says otherwise."]);
+  });
+
+  it("filters by state, labels, milestone and words in the title, body or comments", async () => {
+    seed();
+    const issues = open();
+    await issues.refresh();
+    const titles = async (f: Parameters<IssueStore["list"]>[0]) => (await issues.list(f)).issues.map((i) => i.number);
+    expect(await titles({ state: "all" })).toEqual([4, 2, 1]);
+    expect(await titles({ state: "closed" })).toEqual([4]);
+    expect(await titles({ labels: ["kind/continuity", "char/ada"] })).toEqual([1]);
+    expect(await titles({ labels: ["kind/continuity", "kind/research"] })).toEqual([]);
+    expect(await titles({ milestone: 1 })).toEqual([1]);
+    expect(await titles({ milestone: "none" })).toEqual([2]);
+    expect(await titles({ text: "CLOCK chapter" })).toEqual([1]);
+    expect(await titles({ text: "timetables", state: "all" })).toEqual([2]);
+  });
+
+  it("asks only for what changed: an unchanged repository is answered 304, a change on github.com is picked up", async () => {
+    const { research } = seed();
+    const issues = open();
+    await issues.refresh();
+    // The first refresh with a `since` learns its ETag; from then on, nothing changed costs only 304s.
+    expect(await issues.refresh()).toBe(false);
+    answers = [];
+    expect(await issues.refresh()).toBe(false);
+    expect(answers.every((a) => a.startsWith("304 ")), answers.join("\n")).toBe(true);
+    expect(answers).toHaveLength(4);
+
+    fake.touch(research, { title: "Research 1912 rail timetables" });
+    fake.comment(research, "The Bradshaw for 1912 is in the library.");
+    answers = [];
+    expect(await issues.refresh()).toBe(true);
+    expect(answers.filter((a) => a.startsWith("200 ")).map((a) => a.split("?")[0])).toEqual([`200 /repos/ada/${repoName()}/issues`, `200 /repos/ada/${repoName()}/issues/comments`]);
+    expect(answers.find((a) => a.includes("/issues?"))).toContain("since=");
+    expect((await issues.get(2)).title).toBe("Research 1912 rail timetables");
+    expect((await issues.get(2)).comments.map((c) => c.body)).toEqual(["The Bradshaw for 1912 is in the library."]);
+  });
+
+  it("creates, edits, comments on, closes and reopens issues on GitHub, and the cache follows at once", async () => {
+    seed();
+    const issues = open();
+    await issues.refresh();
+    let heard = 0;
+    issues.onChange(() => heard++);
+
+    const made = await issues.create({ title: "  The ferry's name changes in chapter four  ", body: "It's *Marta* in chapter one.", labels: ["kind/continuity"], milestone: 1 });
+    expect(made).toMatchObject({ number: 5, title: "The ferry's name changes in chapter four", labels: ["kind/continuity"], milestone: 1, state: "open" });
+    expect(issuesOf().issues.find((i) => i.number === 5)).toMatchObject({ body: "It's *Marta* in chapter one.", user: "ada" });
+
+    await issues.update(5, { title: "The ferry is Marta, not Martha", labels: ["kind/continuity", "kind/revision"] });
+    const comment = await issues.comment(5, "Fixed in chapter four.");
+    expect(comment).toMatchObject({ body: "Fixed in chapter four.", author: "ada" });
+    await issues.update(5, { state: "closed" });
+    expect(issuesOf().issues.find((i) => i.number === 5)).toMatchObject({ title: "The ferry is Marta, not Martha", state: "closed", labels: ["kind/continuity", "kind/revision"] });
+    expect(await issues.get(5)).toMatchObject({ state: "closed", comments: [{ body: "Fixed in chapter four." }] });
+    expect(issuesOf().labels.map((l) => l.name)).toContain("kind/revision");
+    await issues.update(5, { state: "open", milestone: null });
+    expect(await issues.get(5)).toMatchObject({ state: "open", milestone: null });
+    expect(heard).toBeGreaterThanOrEqual(5);
+
+    await expect(issues.create({ title: "  " })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(issues.update(99, { state: "closed" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("keeps the cache in the clone's .git, not the novel, and serves it after a restart without GitHub", async () => {
+    seed();
+    await open().refresh();
+    expect(existsSync(join(dir, ".git", "gh-writer", "issues.json"))).toBe(true);
+    expect(gitIn(dir, "status", "--porcelain")).toBe("");
+    await store.delete();
+    const again = open();
+    expect((await again.list()).issues).toHaveLength(2);
+    await expect(again.create({ title: "Offline" })).rejects.toMatchObject({ code: "NO_SIGN_IN" });
+  });
+
+  it("reports a rate limit with when it resets, and keeps serving the cache", async () => {
+    seed();
+    const issues = open();
+    await issues.refresh();
+    fake.rateLimitedUntil = Math.floor(Date.now() / 1000) + 600;
+    const error = (await issues.refresh().catch((e: unknown) => e)) as IssuesError;
+    expect(error).toMatchObject({ code: "RATE_LIMITED", resetAt: new Date(fake.rateLimitedUntil * 1000).toISOString() });
+    expect((await issues.status()).error).toMatchObject({ code: "RATE_LIMITED", resetAt: error.resetAt });
+    expect((await issues.list()).issues).toHaveLength(2);
+    fake.rateLimitedUntil = undefined;
+    await issues.refresh();
+    expect((await issues.status()).error).toBeUndefined();
+  });
+
+  it("has nothing, and refuses changes, for a novel that isn't on GitHub", async () => {
+    const issues = new IssueStore(dir, github, async () => null);
+    expect(await issues.refresh()).toBe(false);
+    expect((await issues.list()).issues).toEqual([]);
+    await expect(issues.create({ title: "x" })).rejects.toMatchObject({ code: "NOT_ON_GITHUB" });
+  });
+});
+
+describe("through the server", () => {
+  it("lists, filters, creates, changes and comments over HTTP, with refusals as codes", async () => {
+    seed();
+    const library = await Library.open({ configDir: fresh("config") });
+    const novel = await library.add(dir);
+    const server = await createServer({ library, token: "t", github, sync: false, commit: false });
+    const headers = { cookie: `${sessionCookie(server.port)}=t`, origin: server.url, "content-type": "application/json" };
+    const call = async (method: string, path: string, body?: unknown) => {
+      const r = await send(server.port, `/api/novels/${novel.id}/issues${path}`, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}) });
+      return { status: r.status, body: JSON.parse(r.body) as Record<string, unknown> };
+    };
+    try {
+      expect((await call("POST", "/refresh")).body).toMatchObject({ changed: true });
+      const listed = await call("GET", "?labels=kind/continuity&q=clock");
+      expect((listed.body.issues as { number: number }[]).map((i) => i.number)).toEqual([1]);
+      expect((await call("GET", "?state=closed")).body.issues).toHaveLength(1);
+      const made = await call("POST", "", { title: "Check the tide tables", labels: ["kind/research"], extra: "ignored" });
+      expect(made).toMatchObject({ status: 201, body: { number: 5, title: "Check the tide tables" } });
+      expect((await call("PATCH", "/5", { state: "closed" })).body).toMatchObject({ state: "closed" });
+      expect((await call("POST", "/5/comments", { body: "Done." })).status).toBe(201);
+      expect((await call("GET", "/5")).body).toMatchObject({ comments: [{ body: "Done." }] });
+      expect(await call("GET", "/99")).toMatchObject({ status: 404, body: { code: "NOT_FOUND" } });
+      expect(await call("POST", "", { title: "" })).toMatchObject({ status: 400, body: { code: "BAD_REQUEST" } });
+      fake.rateLimitedUntil = Math.floor(Date.now() / 1000) + 60;
+      expect(await call("POST", "/refresh")).toMatchObject({ status: 429, body: { code: "RATE_LIMITED", resetAt: expect.any(String) } });
+    } finally {
+      fake.rateLimitedUntil = undefined;
+      await server.close();
+    }
+  });
+});

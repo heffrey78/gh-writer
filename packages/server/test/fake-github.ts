@@ -1,4 +1,5 @@
 import { execFileSync, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { join } from "node:path";
@@ -9,6 +10,37 @@ export interface FakeUser {
   name?: string;
   /** The token's OAuth scopes; by default all a novel needs. */
   scopes?: string[];
+}
+
+export interface FakeComment {
+  id: number;
+  body: string;
+  user: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FakeIssue {
+  number: number;
+  title: string;
+  body: string;
+  state: "open" | "closed";
+  labels: string[];
+  milestone: number | null;
+  user: string;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+  /** A pull request: GitHub lists them with the issues. */
+  pullRequest?: boolean;
+  comments: FakeComment[];
+}
+
+/** A repository's issues side: what the issues API serves. */
+export interface FakeIssues {
+  issues: FakeIssue[];
+  labels: { name: string; color: string; description: string }[];
+  milestones: { number: number; title: string; state: "open" | "closed" }[];
 }
 
 export interface FakeRepo {
@@ -48,6 +80,17 @@ export interface FakeGitHub {
   brokenNextRepo: boolean;
   /** The bare repository behind owner/name (with `gitRoot`). */
   repoPath(owner: string, name: string): string;
+  /** owner/name's issues, labels and milestones (made empty on first use). */
+  issues(owner: string, name: string): FakeIssues;
+  /** Add an issue as if made on github.com; times come from the fake's clock. */
+  addIssue(owner: string, name: string, issue: Partial<FakeIssue> & { title: string }): FakeIssue;
+  /** Change an issue or add a comment as if on github.com, moving its updatedAt on. */
+  touch(issue: FakeIssue, change?: Partial<FakeIssue>): void;
+  comment(issue: FakeIssue, body: string, user?: string): FakeComment;
+  /** The API refuses every repository request as rate limited until this time (epoch seconds), when set. */
+  rateLimitedUntil: number | undefined;
+  /** The fake's clock: each change happens one second after the last. */
+  now(): string;
   close(): Promise<void>;
 }
 
@@ -67,6 +110,34 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
     repos: [],
     requests: [],
     brokenNextRepo: false,
+    rateLimitedUntil: undefined,
+    issues: (owner, name) => {
+      const key = `${owner}/${name}`;
+      let data = issueData.get(key);
+      if (!data) issueData.set(key, (data = { issues: [], labels: [], milestones: [] }));
+      return data;
+    },
+    addIssue: (owner, name, partial) => {
+      const data = fake.issues(owner, name);
+      const at = fake.now();
+      const issue: FakeIssue = { number: data.issues.length + 1, body: "", state: "open", labels: [], milestone: null, user: owner, createdAt: at, updatedAt: at, closedAt: null, comments: [], ...partial };
+      for (const l of issue.labels) if (!data.labels.some((x) => x.name === l)) data.labels.push({ name: l, color: "ededed", description: "" });
+      data.issues.push(issue);
+      return issue;
+    },
+    touch: (issue, change = {}) => {
+      Object.assign(issue, change);
+      issue.updatedAt = fake.now();
+      if (change.state) issue.closedAt = change.state === "closed" ? issue.updatedAt : null;
+    },
+    comment: (issue, body, user = "ada") => {
+      const at = fake.now();
+      const c: FakeComment = { id: ++commentIds, body, user, createdAt: at, updatedAt: at };
+      issue.comments.push(c);
+      issue.updatedAt = at;
+      return c;
+    },
+    now: () => new Date(Date.UTC(2026, 0, 1) + ++clock * 1000).toISOString().replace(/\.\d{3}Z$/, "Z"),
     approve: () => void (approved = true),
     deny: () => void (denied = true),
     slowDown: () => void (slow = true),
@@ -76,6 +147,9 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
     close: () => new Promise((resolve) => server.close(() => resolve())),
   };
 
+  const issueData = new Map<string, FakeIssues>();
+  let clock = 0;
+  let commentIds = 1000;
   const scopesOf = (user: FakeUser) => user.scopes ?? ["repo", "workflow", "read:user"];
   const json = (res: ServerResponse, status: number, body: unknown) => res.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify(body));
   const read = (req: IncomingMessage) =>
@@ -94,6 +168,8 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
     fake.requests.push({ method: req.method ?? "GET", path: url.pathname, ...(auth ? { token: auth } : {}), ...(body ? { body } : {}) });
     const form = new URLSearchParams(body);
     const user = auth ? fake.users.get(auth) : undefined;
+    const repoApi = /^\/repos\/([^/]+)\/([^/]+)(\/.*)$/.exec(url.pathname);
+    if (repoApi) return serveIssues(req, res, url, body, user, repoApi[1]!, repoApi[2]!, repoApi[3]!);
 
     switch (`${req.method} ${url.pathname}`) {
       case "POST /login/device/code":
@@ -153,6 +229,119 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
         return json(res, 404, { message: "Not Found" });
     }
   });
+  /**
+   * The issues API for a repository the user owns: issues (pull requests among them, as GitHub lists
+   * them), comments, labels and milestones, with `since`, paging and ETags (a matching If-None-Match
+   * gets 304), and a rate limit the test can switch on.
+   */
+  function serveIssues(req: IncomingMessage, res: ServerResponse, url: URL, body: string, user: FakeUser | undefined, owner: string, name: string, rest: string) {
+    if (!user) return json(res, 401, { message: "Bad credentials" });
+    if (fake.rateLimitedUntil !== undefined && Date.now() / 1000 < fake.rateLimitedUntil) {
+      res.writeHead(403, { "content-type": "application/json", "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(fake.rateLimitedUntil) });
+      return res.end(JSON.stringify({ message: "API rate limit exceeded" }));
+    }
+    if (user.login !== owner || !fake.repos.some((r) => r.owner === owner && r.name === name)) return json(res, 404, { message: "Not Found" });
+    const data = fake.issues(owner, name);
+    const api = `${fake.url}/repos/${owner}/${name}`;
+    const input = (body ? JSON.parse(body) : {}) as Record<string, unknown>;
+    const labelOf = (n: string) => data.labels.find((l) => l.name === n) ?? { name: n, color: "ededed", description: "" };
+    const ensureLabels = (names: string[]) => names.forEach((n) => data.labels.some((l) => l.name === n) || data.labels.push(labelOf(n)));
+    const issueJson = (i: FakeIssue) => ({
+      number: i.number,
+      title: i.title,
+      body: i.body || null,
+      state: i.state,
+      labels: i.labels.map(labelOf),
+      milestone: i.milestone === null ? null : (data.milestones.find((m) => m.number === i.milestone) ?? null),
+      user: { login: i.user },
+      comments: i.comments.length,
+      created_at: i.createdAt,
+      updated_at: i.updatedAt,
+      closed_at: i.closedAt,
+      html_url: `${fake.url}/${owner}/${name}/${i.pullRequest ? "pull" : "issues"}/${i.number}`,
+      ...(i.pullRequest ? { pull_request: { url: `${api}/pulls/${i.number}` } } : {}),
+    });
+    const commentJson = (i: FakeIssue, c: FakeComment) => ({
+      id: c.id,
+      body: c.body,
+      user: { login: c.user },
+      created_at: c.createdAt,
+      updated_at: c.updatedAt,
+      html_url: `${fake.url}/${owner}/${name}/issues/${i.number}#issuecomment-${c.id}`,
+      issue_url: `${api}/issues/${i.number}`,
+    });
+    /** A list, paged like GitHub's, with an ETag. */
+    const list = (items: unknown[]) => {
+      const per = Number(url.searchParams.get("per_page") ?? 30);
+      const page = Number(url.searchParams.get("page") ?? 1);
+      const text = JSON.stringify(items.slice((page - 1) * per, page * per));
+      const etag = `"${createHash("sha1").update(text).digest("hex")}"`;
+      if (req.headers["if-none-match"] === etag) return res.writeHead(304, { etag }).end();
+      return res.writeHead(200, { "content-type": "application/json", etag }).end(text);
+    };
+    const since = url.searchParams.get("since");
+    const find = (n: string) => data.issues.find((i) => i.number === Number(n));
+    let m: RegExpExecArray | null;
+
+    if (rest === "/issues" && req.method === "GET") {
+      const state = url.searchParams.get("state") ?? "open";
+      const items = data.issues
+        .filter((i) => (state === "all" || i.state === state) && (!since || i.updatedAt >= since))
+        .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+      return list(items.map(issueJson));
+    }
+    if (rest === "/issues" && req.method === "POST") {
+      if (typeof input.title !== "string" || !input.title) return json(res, 422, { message: "Validation Failed" });
+      const labels = Array.isArray(input.labels) ? (input.labels as string[]) : [];
+      ensureLabels(labels);
+      const issue = fake.addIssue(owner, name, { title: input.title, body: typeof input.body === "string" ? input.body : "", labels, milestone: typeof input.milestone === "number" ? input.milestone : null, user: user.login });
+      return json(res, 201, issueJson(issue));
+    }
+    if (rest === "/issues/comments" && req.method === "GET") {
+      const all = data.issues.flatMap((i) => i.comments.map((c) => ({ i, c }))).filter(({ c }) => !since || c.updatedAt >= since);
+      return list(all.sort((a, b) => a.c.updatedAt.localeCompare(b.c.updatedAt)).map(({ i, c }) => commentJson(i, c)));
+    }
+    if ((m = /^\/issues\/(\d+)$/.exec(rest))) {
+      const issue = find(m[1]!);
+      if (!issue) return json(res, 404, { message: "Not Found" });
+      if (req.method === "GET") return json(res, 200, issueJson(issue));
+      if (req.method === "PATCH") {
+        const change: Partial<FakeIssue> = {};
+        if (typeof input.title === "string") change.title = input.title;
+        if (typeof input.body === "string") change.body = input.body;
+        if (input.state === "open" || input.state === "closed") change.state = input.state;
+        if (Array.isArray(input.labels)) {
+          ensureLabels(input.labels as string[]);
+          change.labels = input.labels as string[];
+        }
+        if ("milestone" in input) change.milestone = typeof input.milestone === "number" ? input.milestone : null;
+        fake.touch(issue, change);
+        return json(res, 200, issueJson(issue));
+      }
+    }
+    if ((m = /^\/issues\/(\d+)\/comments$/.exec(rest))) {
+      const issue = find(m[1]!);
+      if (!issue) return json(res, 404, { message: "Not Found" });
+      if (req.method === "GET") return list(issue.comments.map((c) => commentJson(issue, c)));
+      if (req.method === "POST") {
+        if (typeof input.body !== "string" || !input.body) return json(res, 422, { message: "Validation Failed" });
+        return json(res, 201, commentJson(issue, fake.comment(issue, input.body, user.login)));
+      }
+    }
+    if (rest === "/labels" && req.method === "GET") return list(data.labels);
+    if (rest === "/labels" && req.method === "POST") {
+      if (typeof input.name !== "string" || data.labels.some((l) => l.name === input.name)) return json(res, 422, { message: "Validation Failed", errors: [{ code: "already_exists" }] });
+      const label = { name: input.name, color: typeof input.color === "string" ? input.color : "ededed", description: typeof input.description === "string" ? input.description : "" };
+      data.labels.push(label);
+      return json(res, 201, label);
+    }
+    if (rest === "/milestones" && req.method === "GET") {
+      const state = url.searchParams.get("state") ?? "open";
+      return list(data.milestones.filter((x) => state === "all" || x.state === state));
+    }
+    return json(res, 404, { message: "Not Found" });
+  }
+
   /**
    * git's smart HTTP protocol through git http-backend. Like github.com: no credentials → 401 with a
    * Basic challenge; credentials GitHub doesn't know → 401; a repository that isn't there → 404.

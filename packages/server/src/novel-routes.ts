@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
 import { bibleRoutes } from "./bible-routes.ts";
+import { issueRoutes } from "./issues-routes.ts";
 import { diagramRoutes } from "./diagrams.ts";
 import { manuscriptRoutes } from "./manuscript-routes.ts";
 import { CheckpointError } from "./checkpoints.ts";
@@ -20,7 +21,8 @@ type NovelEnv = { Variables: { ws: NovelWorkspace } };
  * GET /api/novels/:id               { novel, files }: the story model and the hash of each file it was read from
  * GET /api/novels/:id/files/<path>  { path, content, hash }
  * PUT /api/novels/:id/files/<path>  { content, base } → 200 { hash }, or 409 { current } when base is stale
- * GET /api/novels/:id/events        event stream: "ready", the sync status, then a "file" event { type, path, hash } per outside change
+ * GET /api/novels/:id/events        event stream: "ready", the sync status, then a "file" event { type, path, hash } per outside change,
+ *                                   and "issues" when the cached GitHub issues change
  *                                   and a "sync" event (the status) whenever it changes
  * GET /api/novels/:id/sync          sync status: { state, remote, branch, ahead, behind, lastSync, conflict?, error?, commit }
  * POST /api/novels/:id/sync         sync now; the status once it's done
@@ -164,6 +166,7 @@ export function novelRoutes(library: Library, workspaces: Workspaces, github?: G
   );
 
   bibleRoutes(routes);
+  issueRoutes(routes);
   diagramRoutes(routes);
   manuscriptRoutes(routes);
 
@@ -184,6 +187,7 @@ export function novelRoutes(library: Library, workspaces: Workspaces, github?: G
         });
       };
       const offSync = ws.onSyncChange(sendSync);
+      const offIssues = ws.issues?.onChange(() => void stream.writeSSE({ event: "issues", data: "{}" }));
       const heartbeat = setInterval(() => void stream.write(": ping\n\n"), HEARTBEAT_MS);
       try {
         await stream.writeSSE({ event: "ready", data: "{}" });
@@ -192,6 +196,7 @@ export function novelRoutes(library: Library, workspaces: Workspaces, github?: G
       } finally {
         clearInterval(heartbeat);
         offSync();
+        offIssues?.();
         unsubscribe();
       }
     }),

@@ -343,7 +343,7 @@ export class GitHub {
    * A request to the GitHub API as the author. A 401 means the token is no longer good: it is
    * forgotten, and NO_SIGN_IN is thrown.
    */
-  async api(path: string, init: { method?: string; body?: unknown } = {}): Promise<Response> {
+  async api(path: string, init: { method?: string; body?: unknown; headers?: Record<string, string> } = {}): Promise<Response> {
     const token = await this.#store.get();
     if (!token) throw new GitHubError("NO_SIGN_IN", "Connect gh-writer to GitHub first.");
     const res = await this.#request(token, path, init);
@@ -402,10 +402,11 @@ export class GitHub {
     await this.#store.delete().catch(() => {});
   }
 
-  #request(token: string, path: string, { method = "GET", body }: { method?: string; body?: unknown } = {}): Promise<Response> {
+  #request(token: string, path: string, { method = "GET", body, headers = {} }: { method?: string; body?: unknown; headers?: Record<string, string> } = {}): Promise<Response> {
     return this.#fetch(`${this.apiUrl}${path}`, {
       method,
       headers: {
+        ...headers,
         Accept: "application/vnd.github+json",
         Authorization: `Bearer ${token}`,
         "X-GitHub-Api-Version": "2022-11-28",

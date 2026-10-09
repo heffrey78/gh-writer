@@ -11,6 +11,7 @@ import { atomicWrite, hashText, isVisible, readText, writablePath, type TextFile
 import type { Library } from "./library.ts";
 import { git } from "./git.ts";
 import { githubRepoOf, type GitHub, type GitHubRepo } from "./github.ts";
+import { IssueStore } from "./issues.ts";
 import { Syncer, type SyncerOptions, type SyncStatus } from "./sync.ts";
 
 /** A file that changed on disk. `hash` is null once the file is gone. */
@@ -53,6 +54,8 @@ export class NovelWorkspace {
   readonly bible: BibleOperations;
   /** Manuscript structure changes, one commit each. */
   readonly manuscript: ManuscriptOperations;
+  /** The novel's GitHub issues, cached in the clone (with a GitHub connection; empty unless the novel is on GitHub). */
+  readonly issues: IssueStore | undefined;
   /** Resolves when the workspace stops: event streams end then. */
   readonly stopped: Promise<void>;
   #stop!: () => void;
@@ -89,6 +92,16 @@ export class NovelWorkspace {
     });
     this.bible = new BibleOperations(root, (fn) => this.exclusive(fn));
     this.manuscript = new ManuscriptOperations(root, (fn) => this.exclusive(fn));
+    this.issues = github ? new IssueStore(root, github, () => this.githubRepo()) : undefined;
+    // Issues are brought up to date with each sync with GitHub, so a change on github.com shows within one cycle.
+    let lastSync: string | null | undefined;
+    this.syncer?.onChange(() => {
+      void this.syncer?.status().then((s) => {
+        if (s.lastSync === lastSync || !s.lastSync) return;
+        lastSync = s.lastSync;
+        void this.issues?.refresh().catch(() => {});
+      });
+    });
     this.stopped = new Promise((resolve) => (this.#stop = resolve));
     this.syncer?.start();
   }
