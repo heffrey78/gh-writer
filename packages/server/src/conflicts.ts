@@ -172,6 +172,21 @@ export async function commitMerge(root: string, prepared: PreparedMerge, resolut
   }
 }
 
+/** Resolutions as a request sends them, by path; undefined when malformed. */
+export function parseResolutions(value: unknown): Record<string, FileResolution> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const out: Record<string, FileResolution> = {};
+  for (const [path, r] of Object.entries(value as Record<string, unknown>)) {
+    if (!r || typeof r !== "object") return undefined;
+    const { ours, content, keep } = r as { ours?: unknown; content?: unknown; keep?: unknown };
+    if (ours !== null && typeof ours !== "string") return undefined;
+    if (keep === "ours" || keep === "theirs") out[path] = { ours, keep };
+    else if (content === null || (typeof content === "string" && content.isWellFormed())) out[path] = { ours, content };
+    else return undefined;
+  }
+  return out;
+}
+
 /** A file's bytes at `rev`, by its repository path, or undefined if it isn't there. */
 async function blob(root: string, rev: string, repoPath: string): Promise<Buffer | undefined> {
   return gitPlumbing(root, ["cat-file", "blob", `${rev}:${repoPath}`]).catch(() => undefined);

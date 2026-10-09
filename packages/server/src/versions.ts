@@ -1,10 +1,13 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { loadNovel } from "@gh-writer/core";
+import { editYaml, loadNovel } from "@gh-writer/core";
+import { nodeSource } from "@gh-writer/core/node";
 import { slug, wordsIn, type Checkpoint, type Checkpoints } from "./checkpoints.ts";
 import { operationInProgress, type Committer } from "./committer.ts";
+import { commitMerge, ConflictError, openConflicts, prepareMerge, type Conflicts, type FileResolution, type PreparedMerge } from "./conflicts.ts";
+import { atomicWrite, writablePath } from "./files.ts";
 import { commitSource } from "./git-source.ts";
-import { git } from "./git.ts";
+import { git, gitPlumbing } from "./git.ts";
 
 /*
  * Alternate versions of a novel (#17, D7): a different ending, a cut subplot, written alongside the
@@ -38,7 +41,24 @@ export interface DiscardResult {
   current: string;
 }
 
-export type VersionErrorCode = "BAD_NAME" | "NOT_FOUND" | "MAIN" | "BLOCKED" | "BUSY";
+export interface AdoptResult {
+  /** The main version as it was before: restoring it undoes the adoption. */
+  checkpoint: Checkpoint;
+  /** The commit that adopted it, or null when nothing was done yet (conflicts to settle) or needed (already adopted). */
+  commit: string | null;
+  /** Passages both changed: settle them with resolveAdoption(). The main version is open meanwhile, unchanged. */
+  conflicts?: Conflicts;
+}
+
+export interface BringResult {
+  /** The open version as it was before: restoring it undoes this. */
+  undo: Checkpoint;
+  commit: string | null;
+  /** The files written, relative to the novel. */
+  files: string[];
+}
+
+export type VersionErrorCode = "BAD_NAME" | "NOT_FOUND" | "MAIN" | "BLOCKED" | "BUSY" | "OPEN" | "NOT_HERE";
 
 export class VersionError extends Error {
   readonly code: VersionErrorCode;
@@ -175,6 +195,100 @@ export class Versions {
     });
   }
 
+  /**
+   * Adopt version `id` into the main version: the main version opens, and takes the version's changes
+   * (a merge, so what changed in the main version since the version began is kept too). Passages both
+   * changed come back as `conflicts`, nothing changed until they're settled (resolveAdoption). The main
+   * version is kept in an automatic checkpoint first.
+   */
+  adopt(id: string): Promise<AdoptResult> {
+    return this.#change(async () => {
+      const version = await this.#get(id);
+      if (version.main) throw new VersionError("MAIN", "The main version is the one other versions are adopted into.");
+      const g = git(this.root);
+      const main = await this.mainBranch();
+      const checkpoint = await this.#checkpoints.keep(`Before adopting “${version.name}”`, (await g.raw(["rev-parse", main])).trim());
+      if (!(await this.#get("main")).current) await g.raw(["switch", "--quiet", main]);
+      // Answered by the exit code alone, which simple-git doesn't report: plumbing rejects on a non-zero exit.
+      const isAncestor = (a: string, b: string) => gitPlumbing(this.root, ["merge-base", "--is-ancestor", a, b]).then(() => true, () => false);
+      if (await isAncestor(version.commit, "HEAD")) return { checkpoint, commit: null };
+      if (await isAncestor("HEAD", version.commit)) {
+        // Nothing changed in the main version meanwhile: it simply becomes the version.
+        await g.raw(["merge", "--ff-only", "--quiet", version.commit]);
+        return { checkpoint, commit: (await g.raw(["rev-parse", "HEAD"])).trim() };
+      }
+      const prepared = await prepareMerge(this.root, version.commit);
+      const conflicts = openConflicts(prepared);
+      if (conflicts.files.length) return { checkpoint, commit: null, conflicts };
+      return { checkpoint, commit: await commitMerge(this.root, prepared, {}, adoptMessage(version.name, prepared)) };
+    });
+  }
+
+  /** Finish adopting version `id` with the author's `resolutions`; refused as STALE if either side moved since the conflicts were shown. */
+  resolveAdoption(id: string, upstream: string, resolutions: Record<string, FileResolution>): Promise<{ commit: string }> {
+    return this.#change(async () => {
+      const version = await this.#get(id);
+      if (!(await this.#get("main")).current) throw new ConflictError("STALE", "The main version isn't open any more.");
+      const prepared = await prepareMerge(this.root, version.commit);
+      if (prepared.upstream !== upstream) throw new ConflictError("STALE", `“${version.name}” has changed since the conflicts were shown.`);
+      return { commit: await commitMerge(this.root, prepared, resolutions, adoptMessage(version.name, prepared)) };
+    });
+  }
+
+  /** What adopting version `id` leaves to settle now (the main version open), or null. */
+  async adoptionConflicts(id: string): Promise<Conflicts | null> {
+    const version = await this.#get(id);
+    if (!(await this.#get("main")).current) return null;
+    const open = openConflicts(await prepareMerge(this.root, version.commit));
+    return open.files.length ? open : null;
+  }
+
+  /**
+   * Bring scene `sceneId` from version `from` into the open one: its text and details as they are
+   * there. A scene this version doesn't have joins its chapter, after the scene it follows there. The
+   * open version is kept in an automatic checkpoint first.
+   */
+  bringScene(from: string, sceneId: string): Promise<BringResult> {
+    return this.#change(async () => {
+      const version = await this.#get(from);
+      if (version.current) throw new VersionError("OPEN", `“${version.name}” is the version open.`);
+      const source = await commitSource(this.root, version.commit);
+      const there = await loadNovel(source);
+      const scene = there.allScenes.find((s) => s.id === sceneId);
+      if (!scene) throw new VersionError("NOT_FOUND", `“${version.name}” has no scene “${sceneId}”.`);
+      const content = (await source.read(scene.file))!;
+      const here = await loadNovel(nodeSource(this.root));
+      const g = git(this.root);
+      const undo = await this.#checkpoints.keep(`Before bringing “${scene.title}” from “${version.name}”`, (await g.raw(["rev-parse", "HEAD"])).trim());
+
+      const existing = here.allScenes.find((s) => s.id === sceneId);
+      const files: string[] = [];
+      if (existing) {
+        await atomicWrite(await writablePath(this.root, existing.file, content), content);
+        files.push(existing.file);
+      } else {
+        const chapter = here.allChapters.find((c) => c.id === scene.chapterId);
+        if (!chapter) throw new VersionError("NOT_HERE", `“${scene.title}” is in a chapter this version doesn't have: adopt the whole version, or add the chapter first.`);
+        let path = `${chapter.dir}/${scene.file.split("/").at(-1)}`;
+        for (let n = 2; await readFile(join(this.root, path)).then(() => true, () => false); n++) path = `${chapter.dir}/${scene.file.split("/").at(-1)!.replace(/\.md$/, `-${n}.md`)}`;
+        await atomicWrite(await writablePath(this.root, path, content), content);
+        // After the scene it follows in the other version, if that's here; else first, or last.
+        const order = there.allChapters.find((c) => c.id === chapter.id)?.sceneIds ?? [];
+        const before = order.slice(0, order.indexOf(sceneId)).reverse().find((s) => chapter.sceneIds.includes(s));
+        const scenes = [...chapter.sceneIds];
+        scenes.splice(before ? scenes.indexOf(before) + 1 : order.indexOf(sceneId) === 0 ? 0 : scenes.length, 0, sceneId);
+        const yaml = editYaml(await readFile(join(this.root, chapter.file), "utf8"), [{ path: ["scenes"], value: scenes }]);
+        await atomicWrite(await writablePath(this.root, chapter.file, yaml), yaml);
+        files.push(path, chapter.file);
+      }
+      await g.raw(["add", "--", ...files]);
+      const changed = (await g.raw(["diff", "--cached", "--name-only", "--relative", "--", ...files])).split("\n").filter(Boolean);
+      if (!changed.length) return { undo, commit: null, files: [] };
+      await g.raw(["commit", "--quiet", "--no-verify", "-m", `Bring “${scene.title}” from version “${version.name}”`, "--", ...files]);
+      return { undo, commit: (await g.raw(["rev-parse", "HEAD"])).trim(), files: changed };
+    });
+  }
+
   /** The branch the novel lives on: the remote's default branch, else main, else master, else the first that isn't a version. */
   async mainBranch(): Promise<string> {
     return (await this.#state()).main;
@@ -273,6 +387,12 @@ export class Versions {
   #setDiscarded(branches: string[]): Promise<void> {
     return setDiscardedVersions(this.root, branches);
   }
+}
+
+/** "Adopt version “X”", with each file merged paragraph by paragraph or by the author. */
+function adoptMessage(name: string, prepared: PreparedMerge): string {
+  const files = prepared.files.map((f) => `- ${f.path}: ${f.merged !== undefined ? "merged paragraph by paragraph" : "settled by the author"}`);
+  return `Adopt version “${name}”\n${files.length ? `\n${files.join("\n")}\n` : ""}`;
 }
 
 /** The name made from a version's ID where it has none (another computer's): "alternate-ending" → "Alternate ending". */

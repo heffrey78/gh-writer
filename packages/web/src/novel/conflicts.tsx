@@ -14,7 +14,7 @@ export function fileTitle(novel: Novel | undefined, path: string): string {
   return novel?.allScenes.find((s) => s.file === path)?.title ?? novel?.entities.find((e) => e.file === path)?.name ?? path;
 }
 
-function Frame({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
+export function Frame({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && onClose()}>
       <Dialog.Portal>

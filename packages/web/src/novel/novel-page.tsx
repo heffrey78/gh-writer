@@ -16,7 +16,7 @@ import { plural } from "../bible/types.ts";
 import { CheckpointsButton } from "./checkpoints.tsx";
 import { CompileButton, CompileDialog } from "./compile.tsx";
 import { ComparePage } from "./compare-page.tsx";
-import { useSwitchVersion, useVersions, useVersionsPanel, VersionsButton } from "./versions.tsx";
+import { AdoptConflicts, useSwitchVersion, useVersions, useVersionsPanel, VersionsButton } from "./versions.tsx";
 import { SaveConflicts, SyncConflicts } from "./conflicts.tsx";
 import { useNovelEvents } from "./events.ts";
 import { ManuscriptSidebar } from "./manuscript-tree.tsx";
@@ -291,7 +291,7 @@ export function NovelPage() {
               <Route path="corkboard" element={<CorkboardPage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="outline" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="bible" element={<BiblePage novelId={novelId} novel={book} />} />
-              <Route path="compare" element={<ComparePage novelId={novelId} />} />
+              <Route path="compare" element={<ComparePage novelId={novelId} workspace={workspace} />} />
               <Route path="issues" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssuesPage novelId={novelId} novel={book} workspace={workspace} />}</GitHubOnly>} />
               <Route path="issues/:number" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssueRoute novelId={novelId} novel={book} workspace={workspace} />}</GitHubOnly>} />
               <Route path="bible/:entityId" element={<EntryRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
@@ -301,6 +301,7 @@ export function NovelPage() {
         </div>
       </div>
       <SyncConflicts novelId={novelId} novel={book} workspace={workspace} open={resolving} onClose={() => setResolving(false)} />
+      <AdoptConflicts novelId={novelId} novel={book} workspace={workspace} />
       {compiling && <CompileDialog novelId={novelId} novel={book} workspace={workspace} onClose={() => setCompiling(false)} />}
       <SaveConflicts novel={book} workspace={workspace} />
       <NoticeBar />

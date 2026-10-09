@@ -108,6 +108,92 @@ describe("versions in one copy", { timeout: 20_000 }, () => {
   });
 });
 
+describe("adopting a version, and bringing scenes across", { timeout: 30_000 }, () => {
+  const STATION = "manuscript/01-return/01-arrival/01-the-station.md";
+  const HOLDS = "manuscript/02-the-sale/02-varn-holds/_chapter.yaml";
+  const EPILOGUE = "manuscript/02-the-sale/02-varn-holds/03-epilogue.md";
+  let dir: string;
+  let v: Versions;
+  beforeEach(() => {
+    dir = novelRepo(fresh("novel"));
+    ({ versions: v } = open(dir));
+  });
+  const commitAll = (message: string) => {
+    gitIn(dir, "add", "-A");
+    gitIn(dir, "commit", "-qm", message);
+  };
+  const lastLine = (path: string) => read(dir, path).trimEnd().split("\n").at(-1)!;
+  const rewriteLast = (path: string, text: string) => writeFileSync(join(dir, path), read(dir, path).replace(lastLine(path), text));
+
+  it("adopts a version the main one hasn't moved on from: the main version becomes it", async () => {
+    await v.start("New ending");
+    append(dir, "The bridge stood.\n");
+    const result = await v.adopt("new-ending");
+    expect(branch(dir)).toBe("main");
+    expect(read(dir)).toContain("The bridge stood.");
+    expect(result).toMatchObject({ commit: gitIn(dir, "rev-parse", "HEAD").trim(), checkpoint: { name: "Before adopting “New ending”", auto: true } });
+    expect(result.conflicts).toBeUndefined();
+    // The version stays until it's discarded; adopting again does nothing.
+    expect(await v.adopt("new-ending")).toMatchObject({ commit: null });
+    await expect(v.adopt("main")).rejects.toMatchObject({ code: "MAIN" });
+  });
+
+  it("keeps what changed in the main version meanwhile: a merge", async () => {
+    await v.start("New ending");
+    append(dir, "The bridge stood.\n");
+    await v.switch("main");
+    append(dir, "Fixed on main.\n", STATION);
+    const result = await v.adopt("new-ending");
+    expect(read(dir)).toContain("The bridge stood.");
+    expect(read(dir, STATION)).toContain("Fixed on main.");
+    expect(gitIn(dir, "log", "-1", "--format=%s%n%P").trim().split("\n")).toEqual(["Adopt version “New ending”", expect.stringMatching(/^\w+ \w+$/)]);
+    expect(result.commit).toBe(gitIn(dir, "rev-parse", "HEAD").trim());
+  });
+
+  it("leaves passages both changed to the author, touching nothing until they're settled", async () => {
+    await v.start("New ending");
+    rewriteLast(SCENE, "In the version, the rivet held.");
+    await v.switch("main");
+    rewriteLast(SCENE, "In the main version, the rivet sheared.");
+    commitAll("main edit");
+    const before = gitIn(dir, "rev-parse", "HEAD").trim();
+    const result = await v.adopt("new-ending");
+    expect(result.commit).toBeNull();
+    expect(result.conflicts!.files.map((f) => f.path)).toEqual([SCENE]);
+    expect(gitIn(dir, "rev-parse", "HEAD").trim()).toBe(before);
+    expect(read(dir)).toContain("the rivet sheared.");
+    expect(await v.adoptionConflicts("new-ending")).toMatchObject({ upstream: result.conflicts!.upstream });
+
+    const file = result.conflicts!.files[0]!;
+    await expect(v.resolveAdoption("new-ending", "0".repeat(40), { [SCENE]: { ours: file.ours, keep: "theirs" } })).rejects.toMatchObject({ code: "STALE" });
+    const { commit } = await v.resolveAdoption("new-ending", result.conflicts!.upstream, { [SCENE]: { ours: file.ours, keep: "theirs" } });
+    expect(commit).toBe(gitIn(dir, "rev-parse", "HEAD").trim());
+    expect(read(dir)).toContain("the rivet held.");
+    expect(gitIn(dir, "log", "-1", "--format=%B")).toContain(`- ${SCENE}: settled by the author`);
+  });
+
+  it("brings one scene across, or a scene the open version doesn't have into its chapter", async () => {
+    await v.start("New ending");
+    append(dir, "Only in the version.\n");
+    writeFileSync(join(dir, EPILOGUE), "---\nid: sc_ep1l0g\ntitle: Epilogue\nstatus: idea\n---\n\nYears later.\n");
+    writeFileSync(join(dir, HOLDS), read(dir, HOLDS).replace("scenes: [sc_0ffer5, sc_r1vet8]", "scenes: [sc_0ffer5, sc_r1vet8, sc_ep1l0g]"));
+    await v.switch("main");
+    await expect(v.bringScene("main", "sc_r1vet8")).rejects.toMatchObject({ code: "OPEN" });
+
+    const one = await v.bringScene("new-ending", "sc_r1vet8");
+    expect(one.files).toEqual([SCENE]);
+    expect(read(dir)).toContain("Only in the version.");
+    expect(one.undo).toMatchObject({ name: "Before bringing “The Last Rivet” from “New ending”", auto: true });
+    expect(gitIn(dir, "log", "-1", "--format=%s").trim()).toBe("Bring “The Last Rivet” from version “New ending”");
+
+    const added = await v.bringScene("new-ending", "sc_ep1l0g");
+    expect(added.files).toEqual([EPILOGUE, HOLDS]);
+    expect(read(dir, HOLDS)).toContain("scenes: [sc_0ffer5, sc_r1vet8, sc_ep1l0g]");
+    expect(read(dir, EPILOGUE)).toContain("Years later.");
+    await expect(v.bringScene("new-ending", "sc_nope")).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
 describe("versions across computers", () => {
   let remote: string;
   beforeEach(() => {

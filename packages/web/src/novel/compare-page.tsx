@@ -1,5 +1,5 @@
 import type { ChapterComparison, ChangeStatus, Checkpoint, Comparison, FieldChange, ParagraphDiff, SceneComparison, Version } from "@gh-writer/client";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftRight, ChevronRight } from "lucide-react";
 import { useId, useState } from "react";
 import { useSearchParams } from "react-router";
@@ -7,7 +7,17 @@ import { api, keys } from "../api.ts";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
+import { useNotice } from "./notice.tsx";
 import { useVersions } from "./versions.tsx";
+import type { Workspace } from "./workspace.ts";
+
+/** Bringing a scene across: from which version, and which side of the comparison that is. */
+interface Bring {
+  version: Version;
+  side: "from" | "to";
+  run: (scene: SceneComparison) => void;
+  busy: boolean;
+}
 
 /*
  * Two states of the book side by side (#17): now, any version, any checkpoint. A summary, then every
@@ -41,7 +51,7 @@ function defaults(versions: Version[] | undefined, checkpoints: Checkpoint[] | u
   return { from: named ? `checkpoint:${named.id}` : "version:main", to: "now" };
 }
 
-export function ComparePage({ novelId }: { novelId: string }) {
+export function ComparePage({ novelId, workspace }: { novelId: string; workspace: Workspace }) {
   const [params, setParams] = useSearchParams();
   const versions = useVersions(novelId);
   const checkpoints = useQuery({ queryKey: keys.checkpoints(novelId), queryFn: () => api.checkpoints(novelId) });
@@ -59,6 +69,34 @@ export function ComparePage({ novelId }: { novelId: string }) {
   const options = sides(versions.data, checkpoints.data);
   const label = (value: string) => options.flatMap((g) => g.options).find((o) => o.value === value)?.label ?? value;
   const ids = { from: useId(), to: useId(), only: useId() };
+
+  // A scene can be brought into the open version from another one compared with it.
+  const queryClient = useQueryClient();
+  const show = useNotice((s) => s.show);
+  const open = versions.data?.find((v) => v.current);
+  const isOpen = (side: string) => side === "now" || (open !== undefined && side === `version:${open.id}`);
+  const otherVersion = (side: string) => (side.startsWith("version:") && !isOpen(side) ? versions.data?.find((v) => `version:${v.id}` === side) : undefined);
+  const bring = useMutation({
+    mutationFn: async ({ version, scene }: { version: Version; scene: SceneComparison }) => {
+      await workspace.autosave.flush();
+      return api.bringScene(novelId, version.id, scene.id);
+    },
+    onSuccess: async (result, { version, scene }) => {
+      const refresh = () => Promise.all([keys.novel(novelId), keys.versions(novelId), keys.checkpoints(novelId)].map((queryKey) => queryClient.invalidateQueries({ queryKey })));
+      await refresh();
+      show({
+        message: result.commit ? `“${scene.title}” is now as it is in “${version.name}”.` : `“${scene.title}” was already the same as in “${version.name}”.`,
+        ...(result.commit ? { action: { label: "Undo", run: () => void api.restoreCheckpoint(novelId, result.undo.id).then(refresh) } } : {}),
+      });
+    },
+    onError: (e) => show({ message: `Couldn't bring the scene across: ${e.message}` }),
+  });
+  const bringFrom: Bring | undefined = (() => {
+    const fromOther = isOpen(to) ? otherVersion(from) : undefined;
+    const toOther = isOpen(from) ? otherVersion(to) : undefined;
+    const version = fromOther ?? toOther;
+    return version ? { version, side: fromOther ? "from" : "to", run: (scene) => bring.mutate({ version, scene }), busy: bring.isPending } : undefined;
+  })();
 
   return (
     <div className="grid gap-5 px-6 py-6">
@@ -90,7 +128,7 @@ export function ComparePage({ novelId }: { novelId: string }) {
       ) : !comparison.data ? (
         <p className="text-sm text-muted">Comparing…</p>
       ) : (
-        <Result novelId={novelId} comparison={comparison.data} from={from} to={to} onlyChanges={onlyChanges} fromLabel={label(from)} toLabel={label(to)} />
+        <Result novelId={novelId} comparison={comparison.data} from={from} to={to} onlyChanges={onlyChanges} fromLabel={label(from)} toLabel={label(to)} bring={bringFrom} />
       )}
     </div>
   );
@@ -112,7 +150,25 @@ function SidePicker({ id, value, options, onChange }: { id: string; value: strin
   );
 }
 
-function Result({ novelId, comparison: c, from, to, onlyChanges, fromLabel, toLabel }: { novelId: string; comparison: Comparison; from: string; to: string; onlyChanges: boolean; fromLabel: string; toLabel: string }) {
+function Result({
+  novelId,
+  comparison: c,
+  from,
+  to,
+  onlyChanges,
+  fromLabel,
+  toLabel,
+  bring,
+}: {
+  novelId: string;
+  comparison: Comparison;
+  from: string;
+  to: string;
+  onlyChanges: boolean;
+  fromLabel: string;
+  toLabel: string;
+  bring: Bring | undefined;
+}) {
   const nothing = !c.counts.added && !c.counts.removed && !c.counts.changed && !c.counts.moved && c.chapters.every((ch) => ch.status === "unchanged") && !c.entries.length && !c.relationships.length && !c.events.length;
   const chapters = onlyChanges ? c.chapters.filter((ch) => ch.status !== "unchanged" || ch.moved) : c.chapters;
   const counts = [
@@ -140,7 +196,7 @@ function Result({ novelId, comparison: c, from, to, onlyChanges, fromLabel, toLa
             Manuscript
           </h2>
           {chapters.map((ch) => (
-            <ChapterBlock key={ch.id} novelId={novelId} chapter={ch} from={from} to={to} onlyChanges={onlyChanges} />
+            <ChapterBlock key={ch.id} novelId={novelId} chapter={ch} from={from} to={to} onlyChanges={onlyChanges} bring={bring} />
           ))}
         </section>
       )}
@@ -209,7 +265,7 @@ function Status({ status, moved }: { status: ChangeStatus; moved?: boolean }) {
   );
 }
 
-function ChapterBlock({ novelId, chapter: ch, from, to, onlyChanges }: { novelId: string; chapter: ChapterComparison; from: string; to: string; onlyChanges: boolean }) {
+function ChapterBlock({ novelId, chapter: ch, from, to, onlyChanges, bring }: { novelId: string; chapter: ChapterComparison; from: string; to: string; onlyChanges: boolean; bring: Bring | undefined }) {
   const scenes = onlyChanges ? ch.scenes.filter((s) => s.status !== "unchanged" || s.moved) : ch.scenes;
   const delta = ch.words.after - ch.words.before;
   return (
@@ -222,7 +278,7 @@ function ChapterBlock({ novelId, chapter: ch, from, to, onlyChanges }: { novelId
       {scenes.length > 0 && (
         <ul className="grid gap-1.5">
           {scenes.map((s) => (
-            <SceneItem key={s.id} novelId={novelId} scene={s} from={from} to={to} />
+            <SceneItem key={s.id} novelId={novelId} scene={s} from={from} to={to} bring={bring} />
           ))}
         </ul>
       )}
@@ -230,7 +286,7 @@ function ChapterBlock({ novelId, chapter: ch, from, to, onlyChanges }: { novelId
   );
 }
 
-function SceneItem({ novelId, scene: s, from, to }: { novelId: string; scene: SceneComparison; from: string; to: string }) {
+function SceneItem({ novelId, scene: s, from, to, bring }: { novelId: string; scene: SceneComparison; from: string; to: string; bring: Bring | undefined }) {
   const [open, setOpen] = useState(false);
   const bodyId = useId();
   const delta = s.words.after - s.words.before;
@@ -254,6 +310,11 @@ function SceneItem({ novelId, scene: s, from, to }: { novelId: string; scene: Sc
       )}
       {open && (
         <div id={bodyId} className="grid gap-3 pl-7">
+          {bring && s.status !== "unchanged" && s.status !== (bring.side === "from" ? "added" : "removed") && (
+            <Button size="sm" className="justify-self-start" disabled={bring.busy} onClick={() => bring.run(s)}>
+              Use this scene from “{bring.version.name}”
+            </Button>
+          )}
           <Fields fields={s.fields} />
           {(s.prose || s.status !== "changed") && <Prose novelId={novelId} sceneId={s.id} from={from} to={to} />}
         </div>

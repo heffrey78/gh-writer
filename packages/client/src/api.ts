@@ -136,6 +136,14 @@ export interface DiscardResult {
   current: string;
 }
 
+export interface AdoptResult {
+  /** The main version as it was: restoring it undoes the adoption. */
+  checkpoint: Checkpoint;
+  commit: string | null;
+  /** Passages both changed, to settle (resolveAdoption); the main version is open meanwhile, unchanged. */
+  conflicts?: Conflicts;
+}
+
 export interface RestoreResult {
   /** Restore this checkpoint to undo the restore. */
   undo: Checkpoint;
@@ -155,6 +163,8 @@ export interface Conflicts {
 
 /** A file's resolution: its text (null deletes it) or one side kept, with the `ours` hash from the conflict. */
 export type FileResolution = { ours: string | null } & ({ content: string | null } | { keep: "ours" | "theirs" });
+
+export type ResolveAdoptionResult = { ok: true; commit: string } | { ok: false; conflicts: Conflicts | null };
 
 export type ResolveResult = { ok: true; status: SyncStatus } | { ok: false; conflicts: Conflicts | null };
 
@@ -397,6 +407,21 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
       (await request<{ version: Version }>("POST", `/api/novels/${encodeURIComponent(id)}/versions`, from === undefined ? { name } : { name, from })).data.version,
     switchVersion: async (id: string, versionId: string) =>
       (await request<{ version: Version }>("POST", `/api/novels/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/switch`)).data.version,
+    /** Merge a version into the main version (which opens). */
+    adoptVersion: async (id: string, versionId: string) => (await request<AdoptResult>("POST", `/api/novels/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/adopt`)).data,
+    /** Finish adopting with the author's choices; if things moved on, the fresh conflicts instead. */
+    resolveAdoption: async (id: string, versionId: string, upstream: string, files: Record<string, FileResolution>): Promise<ResolveAdoptionResult> => {
+      const { status, data } = await request<{ commit: string; conflicts?: Conflicts | null }>(
+        "POST",
+        `/api/novels/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/adopt/resolve`,
+        { upstream, files },
+        { passing: "STALE" },
+      );
+      return status === 409 ? { ok: false, conflicts: data.conflicts ?? null } : { ok: true, commit: data.commit };
+    },
+    /** A scene from another version, into the open one; `undo` in the result reverses it. */
+    bringScene: async (id: string, versionId: string, sceneId: string) =>
+      (await request<RestoreResult>("POST", `/api/novels/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/scenes/${encodeURIComponent(sceneId)}/bring`)).data,
     /** Kept as an automatic checkpoint first: `checkpoint` in the result brings it back. */
     discardVersion: async (id: string, versionId: string) =>
       (await request<DiscardResult>("DELETE", `/api/novels/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}`)).data,

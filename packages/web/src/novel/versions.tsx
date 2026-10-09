@@ -1,5 +1,6 @@
-import { ApiError, type Version } from "@gh-writer/client";
+import { ApiError, type Conflicts, type FileResolution, type Version } from "@gh-writer/client";
 import type { Novel } from "@gh-writer/core";
+import { ConflictResolver, type ResolvedFile } from "@gh-writer/editor/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Split } from "lucide-react";
 import { Dialog } from "radix-ui";
@@ -12,11 +13,19 @@ import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { Confirm } from "../ui/confirm.tsx";
 import { Field } from "../ui/field.tsx";
+import { fileTitle, Frame } from "./conflicts.tsx";
 import { useNotice } from "./notice.tsx";
 import type { Workspace } from "./workspace.ts";
 
 const number = new Intl.NumberFormat();
 const signed = (n: number) => (n > 0 ? `+${number.format(n)}` : n < 0 ? `−${number.format(-n)}` : "±0");
+
+/** An adoption waiting on the author: passages both versions changed. */
+export const useAdoption = create<{ version: Version | undefined; conflicts: Conflicts | undefined; set: (version?: Version, conflicts?: Conflicts) => void }>((set) => ({
+  version: undefined,
+  conflicts: undefined,
+  set: (version, conflicts) => set({ version, conflicts }),
+}));
 
 /** The versions panel, opened from the header or the palette. */
 export const useVersionsPanel = create<{ open: boolean; set: (open: boolean) => void }>((set) => ({ open: false, set: (open) => set({ open }) }));
@@ -77,7 +86,11 @@ export function VersionsButton({ novelId, workspace }: { novelId: string; worksp
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
-        <Dialog.Content className="fixed top-0 right-0 z-50 flex h-dvh w-[min(30rem,100vw)] flex-col gap-4 overflow-y-auto border-l border-rule bg-raised p-5 text-ink shadow-xl">
+        <Dialog.Content
+          className="fixed top-0 right-0 z-50 flex h-dvh w-[min(30rem,100vw)] flex-col gap-4 overflow-y-auto border-l border-rule bg-raised p-5 text-ink shadow-xl"
+          // An adoption with passages to settle opens the resolver, which keeps the focus.
+          onCloseAutoFocus={(e) => void (useAdoption.getState().conflicts && e.preventDefault())}
+        >
           <Dialog.Title className="text-lg font-semibold">Versions</Dialog.Title>
           <Dialog.Description className="text-sm text-muted">
             Try a different ending or a big cut as a version of the book: it keeps its own text and story bible, and the main version stays as it is. Open either whenever you like.
@@ -112,6 +125,28 @@ function Panel({ novelId, workspace, close }: { novelId: string; workspace: Work
     },
   });
 
+  const adopt = useMutation({
+    mutationFn: async (version: Version) => {
+      await workspace.autosave.flush();
+      return api.adoptVersion(novelId, version.id);
+    },
+    onSuccess: async (result, version) => {
+      await reload(queryClient, novelId);
+      stayIfThere(queryClient, novelId, pathname, navigate);
+      if (result.conflicts) {
+        // Before the panel closes, so it leaves the focus to the resolver.
+        useAdoption.getState().set(version, result.conflicts);
+        close();
+        return;
+      }
+      close();
+      show({
+        message: result.commit ? `The main version now has “${version.name}” in it, and is open. Discard “${version.name}” in Versions when you no longer need it.` : `The main version already has everything in “${version.name}”.`,
+        ...(result.commit ? { action: { label: "Undo", run: () => void undoAdoption(queryClient, novelId, result.checkpoint.id, show) } } : {}),
+      });
+    },
+  });
+
   const discard = useMutation({
     mutationFn: async (version: Version) => {
       await workspace.autosave.flush();
@@ -135,7 +170,7 @@ function Panel({ novelId, workspace, close }: { novelId: string; workspace: Work
   };
 
   const main = list.data?.find((v) => v.main);
-  const error = start.error ?? discard.error;
+  const error = start.error ?? discard.error ?? adopt.error;
   return (
     <>
       <form onSubmit={submit} className="grid gap-2">
@@ -193,6 +228,19 @@ function Panel({ novelId, workspace, close }: { novelId: string; workspace: Work
                     )}
                     {!v.main && (
                       <Confirm
+                        title={`Adopt “${v.name}” into the main version?`}
+                        description="The main version opens and takes this version's changes. What you've changed in the main version since keeps too; where both changed the same passage, you choose. The main version as it is now is kept in an automatic checkpoint."
+                        action="Adopt"
+                        onConfirm={() => adopt.mutate(v)}
+                        trigger={
+                          <Button size="sm" disabled={adopt.isPending} aria-label={`Adopt “${v.name}” into the main version`}>
+                            Adopt into main
+                          </Button>
+                        }
+                      />
+                    )}
+                    {!v.main && (
+                      <Confirm
                         title={`Discard “${v.name}”?`}
                         description="The version goes, here and on GitHub. Its text is kept in an automatic checkpoint, so you can bring it back."
                         action="Discard version"
@@ -213,5 +261,74 @@ function Panel({ novelId, workspace, close }: { novelId: string; workspace: Work
         )}
       </section>
     </>
+  );
+}
+
+/** Undo an adoption: the main version back as it was, from the checkpoint taken first. */
+async function undoAdoption(queryClient: ReturnType<typeof useQueryClient>, novelId: string, checkpointId: string, show: ReturnType<typeof useNotice.getState>["show"]) {
+  await api.restoreCheckpoint(novelId, checkpointId);
+  await reload(queryClient, novelId);
+  show({ message: "Undone: the main version is as it was." });
+}
+
+/** Passages the main version and the adopted one both changed: the author chooses, then the adoption is committed. */
+export function AdoptConflicts({ novelId, novel, workspace }: { novelId: string; novel: Novel | undefined; workspace: Workspace }) {
+  const { version, conflicts, set } = useAdoption();
+  const queryClient = useQueryClient();
+  const show = useNotice((s) => s.show);
+  const [error, setError] = useState<string>();
+  const [stale, setStale] = useState(false);
+  if (!version || !conflicts) return null;
+  const close = () => {
+    setError(undefined);
+    setStale(false);
+    set();
+  };
+  const resolve = async (outcome: Record<string, ResolvedFile>) => {
+    await workspace.autosave.flush();
+    const files: Record<string, FileResolution> = {};
+    for (const f of conflicts.files) {
+      const r = outcome[f.path];
+      if (r) files[f.path] = { ours: f.ours, ...r };
+    }
+    try {
+      const result = await api.resolveAdoption(novelId, version.id, conflicts.upstream, files);
+      if (result.ok) {
+        close();
+        await reload(queryClient, novelId);
+        show({ message: `The main version now has “${version.name}” in it. Discard “${version.name}” in Versions when you no longer need it.` });
+      } else if (result.conflicts) {
+        set(version, result.conflicts);
+        setStale(true);
+      } else close();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return (
+    <Frame open onClose={close} title={`Adopt “${version.name}”: passages both versions changed`}>
+      <div className="grid gap-2 bg-raised">
+        <p className="px-4 pt-3 text-sm text-muted">
+          These passages changed in the main version and in “{version.name}”. Choose what the main version keeps; nothing changes until you finish.
+        </p>
+        {stale && (
+          <p className="px-4 text-sm text-warn" role="status">
+            Something changed while you were choosing. Here they are as they are now.
+          </p>
+        )}
+        {error && (
+          <ErrorAlert title="Couldn't finish adopting" className="mx-4">
+            {error}
+          </ErrorAlert>
+        )}
+        <ConflictResolver
+          key={conflicts.upstream}
+          files={conflicts.files.map((f) => ({ ...f, title: fileTitle(novel, f.path) }))}
+          labels={{ ours: "Main version", theirs: version.name }}
+          onResolve={(o) => void resolve(o)}
+          onCancel={close}
+        />
+      </div>
+    </Frame>
   );
 }

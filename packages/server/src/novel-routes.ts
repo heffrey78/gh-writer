@@ -9,7 +9,7 @@ import { compareRoutes } from "./compare-routes.ts";
 import { diagramRoutes } from "./diagrams.ts";
 import { manuscriptRoutes } from "./manuscript-routes.ts";
 import { CheckpointError } from "./checkpoints.ts";
-import { ConflictError, type FileResolution } from "./conflicts.ts";
+import { ConflictError, parseResolutions } from "./conflicts.ts";
 import { FileError, MAX_FILE_BYTES } from "./files.ts";
 import { GitHubError, unreachable, type GitHub } from "./github.ts";
 import type { Library } from "./library.ts";
@@ -224,19 +224,6 @@ function filePath(c: Context): string {
 
 const STATUS = { BAD_PATH: 400, NOT_FOUND: 404, NOT_TEXT: 415, TOO_LARGE: 413, NOT_WRITABLE: 400 } as const;
 
-function parseResolutions(value: unknown): Record<string, FileResolution> | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const out: Record<string, FileResolution> = {};
-  for (const [path, r] of Object.entries(value as Record<string, unknown>)) {
-    if (!r || typeof r !== "object") return undefined;
-    const { ours, content, keep } = r as { ours?: unknown; content?: unknown; keep?: unknown };
-    if (ours !== null && typeof ours !== "string") return undefined;
-    if (keep === "ours" || keep === "theirs") out[path] = { ours, keep };
-    else if (content === null || (typeof content === "string" && content.isWellFormed())) out[path] = { ours, content };
-    else return undefined;
-  }
-  return out;
-}
 
 const CHECKPOINT_STATUS = { BAD_NAME: 400, NOT_FOUND: 404, SCENE_NOT_FOUND: 404, BLOCKED: 409 } as const;
 
