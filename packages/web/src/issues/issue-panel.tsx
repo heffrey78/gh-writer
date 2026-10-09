@@ -72,7 +72,7 @@ function Brief({ novelId, number, headingId }: { novelId: string; number: number
   const box = useRef<HTMLTextAreaElement>(null);
   if (!issue) return <p id={headingId}>Loading the issue…</p>;
   const send = async () => {
-    if (!comment.trim() || !(await changes.comment(issue.number, comment))) return;
+    if (!comment.trim() || changes.busy || !(await changes.comment(issue.number, comment))) return;
     setComment("");
     // The Comment button disables itself when the box empties: keep the focus in the panel.
     box.current?.focus();
@@ -124,7 +124,8 @@ function Brief({ novelId, number, headingId }: { novelId: string; number: number
         <Button size="sm" onClick={() => void changes.update(issue.number, { state: issue.state === "open" ? "closed" : "open" })}>
           {issue.state === "open" ? "Close issue" : "Reopen issue"}
         </Button>
-        <Button size="sm" variant="primary" disabled={!comment.trim() || changes.busy} onClick={() => void send()}>
+        {/* Not disabled while sending: a focused button that disables itself drops the focus out of the panel. */}
+        <Button size="sm" variant="primary" disabled={!comment.trim()} aria-busy={changes.busy} onClick={() => void send()}>
           Comment
         </Button>
       </div>

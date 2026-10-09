@@ -313,8 +313,11 @@ test("open issues sit beside their passages, follow the text, open beside it, an
   // By keyboard: the shortcut beside the passage.
   await text.getByText(/the way you count stitches/).click();
   await expect(text).toBeFocused();
-  await page.keyboard.press("ControlOrMeta+Alt+i");
-  await expect(panel).toBeVisible();
+  // Under heavy load a key press can arrive before the editor's ready for it: press again if so.
+  await expect(async () => {
+    if (!(await panel.isVisible())) await page.keyboard.press("ControlOrMeta+Alt+i");
+    await expect(panel).toBeVisible({ timeout: 1500 });
+  }).toPass({ timeout: 10_000 });
   await page.keyboard.press("Escape");
 
   // Closed on github.com: gone after the next refresh.

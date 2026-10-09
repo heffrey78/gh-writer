@@ -52,7 +52,7 @@ export function IssuePage({ novelId, novel, workspace, number }: { novelId: stri
   const labels = labelChoices(meta, novel);
   const kind = kindIn(data.labels);
   const submitComment = async () => {
-    if (!comment.trim()) return;
+    if (!comment.trim() || changes.busy) return;
     if (await changes.comment(data.number, comment)) {
       setComment("");
       // The Comment button disables itself when the box empties: keep the focus here.
@@ -145,7 +145,8 @@ export function IssuePage({ novelId, novel, workspace, number }: { novelId: stri
             />
             <div className="flex justify-end gap-2">
               <Button onClick={() => void changes.update(data.number, { state: data.state === "open" ? "closed" : "open" })}>{data.state === "open" ? "Close issue" : "Reopen issue"}</Button>
-              <Button type="submit" variant="primary" disabled={!comment.trim() || changes.busy}>
+              {/* Not disabled while sending: a focused button that disables itself drops the focus to the page. */}
+              <Button type="submit" variant="primary" disabled={!comment.trim()} aria-busy={changes.busy}>
                 Comment
               </Button>
             </div>
