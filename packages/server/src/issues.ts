@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { passageIssueBody } from "@gh-writer/core";
+import { entityLabel, entityOfLabel, ISSUE_KINDS, kindLabel, kindOf, passageIssueBody, type Novel } from "@gh-writer/core";
 import { git } from "./git.ts";
 import { GitHubError, unreachable, type GitHub, type GitHubRepo } from "./github.ts";
 
@@ -167,10 +167,14 @@ export class IssueStore {
   #used = new Set<string>();
   #saving: Promise<void> = Promise.resolve();
 
-  constructor(root: string, github: GitHub, repo: () => Promise<GitHubRepo | null>) {
+  #novel: (() => Promise<Novel>) | undefined;
+
+  /** `novel`: the story model, for the labels of kinds and bible entries (made, renamed to follow their entries). */
+  constructor(root: string, github: GitHub, repo: () => Promise<GitHubRepo | null>, novel?: () => Promise<Novel>) {
     this.root = root;
     this.#github = github;
     this.#repo = repo;
+    this.#novel = novel;
   }
 
   /** Hear when the cached issues change. Returns a function that stops it. */
@@ -225,6 +229,7 @@ export class IssueStore {
     if (!input.title.trim()) throw new IssuesError("BAD_REQUEST", "An issue needs a title.");
     const repo = await this.#requireRepo();
     const fields = { ...clean(input), title: input.title.trim() } as IssueInput & { title: string };
+    await this.#ensureKnown(input.labels);
     // Marked from the first try: if GitHub makes it but its answer is lost, the resend finds it.
     const marker = randomUUID();
     const sent = await this.#direct(() => this.#send(repo, "/issues", "POST", { ...fields, body: withMarker(fields.body, marker) }));
@@ -239,6 +244,7 @@ export class IssueStore {
     const n = this.#resolve(number);
     if (!this.#cache!.issues.some((i) => i.number === n)) throw new IssuesError("NOT_FOUND", `No issue #${number}.`);
     const fields = clean(input);
+    await this.#ensureKnown(input.labels);
     // An issue made offline can only be changed in the queue, after it.
     const sent = n > 0 ? await this.#direct(() => this.#send(repo, `/issues/${n}`, "PATCH", fields)) : undefined;
     if (sent) return this.#upsert(fromIssue(sent as GhIssue), this.#cache!.issues.find((i) => i.number === n)?.comments ?? []);
@@ -282,6 +288,65 @@ export class IssueStore {
     });
     const labels = [...new Set([...(passage.kind ? [passage.kind.name] : []), ...(passage.labels ?? [])])];
     return this.create({ title: passage.title, body, labels });
+  }
+
+  /** Delete a label from the repository (an entry's, once the entry is gone): its issues lose it. */
+  async deleteLabel(name: string): Promise<void> {
+    const repo = await this.#requireRepo();
+    const res = await this.#call(`${apiPath(repo)}/labels/${encodeURIComponent(name)}`, { method: "DELETE" });
+    if (res.status !== 404) await check(res);
+    const cache = this.#cache!;
+    cache.labels = cache.labels.filter((l) => l.name !== name);
+    for (const i of cache.issues) i.labels = i.labels.filter((l) => l !== name);
+    await this.#save();
+    this.#changed();
+  }
+
+  /** What a label of gh-writer's should be: a kind's, or a bible entry's (by its current name). */
+  async #known(name: string): Promise<Label | undefined> {
+    const kind = kindOf(name);
+    if (kind) return { name, color: kind.color, description: kind.description };
+    if (!this.#novel || !name.includes("/")) return undefined;
+    const novel = await this.#novel().catch(() => undefined);
+    const entity = novel && entityOfLabel(novel, { name });
+    return entity && entityLabel(novel, entity);
+  }
+
+  /** Make the kind and entry labels among `labels` that the repository doesn't have yet, with their colours. */
+  async #ensureKnown(labels: string[] | undefined): Promise<void> {
+    for (const name of labels ?? []) {
+      if (this.#cache!.labels.some((l) => l.name === name)) continue;
+      const def = await this.#known(name);
+      if (def) await this.ensureLabel(def);
+    }
+  }
+
+  /**
+   * Keep entry and kind labels as they should be: an entry renamed (here, elsewhere or offline) has
+   * its label renamed, so its issues stay with it; one GitHub made by itself (from a change sent
+   * offline) gets its colour and description. Returns whether anything changed.
+   */
+  async #reconcileLabels(repo: GitHubRepo): Promise<boolean> {
+    const cache = this.#cache!;
+    const novel = this.#novel ? await this.#novel().catch(() => undefined) : undefined;
+    let changed = false;
+    for (const label of [...cache.labels]) {
+      const kind = kindOf(label.name);
+      const entity = !kind && novel ? entityOfLabel(novel, label) : undefined;
+      const want = kind ? { name: label.name, color: kind.color, description: kind.description } : entity && novel ? entityLabel(novel, entity) : undefined;
+      if (!want || (want.name === label.name && want.color === label.color && want.description === label.description)) continue;
+      // Another label already has the name it should have: leave both.
+      if (want.name !== label.name && cache.labels.some((l) => l.name === want.name)) continue;
+      try {
+        await this.#send(repo, `/labels/${encodeURIComponent(label.name)}`, "PATCH", { new_name: want.name, color: want.color, description: want.description });
+      } catch {
+        continue;
+      }
+      cache.labels = cache.labels.map((l) => (l.name === label.name ? want : l));
+      if (want.name !== label.name) for (const i of cache.issues) i.labels = i.labels.map((l) => (l === label.name ? want.name : l));
+      changed = true;
+    }
+    return changed;
   }
 
   /** Make a milestone on GitHub (it needs GitHub: milestones aren't queued offline). */
@@ -551,6 +616,7 @@ export class IssueStore {
         changed ||= JSON.stringify(next) !== JSON.stringify(cache.milestones);
         cache.milestones = next;
       }
+      if (await this.#reconcileLabels(repo)) changed = true;
       if (await this.#flush(repo)) changed = true;
       // Only the ETags this refresh used: an old `since` won't be asked for again.
       cache.etags = Object.fromEntries(Object.entries(cache.etags).filter(([url]) => this.#used.has(url)));

@@ -14,3 +14,4 @@ export { durationMs, overlaps, storyInstant, storyTimeline, type Overlap, type S
 export { passageIssueBody, readAnchor, writeAnchor, type IssueAnchor, type PassageIssue } from "./issue-anchor.ts";
 export { resolveAnchor, type AnchorMatch, type AnchorOptions } from "./anchor-match.ts";
 export { ISSUE_KINDS, kindLabel, kindOf, STOCK_LABELS, type IssueKind } from "./issue-kinds.ts";
+export { entityLabel, entityOfLabel, type LabelDef } from "./entity-labels.ts";

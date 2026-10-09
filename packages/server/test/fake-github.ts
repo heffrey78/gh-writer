@@ -337,6 +337,16 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
       data.labels.push(label);
       return json(res, 201, label);
     }
+    if ((m = /^\/labels\/(.+)$/.exec(rest)) && req.method === "PATCH") {
+      const name = decodeURIComponent(m[1]!);
+      const label = data.labels.find((l) => l.name === name);
+      if (!label) return json(res, 404, { message: "Not Found" });
+      const next = typeof input.new_name === "string" ? input.new_name : name;
+      if (next !== name && data.labels.some((l) => l.name === next)) return json(res, 422, { message: "Validation Failed" });
+      Object.assign(label, { name: next, ...(typeof input.color === "string" ? { color: input.color } : {}), ...(typeof input.description === "string" ? { description: input.description } : {}) });
+      for (const i of data.issues) i.labels = i.labels.map((l) => (l === name ? next : l));
+      return json(res, 200, label);
+    }
     if ((m = /^\/labels\/(.+)$/.exec(rest)) && req.method === "DELETE") {
       const name = decodeURIComponent(m[1]!);
       const at = data.labels.findIndex((l) => l.name === name);

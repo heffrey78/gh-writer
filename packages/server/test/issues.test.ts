@@ -1,7 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { readAnchor } from "@gh-writer/core";
+import { loadNovel, readAnchor } from "@gh-writer/core";
+import { nodeSource } from "@gh-writer/core/node";
 import { createServer, GitHub, Library, memoryStore, sessionCookie, type TokenStore } from "../src/index.ts";
 import { IssueStore, type IssuesError } from "../src/issues.ts";
 import { fakeGitHub, type FakeGitHub } from "./fake-github.ts";
@@ -181,6 +182,47 @@ describe("issues", () => {
     expect(await issues.refresh()).toBe(false);
     expect((await issues.list()).issues).toEqual([]);
     await expect(issues.create({ title: "x" })).rejects.toMatchObject({ code: "NOT_ON_GITHUB" });
+  });
+});
+
+describe("labels for bible entries", () => {
+  const withNovel = () => new IssueStore(dir, github, async () => ({ owner: "ada", name: repoName(), url: `${fake.url}/ada/${repoName()}` }), () => loadNovel(nodeSource(dir)));
+
+  it("makes an entry's or a kind's label with its colour when an issue first uses it", async () => {
+    seed();
+    const issues = withNovel();
+    await issues.refresh();
+    await issues.create({ title: "What does Ada know?", labels: ["char/ada-varn", "kind/idea"] });
+    expect(issuesOf().labels.find((l) => l.name === "char/ada-varn")).toEqual({ name: "char/ada-varn", color: "1f77b4", description: "Ada Varn · char_7f3k2q" });
+    expect(issuesOf().labels.find((l) => l.name === "kind/idea")).toMatchObject({ color: "a2eeef" });
+  });
+
+  it("follows a rename: the label is renamed on GitHub, its issues keep it; one GitHub made by itself gets its colour", async () => {
+    seed();
+    const issues = withNovel();
+    await issues.refresh();
+    const made = await issues.create({ title: "What does Ada know?", labels: ["char/ada-varn"] });
+    // Labelled on github.com by name, before gh-writer made the label: GitHub made it, uncoloured.
+    fake.addIssue("ada", repoName(), { title: "Ben's debts", labels: ["char/ben-varn"] });
+    const ada = join(dir, "bible/characters/ada.md");
+    writeFileSync(ada, readFileSync(ada, "utf8").replace("name: Ada Varn", "name: Ada Kost"));
+    await issues.refresh();
+    expect(issuesOf().labels.map((l) => l.name)).toContain("char/ada-kost");
+    expect(issuesOf().labels.map((l) => l.name)).not.toContain("char/ada-varn");
+    expect(issuesOf().issues.find((i) => i.number === made.number)?.labels).toEqual(["char/ada-kost"]);
+    expect((await issues.get(made.number)).labels).toEqual(["char/ada-kost"]);
+    expect(issuesOf().labels.find((l) => l.name === "char/ben-varn")).toEqual({ name: "char/ben-varn", color: "1f77b4", description: "Ben Varn · char_b3n0vs" });
+  });
+
+  it("deletes a label (a deleted entry's): its issues lose it", async () => {
+    seed();
+    const issues = withNovel();
+    await issues.refresh();
+    const made = await issues.create({ title: "Ada?", labels: ["char/ada-varn", "kind/idea"] });
+    await issues.deleteLabel("char/ada-varn");
+    expect(issuesOf().labels.map((l) => l.name)).not.toContain("char/ada-varn");
+    expect(issuesOf().issues.find((i) => i.number === made.number)?.labels).toEqual(["kind/idea"]);
+    expect((await issues.get(made.number)).labels).toEqual(["kind/idea"]);
   });
 });
 

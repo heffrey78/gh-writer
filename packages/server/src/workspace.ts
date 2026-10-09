@@ -92,7 +92,7 @@ export class NovelWorkspace {
     });
     this.bible = new BibleOperations(root, (fn) => this.exclusive(fn));
     this.manuscript = new ManuscriptOperations(root, (fn) => this.exclusive(fn));
-    this.issues = github ? new IssueStore(root, github, () => this.githubRepo()) : undefined;
+    this.issues = github ? new IssueStore(root, github, () => this.githubRepo(), async () => (await this.loadModel()).novel) : undefined;
     // Issues are brought up to date with each sync with GitHub, so a change on github.com shows within one cycle.
     let lastSync: string | null | undefined;
     this.syncer?.onChange(() => {

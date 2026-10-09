@@ -12,6 +12,7 @@ import { IssuesError, type IssueFilter, type IssueInput } from "./issues.ts";
  * POST  /:id/issues/:number/comments           { body } → 201 the comment
  * POST  /:id/issues/passage                    { path, scene, sceneTitle, quote, title, details?, kind?: { name, color, description }, labels? } → 201 the issue
  * POST  /:id/issues/labels                     { name, color, description? } → the label made, if it wasn't there
+ * DELETE /:id/issues/labels/:name              → {} (a deleted entry's label)
  * POST  /:id/issues/milestones                 { title, description? } → 201 the milestone (needs GitHub: 503 OFFLINE otherwise)
  * PATCH /:id/issues/milestones/:number         { title?, state? } → the milestone
  * POST  /:id/issues/refresh                    → { changed, status } (and sends changes queued offline)
@@ -97,6 +98,12 @@ export function issueRoutes(routes: Hono<Env>): void {
       const label = { name: raw.name.trim(), color: typeof raw.color === "string" ? raw.color : "ededed", description: typeof raw.description === "string" ? raw.description : "" };
       await issues(c).ensureLabel(label);
       return label;
+    }),
+  );
+  routes.delete("/:id/issues/labels/:name", (c) =>
+    answer(c, async () => {
+      await issues(c).deleteLabel(decodeURIComponent(c.req.param("name")));
+      return {};
     }),
   );
   routes.post("/:id/issues/milestones", (c) =>

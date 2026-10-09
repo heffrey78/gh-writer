@@ -48,7 +48,12 @@ export function bibleRoutes(routes: Hono<Env>): void {
   });
   routes.patch("/:id/bible/entities/:entity", async (c) => {
     const { base, changes } = await body(c);
-    return operation(c, () => bible(c).updateEntity(c.req.param("entity"), String(base ?? ""), (changes ?? {}) as never));
+    return operation(c, async () => {
+      const result = await bible(c).updateEntity(c.req.param("entity"), String(base ?? ""), (changes ?? {}) as never);
+      // A new name: its GitHub label follows (#10).
+      if ((changes as { name?: unknown } | undefined)?.name !== undefined) void c.var.ws.issues?.refresh().catch(() => {});
+      return result;
+    });
   });
   routes.post("/:id/bible/entities/:entity/delete", async (c) => {
     const { base, confirm } = await body(c);
