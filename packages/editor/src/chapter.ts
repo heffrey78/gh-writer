@@ -93,30 +93,38 @@ function sameScenes(a: PMNode, b: PMNode): boolean {
   return true;
 }
 
+/**
+ * Whether a range must be deleted scene by scene: it spans scenes, or reaches a scene's outside
+ * (Ctrl+A, or in Firefox a drag from below the text), where deleting would take the scene too.
+ */
 function spansScenes(doc: PMNode, from: number, to: number): boolean {
-  return from !== to && doc.resolve(from).index(0) !== doc.resolve(to).index(0);
+  if (from === to) return false;
+  const $from = doc.resolve(from);
+  const $to = doc.resolve(to);
+  return $from.depth === 0 || $to.depth === 0 || $from.index(0) !== $to.index(0);
 }
 
 /**
- * Delete a selection that spans scenes by deleting each scene's part of it, so the scenes stay
- * separate files. A scene whose whole text is selected keeps one empty paragraph.
+ * Delete a selection that spans scenes, or reaches past a scene's edge, by deleting each scene's
+ * part of it, so the scenes stay separate files. A scene whose whole text is selected keeps one
+ * empty paragraph.
  */
 export function deleteAcrossScenes(editor: Editor): boolean {
   const { state } = editor;
   const { from, to } = state.selection;
   if (!spansScenes(state.doc, from, to)) return false;
-  const tr = state.tr;
-  const first = state.doc.resolve(from).index(0);
-  for (let i = state.doc.resolve(to).index(0); i >= first; i--) {
-    let start = 0;
-    for (let j = 0; j < i; j++) start += state.doc.child(j).nodeSize;
-    const scene = state.doc.child(i);
-    const contentStart = start + 1;
+  const parts: { a: number; b: number; whole: boolean }[] = [];
+  state.doc.forEach((scene, offset) => {
+    const contentStart = offset + 1;
     const contentEnd = contentStart + scene.content.size;
     const a = Math.max(from, contentStart);
     const b = Math.min(to, contentEnd);
-    if (a >= b) continue;
-    if (a === contentStart && b === contentEnd) tr.replaceWith(a, b, state.schema.nodes.paragraph!.create());
+    if (a < b) parts.push({ a, b, whole: a === contentStart && b === contentEnd });
+  });
+  const tr = state.tr;
+  // Last scene first, so earlier positions stay valid.
+  for (const { a, b, whole } of parts.reverse()) {
+    if (whole) tr.replaceWith(a, b, state.schema.nodes.paragraph!.create());
     else tr.delete(a, b);
   }
   tr.setSelection(TextSelection.near(tr.doc.resolve(tr.mapping.map(from, -1))));

@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Editor } from "@tiptap/core";
 import { UndoRedo } from "@tiptap/extensions";
-import { TextSelection } from "@tiptap/pm/state";
+import { AllSelection, TextSelection } from "@tiptap/pm/state";
 import { afterEach, describe, expect, test } from "vitest";
 import { chapterContent, getMarkdown, loadChapter, replaceScene, serializeChapter, splitSceneFile, touchedScenes, type SceneSource } from "../src/index.ts";
 
@@ -138,6 +138,35 @@ describe("scene boundaries", () => {
     expect(editor.state.doc.childCount).toBe(3);
     expect(editor.state.doc.textContent).toBe("");
   });
+
+  // Ctrl+A, and in Firefox a drag that starts below the text, select up to the chapter's own edges.
+  const opening: SceneSource[] = [{ id: "sc_1", title: "Opening", markdown: "Write the first line here.\n" }];
+  const everything = {
+    "Ctrl+A": () => editor.view.dispatch(editor.state.tr.setSelection(new AllSelection(editor.state.doc))),
+    "a selection to the chapter's edges": () => editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 0, editor.state.doc.content.size))),
+  };
+  for (const [how, select] of Object.entries(everything)) {
+    for (const key of ["Backspace", "Delete"])
+      test(`${how} then ${key} empties every scene`, () => {
+        for (const scenes of [opening, three]) {
+          open(scenes);
+          select();
+          expect(press(key)).toBe(true);
+          expect(editor.state.doc.childCount).toBe(scenes.length);
+          expect(editor.state.doc.textContent).toBe("");
+        }
+      });
+
+    test(`${how} then typing replaces everything, in the first scene`, () => {
+      for (const scenes of [opening, three]) {
+        open(scenes);
+        select();
+        type("New");
+        expect(editor.state.doc.childCount).toBe(scenes.length);
+        expect(serializeChapter(editor.state.doc).map((s) => s.markdown.trim())).toEqual(scenes.map((_, i) => (i ? "" : "New")));
+      }
+    });
+  }
 
   test("the caret moves across scene boundaries", () => {
     open(three);

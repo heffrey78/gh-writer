@@ -9,6 +9,7 @@ import { loadMarkdown, setInitialMarkdown } from "./editor.ts";
 import { proseContent } from "./extensions.ts";
 import { FindExtension } from "./find.ts";
 import { SearchHighlightExtension } from "./search.ts";
+import { SelectFocusExtension } from "./select-focus.ts";
 import { LinkSuggestExtension } from "./link-suggest.ts";
 import { MentionInfoExtension, type MentionTarget } from "./mention-info.ts";
 import { MentionSuggestExtension, type MentionEntity } from "./mention-suggest.ts";
@@ -120,6 +121,7 @@ export function SceneEditor({
     extensions: [
       ...proseContent,
       UndoRedo,
+      SelectFocusExtension,
       WritingModesExtension,
       WordCountExtension.configure({ sceneId }),
       FindExtension,
@@ -257,7 +259,7 @@ export function ChapterEditor({
   }).current;
 
   const editor = useEditor({
-    extensions: [...chapterContent, UndoRedo, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, ...mentionExtension, mentionInfo],
+    extensions: [...chapterContent, UndoRedo, SelectFocusExtension, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, ...mentionExtension, mentionInfo],
     editorProps: {
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": label, class: "ghw-prose ghw-chapter" },
     },
