@@ -213,7 +213,7 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
         const repo: FakeRepo = { owner: user.login, name, private: priv ?? false, ...(description ? { description } : {}), pushedAt: new Date().toISOString() };
         fake.repos.push(repo);
         // GitHub's stock labels, as on a real new repository.
-        fake.issues(user.login, name).labels.push(...["bug", "documentation", "duplicate", "enhancement", "good first issue", "help wanted", "invalid", "question", "wontfix"].map((n) => ({ name: n, color: "d4c5f9", description: "" })));
+        fake.issues(user.login, name).labels.push(...["accessibility", "bug", "documentation", "duplicate", "enhancement", "good first issue", "help wanted", "invalid", "question", "wontfix"].map((n) => ({ name: n, color: "d4c5f9", description: "" })));
         if (gitRoot && !fake.brokenNextRepo) execFileSync("git", ["init", "--quiet", "--bare", "--initial-branch=main", fake.repoPath(user.login, name)]);
         fake.brokenNextRepo = false;
         return json(res, 201, { name, full_name: `${user.login}/${name}`, private: repo.private, html_url: `${fake.url}/${user.login}/${name}`, clone_url: `${fake.url}/${user.login}/${name}.git`, owner: { login: user.login } });

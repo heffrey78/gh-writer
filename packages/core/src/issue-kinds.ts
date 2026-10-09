@@ -29,4 +29,4 @@ export function kindOf(label: string): IssueKind | undefined {
 }
 
 /** The labels GitHub gives every new repository: for software, not novels. */
-export const STOCK_LABELS: ReadonlySet<string> = new Set(["bug", "documentation", "duplicate", "enhancement", "good first issue", "help wanted", "invalid", "question", "wontfix"]);
+export const STOCK_LABELS: ReadonlySet<string> = new Set(["accessibility", "bug", "documentation", "duplicate", "enhancement", "good first issue", "help wanted", "invalid", "question", "wontfix"]);
