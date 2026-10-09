@@ -3,6 +3,10 @@
  * cookie and the page's own Origin; elsewhere (tests, tools) pass them as `headers`.
  */
 
+import type { Comparison, ParagraphDiff } from "@gh-writer/core/compare";
+
+export type { ChapterComparison, ChangeStatus, Comparison, DiffPart, EntryComparison, EventComparison, FieldChange, ParagraphDiff, RelationshipComparison, SceneComparison } from "@gh-writer/core/compare";
+
 /** The GitHub connection, as the server describes it (never with the token). */
 export interface GitHubStatus {
   signedIn: boolean;
@@ -395,6 +399,12 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
     /** Kept as an automatic checkpoint first: `checkpoint` in the result brings it back. */
     discardVersion: async (id: string, versionId: string) =>
       (await request<DiscardResult>("DELETE", `/api/novels/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}`)).data,
+    /** What changed between two states of the novel: each "now", "version:<id>" or "checkpoint:<id>". */
+    compare: async (id: string, from: string, to: string) =>
+      (await request<{ comparison: Comparison }>("GET", `/api/novels/${encodeURIComponent(id)}/compare?${new URLSearchParams({ from, to })}`)).data.comparison,
+    /** One scene's text between the two, paragraph by paragraph, word by word where reworded. */
+    compareScene: async (id: string, sceneId: string, from: string, to: string) =>
+      (await request<{ paragraphs: ParagraphDiff[] }>("GET", `/api/novels/${encodeURIComponent(id)}/compare/scene/${encodeURIComponent(sceneId)}?${new URLSearchParams({ from, to })}`)).data.paragraphs,
     /** The conflicts a sync left to settle, or null. */
     conflicts: async (id: string) => (await request<{ conflicts: Conflicts | null }>("GET", `/api/novels/${encodeURIComponent(id)}/conflicts`)).data.conflicts,
     /**

@@ -10,7 +10,8 @@
     "./schemas/*": "./schemas/*",
     "./dictionary": "./src/dictionary.ts",
     "./diagrams": "./src/diagrams.ts",
-    "./snapshots": "./src/snapshots.ts"
+    "./snapshots": "./src/snapshots.ts",
+    "./compare": "./src/compare.ts"
   },
   "dependencies": {
     "ajv": "^8.20.0",
