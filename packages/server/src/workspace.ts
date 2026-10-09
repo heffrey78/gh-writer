@@ -9,7 +9,8 @@ import { ManuscriptOperations } from "./manuscript.ts";
 import { Committer, type CommitStatus, type CommitterOptions } from "./committer.ts";
 import { atomicWrite, hashText, isVisible, readText, writablePath, type TextFile, type WriteHooks } from "./files.ts";
 import type { Library } from "./library.ts";
-import type { GitHub } from "./github.ts";
+import { git } from "./git.ts";
+import { githubRepoOf, type GitHub, type GitHubRepo } from "./github.ts";
 import { Syncer, type SyncerOptions, type SyncStatus } from "./sync.ts";
 
 /** A file that changed on disk. `hash` is null once the file is gone. */
@@ -22,7 +23,11 @@ export interface FileEvent {
 export type WriteResult = { ok: true; hash: string } | { ok: false; current: TextFile | undefined };
 
 /** What GET /sync reports: the sync state ("off" when sync is turned off), with the background commit status. */
-export type NovelSyncStatus = (SyncStatus | { state: "off" }) & { commit: CommitStatus | { state: "off" } };
+export type NovelSyncStatus = (SyncStatus | { state: "off" }) & {
+  commit: CommitStatus | { state: "off" };
+  /** The GitHub repository the novel syncs with, or null when it isn't on GitHub. */
+  github: GitHubRepo | null;
+};
 
 export interface WorkspaceOptions {
   /** Background commits; false turns them off. */
@@ -62,8 +67,11 @@ export class NovelWorkspace {
   #drained?: () => void;
   #exclusive?: Promise<unknown>;
 
+  #github: GitHub | undefined;
+
   constructor(root: string, { commit = {}, sync = {}, github }: WorkspaceOptions = {}) {
     this.root = root;
+    this.#github = github;
     this.committer = commit === false ? undefined : new Committer(root, commit);
     this.syncer =
       sync === false
@@ -86,8 +94,15 @@ export class NovelWorkspace {
   }
 
   async syncStatus(): Promise<NovelSyncStatus> {
-    const [sync, commit] = await Promise.all([this.syncer?.status() ?? { state: "off" as const }, this.committer?.status() ?? { state: "off" as const }]);
-    return { ...sync, commit };
+    const [sync, commit, github] = await Promise.all([this.syncer?.status() ?? { state: "off" as const }, this.committer?.status() ?? { state: "off" as const }, this.githubRepo()]);
+    return { ...sync, commit, github };
+  }
+
+  /** The GitHub repository the novel's remote (origin, or the one it syncs with) is, if it's on GitHub. */
+  async githubRepo(): Promise<GitHubRepo | null> {
+    const remote = (this.syncer ? (await this.syncer.status()).remote : null) ?? "origin";
+    const url = (await git(this.root).raw(["remote", "get-url", remote]).catch(() => "")).trim();
+    return url ? githubRepoOf(url, this.#github?.webUrl) : null;
   }
 
   /** Listen for changes to the sync or commit status. Returns a function that removes the listener. */

@@ -49,10 +49,15 @@ describe("POST /api/novels/:id/publish", () => {
   it("creates a private repository, pushes the novel, and syncs with it from then on", async () => {
     const s = await setUp();
     server = s.server;
+    const sync = async () =>
+      JSON.parse((await send(s.server.port, `/api/novels/${s.novel.id}/sync`, { headers: { cookie: `${sessionCookie(s.server.port)}=t`, origin: `http://127.0.0.1:${s.server.port}` } })).body) as { github: unknown };
+    // Local only: not on GitHub, so no GitHub work tracking.
+    expect((await sync()).github).toBeNull();
     const res = await s.post({ name: "salt-road", description: "A novel" });
     expect(res.status, res.body).toBe(200);
     const remote = `${fake.url}/ada/salt-road.git`;
-    expect(JSON.parse(res.body)).toMatchObject({ remote, status: { state: "synced", remote: "origin", branch: "main" } });
+    expect(JSON.parse(res.body)).toMatchObject({ remote, status: { state: "synced", remote: "origin", branch: "main", github: { owner: "ada", name: "salt-road", url: `${fake.url}/ada/salt-road` } } });
+    expect((await sync()).github).toEqual({ owner: "ada", name: "salt-road", url: `${fake.url}/ada/salt-road` });
     expect(fake.repos.find((r) => r.name === "salt-road")).toMatchObject({ private: true, description: "A novel" });
     expect(bareLog("salt-road")).toBe("Start Salt Road");
     expect(s.library.get(s.novel.id)?.remote).toBe(remote);

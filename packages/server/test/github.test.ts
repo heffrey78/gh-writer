@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createServer, GitHub, Library, memoryStore, sessionCookie, type TokenStore } from "../src/index.ts";
+import { createServer, GitHub, githubRepoOf, Library, memoryStore, sessionCookie, type TokenStore } from "../src/index.ts";
 import { fakeGitHub, type FakeGitHub } from "./fake-github.ts";
 import { scratch } from "./fixtures.ts";
 import { send } from "./http.ts";
@@ -209,5 +209,35 @@ describe("/api/github", () => {
     } finally {
       await server.close();
     }
+  });
+});
+
+describe("githubRepoOf", () => {
+  const salt = { owner: "ada", name: "salt-road", url: "https://github.com/ada/salt-road" };
+  it("reads github.com remotes over https and ssh, in their usual forms", () => {
+    for (const remote of [
+      "https://github.com/ada/salt-road.git",
+      "https://github.com/ada/salt-road",
+      "https://github.com/ada/salt-road/",
+      "https://x-access-token@github.com/ada/salt-road.git",
+      "HTTPS://GitHub.com/ada/salt-road.git",
+      "git@github.com:ada/salt-road.git",
+      "git@github.com:ada/salt-road",
+      "ssh://git@github.com/ada/salt-road.git",
+      "ssh://git@github.com:22/ada/salt-road.git",
+    ]) {
+      expect(githubRepoOf(remote), remote).toEqual(salt);
+    }
+  });
+
+  it("is null for other hosts, local paths and nonsense", () => {
+    for (const remote of ["https://gitlab.com/ada/salt-road.git", "git@gitlab.com:ada/salt-road.git", "/home/ada/salt-road.git", "file:///srv/salt-road.git", "", "github.com"]) {
+      expect(githubRepoOf(remote), remote).toBeNull();
+    }
+  });
+
+  it("follows the configured GitHub (a stand-in in tests), port and all", () => {
+    expect(githubRepoOf("http://127.0.0.1:4100/ada/salt-road.git", "http://127.0.0.1:4100")).toEqual({ owner: "ada", name: "salt-road", url: "http://127.0.0.1:4100/ada/salt-road" });
+    expect(githubRepoOf("http://127.0.0.1:4200/ada/salt-road.git", "http://127.0.0.1:4100")).toBeNull();
   });
 });

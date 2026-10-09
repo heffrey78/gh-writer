@@ -87,6 +87,16 @@ export interface SyncStatus {
   conflict?: { files: string[] };
   error?: { code: string; message: string; detail?: string };
   commit: CommitStatus;
+  /** The GitHub repository the novel syncs with; null (or absent from an older server) when it isn't on GitHub. */
+  github?: GitHubRepo | null;
+}
+
+/** A repository on GitHub. */
+export interface GitHubRepo {
+  owner: string;
+  name: string;
+  /** Its page, e.g. https://github.com/ada/the-salt-road. */
+  url: string;
 }
 
 export interface Checkpoint {

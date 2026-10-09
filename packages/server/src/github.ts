@@ -426,3 +426,31 @@ export class GitHub {
     });
   }
 }
+
+/** A repository on GitHub: who owns it, its name, and its page. */
+export interface GitHubRepo {
+  owner: string;
+  name: string;
+  /** Its page, e.g. https://github.com/ada/the-salt-road. */
+  url: string;
+}
+
+/**
+ * The GitHub repository a git remote URL points at, if it's on GitHub (`webUrl`'s host: github.com,
+ * or a stand-in in tests): https (with or without .git, credentials or a trailing slash), and ssh
+ * (git@github.com:owner/name.git or ssh://git@github.com/owner/name.git). Null for any other host.
+ */
+export function githubRepoOf(remote: string, webUrl = "https://github.com"): GitHubRepo | null {
+  const web = new URL(webUrl);
+  const url = remote.trim();
+  const https = /^https?:\/\/(?:[^@/]+@)?([^/]+)\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/i.exec(url);
+  const ssh = https ? null : /^(?:ssh:\/\/)?(?:[^@/]+@)?([^:/]+)(?::\d+)?[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/i.exec(url);
+  const m = https ?? ssh;
+  if (!m) return null;
+  // Over https the host must match exactly (a stand-in has a port); ssh never has the web port.
+  const host = m[1]!.toLowerCase();
+  if (https ? host !== web.host.toLowerCase() : host !== web.hostname.toLowerCase()) return null;
+  const owner = m[2]!;
+  const name = m[3]!;
+  return { owner, name, url: `${web.origin}/${owner}/${name}` };
+}
