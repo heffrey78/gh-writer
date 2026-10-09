@@ -16,6 +16,10 @@ let store: TokenStore;
 let github: GitHub;
 /** Answers to the API's GET requests, as "STATUS path?query". */
 let answers: string[];
+/** GitHub can't be reached. */
+let offline = false;
+/** The next request to this method and path reaches GitHub, but its answer is lost. */
+let loseNext: string | undefined;
 
 beforeAll(async () => {
   ({ fresh, cleanUp } = scratch("issues"));
@@ -35,8 +39,15 @@ beforeEach(async () => {
   store = memoryStore();
   await store.set(TOKEN);
   answers = [];
+  offline = false;
+  loseNext = undefined;
   const recording: typeof fetch = async (input, init) => {
+    if (offline) throw new TypeError("fetch failed");
     const res = await fetch(input, init);
+    if (loseNext === `${init?.method ?? "GET"} ${new URL(String(input)).pathname}`) {
+      loseNext = undefined;
+      throw new TypeError("fetch failed");
+    }
     if ((init?.method ?? "GET") === "GET") answers.push(`${res.status} ${new URL(String(input)).pathname}${new URL(String(input)).search}`);
     return res;
   };
@@ -120,7 +131,9 @@ describe("issues", () => {
 
     const made = await issues.create({ title: "  The ferry's name changes in chapter four  ", body: "It's *Marta* in chapter one.", labels: ["kind/continuity"], milestone: 1 });
     expect(made).toMatchObject({ number: 5, title: "The ferry's name changes in chapter four", labels: ["kind/continuity"], milestone: 1, state: "open" });
-    expect(issuesOf().issues.find((i) => i.number === 5)).toMatchObject({ body: "It's *Marta* in chapter one.", user: "ada" });
+    // On GitHub with gh-writer's marker hidden after it; in gh-writer without.
+    expect(issuesOf().issues.find((i) => i.number === 5)).toMatchObject({ body: expect.stringMatching(/^It's \*Marta\* in chapter one\.\n\n<!-- gh-writer-create: [\w-]+ -->$/), user: "ada" });
+    expect(made.body).toBe("It's *Marta* in chapter one.");
 
     await issues.update(5, { title: "The ferry is Marta, not Martha", labels: ["kind/continuity", "kind/revision"] });
     const comment = await issues.comment(5, "Fixed in chapter four.");
@@ -167,6 +180,90 @@ describe("issues", () => {
     expect(await issues.refresh()).toBe(false);
     expect((await issues.list()).issues).toEqual([]);
     await expect(issues.create({ title: "x" })).rejects.toMatchObject({ code: "NOT_ON_GITHUB" });
+  });
+});
+
+describe("offline", () => {
+  /** Let background sends (a queued change tries straight away) settle. */
+  const settle = () => new Promise((r) => setTimeout(r, 50));
+
+  it("makes changes in the cache and queues them, through a restart, then sends them in order once back", async () => {
+    seed();
+    const issues = open();
+    await issues.refresh();
+    offline = true;
+    const made = await issues.create({ title: "Check the tide tables", body: "For the flood.", labels: ["kind/research"] });
+    expect(made).toMatchObject({ number: -1, title: "Check the tide tables", pending: true, url: "" });
+    await issues.comment(-1, "High tide at 6.");
+    await issues.update(-1, { labels: ["kind/research", "loc/varn"] });
+    await issues.update(1, { state: "closed" });
+    const c = await issues.comment(1, "Fixed offline.");
+    expect(c).toMatchObject({ id: -3, pending: true });
+    await settle();
+    expect(await issues.status()).toMatchObject({ queued: 5, failed: [], error: { code: "OFFLINE" } });
+    expect((await issues.list()).issues.map((i) => [i.number, i.pending ?? false])).toEqual([[-1, true], [2, false]]);
+    expect(await issues.get(1)).toMatchObject({ state: "closed", pending: true, comments: [{ body: "The clock in chapter two says otherwise." }, { body: "Fixed offline.", pending: true }] });
+    expect(issuesOf().issues).toHaveLength(4);
+
+    // gh-writer restarts: the queue is still there.
+    const again = open();
+    expect((await again.status()).queued).toBe(5);
+    offline = false;
+    expect(await again.refresh()).toBe(true);
+    expect(await again.status()).toMatchObject({ queued: 0, failed: [] });
+    expect((await again.status()).error).toBeUndefined();
+    const tide = issuesOf().issues.find((i) => i.title === "Check the tide tables")!;
+    expect(tide).toMatchObject({ number: 5, labels: ["kind/research", "loc/varn"], comments: [{ body: "High tide at 6." }] });
+    expect(issuesOf().issues.find((i) => i.number === 1)).toMatchObject({ state: "closed", comments: [{}, { body: "Fixed offline." }] });
+    // Its temporary number still finds it.
+    expect(await again.get(-1)).toMatchObject({ number: 5, body: "For the flood." });
+    expect((await again.get(5)).pending).toBeUndefined();
+    expect((await again.get(1)).comments.every((x) => !x.pending && x.id > 0)).toBe(true);
+    expect(issuesOf().issues.filter((i) => i.title === "Check the tide tables")).toHaveLength(1);
+  });
+
+  it("never makes an issue twice when GitHub's answer to making it was lost", async () => {
+    seed();
+    const issues = open();
+    await issues.refresh();
+    loseNext = `POST /repos/ada/${repoName()}/issues`;
+    const made = await issues.create({ title: "Did this get made?" });
+    expect(made.number).toBe(-1);
+    await settle();
+    await issues.refresh();
+    expect(issuesOf().issues.filter((i) => i.title === "Did this get made?")).toHaveLength(1);
+    expect(await issues.get(-1)).toMatchObject({ number: 5, title: "Did this get made?" });
+    expect((await issues.status()).queued).toBe(0);
+  });
+
+  it("queues while rate limited too", async () => {
+    seed();
+    const issues = open();
+    await issues.refresh();
+    fake.rateLimitedUntil = Math.floor(Date.now() / 1000) + 600;
+    expect(await issues.update(2, { state: "closed" })).toMatchObject({ state: "closed", pending: true });
+    fake.rateLimitedUntil = undefined;
+    await issues.refresh();
+    expect(issuesOf().issues.find((i) => i.number === 2)?.state).toBe("closed");
+  });
+
+  it("keeps a change GitHub refuses, says why, sends the rest, and drops it when asked", async () => {
+    seed();
+    const issues = open();
+    await issues.refresh();
+    offline = true;
+    await issues.update(2, { title: "Timetables" });
+    await issues.comment(1, "Still here.");
+    await settle();
+    // Meanwhile, #2 is deleted on github.com.
+    issuesOf().issues.splice(issuesOf().issues.findIndex((i) => i.number === 2), 1);
+    offline = false;
+    await issues.refresh();
+    const status = await issues.status();
+    expect(status).toMatchObject({ queued: 0, failed: [{ description: "Change to #2", error: expect.stringContaining("doesn't have") }] });
+    expect(issuesOf().issues.find((i) => i.number === 1)?.comments.map((x) => x.body)).toContain("Still here.");
+    await issues.discard(status.failed[0]!.id);
+    expect((await issues.status()).failed).toEqual([]);
   });
 });
 

@@ -10,7 +10,9 @@ import { IssuesError, type IssueFilter, type IssueInput } from "./issues.ts";
  * POST  /:id/issues                            { title, body?, labels?, milestone? } → 201 the issue
  * PATCH /:id/issues/:number                    { title?, body?, labels?, milestone?, state? } → the issue
  * POST  /:id/issues/:number/comments           { body } → 201 the comment
- * POST  /:id/issues/refresh                    → { changed, status }
+ * POST  /:id/issues/refresh                    → { changed, status } (and sends changes queued offline)
+ * DELETE /:id/issues/queue/:change             → drop a queued change (one GitHub refused)
+ * While GitHub can't be reached, changes are made in the cache and queued: the answers say `pending`.
  * Refusals: 400 BAD_REQUEST, 403 NO_SIGN_IN, 404 NOT_ON_GITHUB / NOT_FOUND, 429 RATE_LIMITED { resetAt },
  * 503 OFFLINE, 502 GITHUB.
  */
@@ -34,7 +36,8 @@ function issues(c: Context<Env>) {
 
 const number = (c: Context<Env>) => {
   const n = Number(c.req.param("number"));
-  if (!Number.isInteger(n) || n < 1) throw new IssuesError("NOT_FOUND", "No such issue.");
+  // Negative: an issue made offline, by its temporary number (which still finds it once it's sent).
+  if (!Number.isInteger(n) || n === 0) throw new IssuesError("NOT_FOUND", "No such issue.");
   return n;
 };
 
@@ -63,6 +66,12 @@ export function issueRoutes(routes: Hono<Env>): void {
     }),
   );
   routes.post("/:id/issues/refresh", (c) => answer(c, async () => ({ changed: await issues(c).refresh(), status: await issues(c).status() })));
+  routes.delete("/:id/issues/queue/:change", (c) =>
+    answer(c, async () => {
+      await issues(c).discard(c.req.param("change"));
+      return { status: await issues(c).status() };
+    }),
+  );
   routes.get("/:id/issues/:number", (c) => answer(c, () => issues(c).get(number(c))));
   routes.post("/:id/issues", (c) =>
     answer(

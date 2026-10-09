@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { git } from "./git.ts";
@@ -7,19 +8,24 @@ import { GitHubError, unreachable, type GitHub, type GitHubRepo } from "./github
  * A novel's GitHub issues (#8), as gh-writer keeps them: fetched from the novel's repository and
  * cached per clone in .git/gh-writer/issues.json (never committed: issues are work, not story facts,
  * D1), so they're there offline and cost few API calls. Changes go to GitHub, and its answer goes
- * into the cache.
+ * into the cache. Changes made while GitHub can't be reached are made in the cache at once, queued
+ * there, and sent in order once it can (#112).
  */
 
 export interface IssueComment {
+  /** GitHub's ID; negative for one made offline and not sent yet. */
   id: number;
   body: string;
   author: string;
   createdAt: string;
   updatedAt: string;
   url: string;
+  /** Made offline, not on GitHub yet. */
+  pending?: boolean;
 }
 
 export interface Issue {
+  /** GitHub's number; negative for one made offline, until it's sent (then the negative one finds it). */
   number: number;
   title: string;
   body: string;
@@ -35,6 +41,25 @@ export interface Issue {
   url: string;
   commentCount: number;
   comments: IssueComment[];
+  /** Changes made offline and not on GitHub yet. */
+  pending?: boolean;
+  /** The marker of the queued create that made it (hidden in its body on GitHub), so a resend adopts it. */
+  marker?: string;
+}
+
+/** A change made while GitHub couldn't be reached, waiting to be sent. */
+export interface QueuedChange {
+  id: string;
+  /** For the author: "New issue “…”", "Comment on #12", "Change to #12". */
+  description: string;
+  /** When it was made (ISO): also the time it shows in the cache until sent. */
+  at: string;
+  change:
+    | { kind: "create"; key: number; marker: string; input: IssueInput & { title: string } }
+    | { kind: "update"; number: number; input: IssueInput }
+    | { kind: "comment"; number: number; key: number; body: string };
+  /** Why GitHub refused it, if it did: kept for the author, not sent again. */
+  error?: string;
 }
 
 export interface Label {
@@ -69,6 +94,10 @@ export interface IssuesStatus {
   repo: GitHubRepo | null;
   refreshedAt: string | null;
   error?: { code: IssuesErrorCode; message: string; resetAt?: string };
+  /** Changes made offline, waiting to be sent. */
+  queued: number;
+  /** Changes GitHub refused: kept until the author drops them. */
+  failed: { id: string; description: string; error: string }[];
 }
 
 export interface IssueFilter {
@@ -99,9 +128,16 @@ interface Cache {
   issues: Issue[];
   labels: Label[];
   milestones: Milestone[];
+  /** Changes made offline, in the order made. */
+  outbox: QueuedChange[];
+  /** An offline issue's temporary (negative) number → its number on GitHub, once sent. */
+  renumbered: Record<string, number>;
+  /** The next temporary number (or comment ID): -1, -2, … */
+  nextKey: number;
 }
 
 const PER_PAGE = 100;
+const MARKER = /\n*<!-- gh-writer-create: ([\w-]+) -->\s*$/;
 
 export class IssueStore {
   readonly root: string;
@@ -109,7 +145,7 @@ export class IssueStore {
   #repo: () => Promise<GitHubRepo | null>;
   #cache: Cache | undefined;
   #file: string | undefined;
-  #status: IssuesStatus = { repo: null, refreshedAt: null };
+  #status: IssuesStatus = { repo: null, refreshedAt: null, queued: 0, failed: [] };
   #refreshing: Promise<boolean> | undefined;
   #listeners = new Set<() => void>();
   #used = new Set<string>();
@@ -152,7 +188,8 @@ export class IssueStore {
 
   /** One cached issue with its comments. */
   async get(number: number): Promise<Issue> {
-    const issue = (await this.#load()).issues.find((i) => i.number === number);
+    await this.#load();
+    const issue = this.#cache!.issues.find((i) => i.number === this.#resolve(number));
     if (!issue) throw new IssuesError("NOT_FOUND", `No issue #${number}.`);
     return issue;
   }
@@ -170,32 +207,211 @@ export class IssueStore {
   async create(input: IssueInput & { title: string }): Promise<Issue> {
     if (!input.title.trim()) throw new IssuesError("BAD_REQUEST", "An issue needs a title.");
     const repo = await this.#requireRepo();
-    const json = await this.#send(repo, "/issues", "POST", clean(input));
-    return this.#upsert(fromIssue(json as GhIssue), []);
+    const fields = { ...clean(input), title: input.title.trim() } as IssueInput & { title: string };
+    // Marked from the first try: if GitHub makes it but its answer is lost, the resend finds it.
+    const marker = randomUUID();
+    const sent = await this.#direct(() => this.#send(repo, "/issues", "POST", { ...fields, body: withMarker(fields.body, marker) }));
+    if (sent) return this.#upsert(fromIssue(sent as GhIssue), []);
+    const key = this.#cache!.nextKey--;
+    return this.#queue({ kind: "create", key, marker, input: fields }, `New issue “${fields.title}”`, key);
   }
 
   async update(number: number, input: IssueInput): Promise<Issue> {
     if (input.title !== undefined && !input.title.trim()) throw new IssuesError("BAD_REQUEST", "An issue needs a title.");
     const repo = await this.#requireRepo();
-    const json = await this.#send(repo, `/issues/${number}`, "PATCH", clean(input));
-    const known = (await this.#load()).issues.find((i) => i.number === number);
-    return this.#upsert(fromIssue(json as GhIssue), known?.comments ?? []);
+    const n = this.#resolve(number);
+    if (!this.#cache!.issues.some((i) => i.number === n)) throw new IssuesError("NOT_FOUND", `No issue #${number}.`);
+    const fields = clean(input);
+    // An issue made offline can only be changed in the queue, after it.
+    const sent = n > 0 ? await this.#direct(() => this.#send(repo, `/issues/${n}`, "PATCH", fields)) : undefined;
+    if (sent) return this.#upsert(fromIssue(sent as GhIssue), this.#cache!.issues.find((i) => i.number === n)?.comments ?? []);
+    return this.#queue({ kind: "update", number: n, input: fields }, `Change to ${label(n)}`, n);
   }
 
   async comment(number: number, body: string): Promise<IssueComment> {
     if (!body.trim()) throw new IssuesError("BAD_REQUEST", "A comment needs some text.");
     const repo = await this.#requireRepo();
-    const comment = fromComment((await this.#send(repo, `/issues/${number}/comments`, "POST", { body })) as GhComment);
-    const cache = await this.#load();
-    const issue = cache.issues.find((i) => i.number === number);
-    if (issue) {
-      issue.comments = [...issue.comments.filter((c) => c.id !== comment.id), comment];
-      issue.commentCount = Math.max(issue.commentCount, issue.comments.length);
-      issue.updatedAt = comment.updatedAt > issue.updatedAt ? comment.updatedAt : issue.updatedAt;
+    const n = this.#resolve(number);
+    if (!this.#cache!.issues.some((i) => i.number === n)) throw new IssuesError("NOT_FOUND", `No issue #${number}.`);
+    const sent = n > 0 ? await this.#direct(() => this.#send(repo, `/issues/${n}/comments`, "POST", { body })) : undefined;
+    if (sent) {
+      const comment = fromComment(sent as GhComment);
+      this.#addComment(n, comment);
       await this.#save();
       this.#changed();
+      return comment;
     }
-    return comment;
+    const key = this.#cache!.nextKey--;
+    const issue = await this.#queue({ kind: "comment", number: n, key, body }, `Comment on ${label(n)}`, n);
+    return issue.comments.find((c) => c.id === key)!;
+  }
+
+  /** Drop a queued change (one GitHub refused): what it made in the cache goes with it. */
+  async discard(id: string): Promise<void> {
+    const cache = await this.#load();
+    const q = cache.outbox.find((x) => x.id === id);
+    if (!q) throw new IssuesError("NOT_FOUND", "No such change waiting.");
+    cache.outbox = cache.outbox.filter((x) => x !== q);
+    if (q.change.kind === "create") {
+      const key = q.change.key;
+      cache.issues = cache.issues.filter((i) => i.number !== key);
+      // Its later changes can't happen now.
+      cache.outbox = cache.outbox.filter((x) => !(x.change.kind !== "create" && x.change.number === key));
+    }
+    if (q.change.kind === "comment") {
+      const key = q.change.key;
+      for (const i of cache.issues) i.comments = i.comments.filter((c) => c.id !== key);
+    }
+    this.#updateStatus();
+    await this.#save();
+    this.#changed();
+    // What GitHub has comes back with the next refresh.
+    void this.refresh().catch(() => {});
+  }
+
+  /**
+   * Send a change straight to GitHub when nothing is queued before it; undefined when it has to be
+   * queued (GitHub unreachable or rate limited, or earlier changes still waiting).
+   */
+  async #direct(send: () => Promise<unknown>): Promise<unknown> {
+    if (this.#cache!.outbox.length) return undefined;
+    try {
+      return await send();
+    } catch (e) {
+      if (queueable(e)) return undefined;
+      throw e;
+    }
+  }
+
+  /** Queue a change, make it in the cache now, and try to send the queue. Resolves to the issue it touches. */
+  async #queue(change: QueuedChange["change"], description: string, number: number): Promise<Issue> {
+    const cache = this.#cache!;
+    const q: QueuedChange = { id: randomUUID(), description, at: new Date().toISOString(), change };
+    cache.outbox.push(q);
+    this.#applyLocal(q);
+    this.#updateStatus();
+    await this.#save();
+    this.#changed();
+    // Back online already? The refresh sends the queue.
+    void this.refresh().catch(() => {});
+    return cache.issues.find((i) => i.number === number)!;
+  }
+
+  /** Make a queued change in the cache (again, after a refresh brought GitHub's version back). */
+  #applyLocal(q: QueuedChange): void {
+    const cache = this.#cache!;
+    const c = q.change;
+    if (c.kind === "create") {
+      if (cache.issues.some((i) => i.number === c.key)) return;
+      cache.issues.push({
+        number: c.key,
+        title: c.input.title,
+        body: c.input.body ?? "",
+        state: c.input.state ?? "open",
+        labels: c.input.labels ?? [],
+        milestone: c.input.milestone ?? null,
+        author: "",
+        createdAt: q.at,
+        updatedAt: q.at,
+        closedAt: null,
+        url: "",
+        commentCount: 0,
+        comments: [],
+        pending: true,
+      });
+      return;
+    }
+    const issue = cache.issues.find((i) => i.number === this.#resolve(c.number));
+    if (!issue) return;
+    issue.pending = true;
+    if (q.at > issue.updatedAt) issue.updatedAt = q.at;
+    if (c.kind === "update") {
+      const { title, body, labels, milestone, state } = c.input;
+      if (title !== undefined) issue.title = title;
+      if (body !== undefined) issue.body = body;
+      if (labels !== undefined) issue.labels = labels;
+      if (milestone !== undefined) issue.milestone = milestone;
+      if (state !== undefined) {
+        issue.state = state;
+        issue.closedAt = state === "closed" ? q.at : null;
+      }
+      return;
+    }
+    if (!issue.comments.some((x) => x.id === c.key)) {
+      issue.comments.push({ id: c.key, body: c.body, author: "", createdAt: q.at, updatedAt: q.at, url: "", pending: true });
+      issue.commentCount += 1;
+    }
+  }
+
+  /**
+   * Send the queue, in order, after a refresh (so the cache knows what GitHub has). A create whose
+   * marker is already on GitHub (its answer was lost) is adopted, not made again. Unreachable, rate
+   * limited or signed out: stop, and try again next time. Refused: kept with the reason, and the rest go on.
+   */
+  async #flush(repo: GitHubRepo): Promise<boolean> {
+    const cache = this.#cache!;
+    let changed = false;
+    for (const q of [...cache.outbox]) {
+      if (q.error) continue;
+      const c = q.change;
+      try {
+        if (c.kind === "create") {
+          const adopted = cache.issues.find((i) => i.number > 0 && i.marker === c.marker);
+          const issue = adopted ?? fromIssue((await this.#send(repo, "/issues", "POST", { ...c.input, body: withMarker(c.input.body, c.marker) })) as GhIssue);
+          cache.renumbered[String(c.key)] = issue.number;
+          cache.issues = cache.issues.filter((i) => i.number !== c.key);
+          if (!adopted) this.#upsert(issue, [], { quiet: true });
+        } else {
+          const n = this.#resolve(c.number);
+          if (n < 0) {
+            q.error = "Its issue couldn't be made on GitHub.";
+            changed = true;
+            continue;
+          }
+          if (c.kind === "update") {
+            const json = (await this.#send(repo, `/issues/${n}`, "PATCH", c.input)) as GhIssue;
+            this.#upsert(fromIssue(json), cache.issues.find((i) => i.number === n)?.comments.filter((x) => !x.pending) ?? [], { quiet: true });
+          } else {
+            const comment = fromComment((await this.#send(repo, `/issues/${n}/comments`, "POST", { body: c.body })) as GhComment);
+            for (const i of cache.issues) i.comments = i.comments.filter((x) => x.id !== c.key);
+            this.#addComment(n, comment);
+          }
+        }
+        cache.outbox = cache.outbox.filter((x) => x !== q);
+        changed = true;
+      } catch (e) {
+        const error = asIssuesError(e);
+        if (queueable(error) || error.code === "NO_SIGN_IN") break;
+        q.error = error.message;
+        changed = true;
+      }
+    }
+    // What's still waiting shows in the cache over GitHub's version.
+    for (const q of cache.outbox) if (!q.error) this.#applyLocal(q);
+    for (const i of cache.issues) if (i.pending && !cache.outbox.some((q) => !q.error && touches(q, i.number, (n) => this.#resolve(n)))) delete i.pending;
+    return changed;
+  }
+
+  #addComment(number: number, comment: IssueComment): void {
+    const issue = this.#cache!.issues.find((i) => i.number === number);
+    if (!issue) return;
+    issue.comments = [...issue.comments.filter((c) => c.id !== comment.id), comment].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    issue.commentCount = Math.max(issue.commentCount, issue.comments.filter((c) => !c.pending).length);
+    if (comment.updatedAt > issue.updatedAt) issue.updatedAt = comment.updatedAt;
+  }
+
+  /** An issue's number now: a temporary one that has been sent becomes its number on GitHub. */
+  #resolve(number: number): number {
+    return number < 0 ? (this.#cache?.renumbered[String(number)] ?? number) : number;
+  }
+
+  #updateStatus(): void {
+    const outbox = this.#cache?.outbox ?? [];
+    this.#status = {
+      ...this.#status,
+      queued: outbox.filter((q) => !q.error).length,
+      failed: outbox.flatMap((q) => (q.error ? [{ id: q.id, description: q.description, error: q.error }] : [])),
+    };
   }
 
   async #refresh(): Promise<boolean> {
@@ -244,19 +460,25 @@ export class IssueStore {
         changed ||= JSON.stringify(next) !== JSON.stringify(cache.milestones);
         cache.milestones = next;
       }
+      if (await this.#flush(repo)) changed = true;
       // Only the ETags this refresh used: an old `since` won't be asked for again.
       cache.etags = Object.fromEntries(Object.entries(cache.etags).filter(([url]) => this.#used.has(url)));
       this.#used.clear();
-      const newest = [...cache.issues.map((i) => i.updatedAt), ...cache.issues.flatMap((i) => i.comments.map((c) => c.updatedAt))].sort().at(-1);
+      // GitHub's own times only: not those of changes still queued here.
+      const sent = cache.issues.filter((i) => i.number > 0 && !i.pending);
+      const newest = [...sent.map((i) => i.updatedAt), ...sent.flatMap((i) => i.comments.filter((c) => !c.pending).map((c) => c.updatedAt))].sort().at(-1);
       cache.since = newest ?? cache.since;
       cache.refreshedAt = new Date().toISOString();
-      this.#status = { repo, refreshedAt: cache.refreshedAt };
+      this.#status = { repo, refreshedAt: cache.refreshedAt, queued: 0, failed: [] };
+      this.#updateStatus();
       await this.#save();
       if (changed) this.#changed();
       return changed;
     } catch (e) {
       const error = asIssuesError(e);
       this.#status = { ...this.#status, error: { code: error.code, message: error.message, ...(error.resetAt ? { resetAt: error.resetAt } : {}) } };
+      // GitHub's answers so far are in the cache; what's queued still shows over them.
+      for (const q of cache.outbox) if (!q.error) this.#applyLocal(q);
       this.#changed();
       throw error;
     }
@@ -334,8 +556,10 @@ export class IssueStore {
     const saved = await readFile(this.#file, "utf8")
       .then((t) => JSON.parse(t) as Cache)
       .catch(() => undefined);
-    this.#cache = saved && saved.repo === key ? saved : { repo: key, refreshedAt: null, since: null, etags: {}, issues: [], labels: [], milestones: [] };
-    this.#status = { repo, refreshedAt: this.#cache.refreshedAt };
+    const fresh: Cache = { repo: key, refreshedAt: null, since: null, etags: {}, issues: [], labels: [], milestones: [], outbox: [], renumbered: {}, nextKey: -1 };
+    this.#cache = saved && saved.repo === key ? { ...fresh, ...saved } : fresh;
+    this.#status = { repo, refreshedAt: this.#cache.refreshedAt, queued: 0, failed: [] };
+    this.#updateStatus();
     return this.#cache;
   }
 
@@ -363,6 +587,22 @@ function clean(input: IssueInput): Record<string, unknown> {
   if (input.milestone !== undefined) out.milestone = input.milestone;
   if (input.state !== undefined) out.state = input.state;
   return out;
+}
+
+/** Worth queuing rather than refusing: GitHub will take it later. */
+function queueable(e: unknown): boolean {
+  const error = asIssuesError(e);
+  return error.code === "OFFLINE" || error.code === "RATE_LIMITED";
+}
+
+/** A new issue's body with gh-writer's marker after it (an HTML comment: invisible on github.com). */
+const withMarker = (body: string | undefined, marker: string) => `${body ?? ""}\n\n<!-- gh-writer-create: ${marker} -->`;
+
+const label = (n: number) => (n > 0 ? `#${n}` : "a new issue");
+
+/** Whether a queued change is about issue `number`. */
+function touches(q: QueuedChange, number: number, resolve: (n: number) => number): boolean {
+  return q.change.kind === "create" ? resolve(q.change.key) === number || q.change.key === number : resolve(q.change.number) === number;
 }
 
 /** A GitHub answer that isn't a success, as an IssuesError. */
@@ -414,10 +654,13 @@ interface GhComment {
 }
 
 function fromIssue(j: GhIssue): Issue {
+  const raw = j.body ?? "";
+  const marker = MARKER.exec(raw)?.[1];
   return {
     number: j.number,
     title: j.title,
-    body: j.body ?? "",
+    // The marker of an issue gh-writer queued offline is for gh-writer only.
+    body: marker ? raw.replace(MARKER, "") : raw,
     state: j.state,
     labels: j.labels.map((l) => (typeof l === "string" ? l : l.name)),
     milestone: j.milestone?.number ?? null,
@@ -428,6 +671,7 @@ function fromIssue(j: GhIssue): Issue {
     url: j.html_url,
     commentCount: j.comments,
     comments: [],
+    ...(marker ? { marker } : {}),
   };
 }
 
