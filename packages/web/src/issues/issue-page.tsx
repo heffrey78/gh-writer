@@ -1,6 +1,7 @@
+import type { Novel } from "@gh-writer/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ExternalLink } from "lucide-react";
-import { useEffect, useId, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { api, keys } from "../api.ts";
 import { useNotice } from "../novel/notice.tsx";
@@ -8,10 +9,13 @@ import { Button } from "../ui/button.tsx";
 import { Field } from "../ui/field.tsx";
 import { Markdown } from "./markdown.tsx";
 import { IssuesState, LabelsField, MilestoneSelect, when } from "./parts.tsx";
+import type { Workspace } from "../novel/workspace.ts";
+import { passageOf } from "./anchors.ts";
+import { PassageLine } from "./issues-page.tsx";
 import { useIssue, useIssueChanges, useIssueMeta } from "./use-issues.ts";
 
 /** One issue: its description and comments, and everything that can be changed about it. */
-export function IssuePage({ novelId, number }: { novelId: string; number: number }) {
+export function IssuePage({ novelId, novel, workspace, number }: { novelId: string; novel: Novel; workspace: Workspace; number: number }) {
   const issue = useIssue(novelId, number);
   const meta = useIssueMeta(novelId);
   const changes = useIssueChanges(novelId);
@@ -20,6 +24,7 @@ export function IssuePage({ novelId, number }: { novelId: string; number: number
   const show = useNotice((n) => n.show);
   const [editing, setEditing] = useState(false);
   const [comment, setComment] = useState("");
+  const commentBox = useRef<HTMLTextAreaElement>(null);
   const ids = { comment: useId(), milestone: useId(), body: useId() };
   const back = `/novels/${novelId}/issues`;
 
@@ -49,6 +54,8 @@ export function IssuePage({ novelId, number }: { novelId: string; number: number
     if (!comment.trim()) return;
     if (await changes.comment(data.number, comment)) {
       setComment("");
+      // The Comment button disables itself when the box empties: keep the focus here.
+      commentBox.current?.focus();
       show({ message: data.number > 0 ? `Commented on #${data.number}.` : "Comment kept; it's sent with the issue." });
     }
   };
@@ -86,6 +93,7 @@ export function IssuePage({ novelId, number }: { novelId: string; number: number
               </span>
               {data.pending && <span className="text-warn">Changes not on GitHub yet</span>}
             </p>
+            <PassageLine novelId={novelId} passage={passageOf(data, novel, (f) => workspace.current(f))} />
             {data.body.trim() ? <Markdown text={data.body} className="rounded-lg border border-rule bg-raised p-4" /> : <p className="text-muted">No description.</p>}
           </>
         )}
@@ -120,6 +128,7 @@ export function IssuePage({ novelId, number }: { novelId: string; number: number
               Add a comment
             </label>
             <textarea
+              ref={commentBox}
               id={ids.comment}
               value={comment}
               onChange={(e) => setComment(e.target.value)}

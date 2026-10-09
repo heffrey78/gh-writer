@@ -276,8 +276,8 @@ export function NovelPage() {
               <Route path="corkboard" element={<CorkboardPage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="outline" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="bible" element={<BiblePage novelId={novelId} novel={book} />} />
-              <Route path="issues" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssuesPage novelId={novelId} />}</GitHubOnly>} />
-              <Route path="issues/:number" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssueRoute novelId={novelId} />}</GitHubOnly>} />
+              <Route path="issues" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssuesPage novelId={novelId} novel={book} workspace={workspace} />}</GitHubOnly>} />
+              <Route path="issues/:number" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssueRoute novelId={novelId} novel={book} workspace={workspace} />}</GitHubOnly>} />
               <Route path="bible/:entityId" element={<EntryRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
               <Route path="*" element={<Missing what="page" />} />
             </Routes>
@@ -320,10 +320,10 @@ function GitHubOnly({ repo, novelId, children }: { repo: ReturnType<typeof useGi
   return <>{children()}</>;
 }
 
-function IssueRoute({ novelId }: { novelId: string }) {
+function IssueRoute({ novelId, novel, workspace }: { novelId: string; novel: Novel; workspace: Workspace }) {
   const { number } = useParams();
   const n = Number(number);
-  return Number.isInteger(n) && n !== 0 ? <IssuePage key={n} novelId={novelId} number={n} /> : <Missing what="issue" />;
+  return Number.isInteger(n) && n !== 0 ? <IssuePage key={n} novelId={novelId} novel={novel} workspace={workspace} number={n} /> : <Missing what="issue" />;
 }
 
 function Missing({ what }: { what: string }) {

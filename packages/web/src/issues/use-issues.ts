@@ -5,8 +5,8 @@ import { githubKey, useConnect } from "../github/connect.tsx";
 import { useNotice } from "../novel/notice.tsx";
 
 /** The novel's issues matching `filter`, from gh-writer's cache (refetched when they change). */
-export function useIssueList(novelId: string, filter: IssueFilter) {
-  return useQuery({ queryKey: [...keys.issues(novelId), "list", filter], queryFn: () => api.issues.list(novelId, filter) });
+export function useIssueList(novelId: string, filter: IssueFilter, { enabled = true } = {}) {
+  return useQuery({ queryKey: [...keys.issues(novelId), "list", filter], queryFn: () => api.issues.list(novelId, filter), enabled });
 }
 
 /** One issue with its comments. One gh-writer hasn't fetched yet (a link to it) is looked for on GitHub first. */

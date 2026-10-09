@@ -1,4 +1,4 @@
-import { readAnchor } from "@gh-writer/core";
+import { passageIssueBody, readAnchor } from "@gh-writer/core";
 import type { Page } from "@playwright/test";
 import { axe, expect, test, type App } from "./fixtures.ts";
 
@@ -223,4 +223,68 @@ test("raises an issue about selected text, quoted, linked and anchored, without 
   await page.keyboard.press("Escape");
   await expect(panel).toHaveCount(0);
   await expect(text).toBeFocused();
+});
+
+test("open issues sit beside their passages, follow the text, open beside it, and go when closed or orphaned", async ({ page, app }) => {
+  const id = await open(page, app);
+  await onGitHub(page, app, id);
+  await expect(views(page).getByRole("link", { name: "Issues" })).toBeVisible();
+  const quote = "She stood with her bag at her feet and counted them twice, the way you count stitches in a wound.";
+  const issue = app.github.addIssue("ada", "varn", {
+    title: "Who counted the flags?",
+    labels: ["kind/continuity"],
+    body: passageIssueBody({ details: "Ben counts them in chapter two.", quote, sceneTitle: "The Station", anchor: { scene: "sc_5tat1n", quote } }),
+  });
+  const refresh = () => page.request.post(`${app.url}/api/novels/${id}/issues/refresh`, { headers: { origin: app.url } });
+  await refresh();
+
+  const text = page.getByRole("textbox", { name: "Chapter text" });
+  const marker = text.getByRole("button", { name: "Issue #1: Who counted the flags?" });
+  await expect(marker).toBeVisible();
+  await marker.hover();
+  await expect(text.locator('[data-ghw-issue="1"].is-active')).toHaveText(quote);
+  await axe(page);
+
+  // Paragraphs written above: the marker follows its passage.
+  await text.getByText(/^The train gave up the last of its heat/).click();
+  await page.keyboard.press("ControlOrMeta+Home");
+  await page.keyboard.type("A new first paragraph.");
+  await page.keyboard.press("Enter");
+  await expect(text.locator('[data-ghw-issue="1"]')).toHaveText(quote);
+  await expect(marker).toBeVisible();
+
+  // Opened beside the text, and back.
+  const url = page.url();
+  await marker.click();
+  const panel = page.getByRole("complementary", { name: /Who counted the flags\?/ });
+  await expect(panel).toContainText("Ben counts them in chapter two.");
+  await panel.getByRole("textbox", { name: "Add a comment" }).fill("Checked: he counts them once.");
+  await panel.getByRole("button", { name: "Comment" }).click();
+  await expect.poll(() => issue.comments.map((c) => c.body)).toEqual(["Checked: he counts them once."]);
+  expect(page.url()).toBe(url);
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await expect(text).toBeFocused();
+
+  // By keyboard: the shortcut beside the passage.
+  await text.getByText(/the way you count stitches/).click();
+  await expect(text).toBeFocused();
+  await page.keyboard.press("ControlOrMeta+Alt+i");
+  await expect(panel).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // Closed on github.com: gone after the next refresh.
+  app.github.touch(issue, { state: "closed" });
+  await refresh();
+  await expect(marker).toHaveCount(0);
+
+  // Reopened, then its passage deleted: orphaned, listed so with its quote.
+  app.github.touch(issue, { state: "open" });
+  await refresh();
+  await expect(marker).toBeVisible();
+  await text.getByText(/the way you count stitches/).click({ clickCount: 3 });
+  await page.keyboard.press("Backspace");
+  await expect(marker).toHaveCount(0);
+  await views(page).getByRole("link", { name: "Issues" }).click();
+  await expect(issueList(page).getByRole("listitem").filter({ hasText: "Who counted the flags?" })).toContainText(`Orphaned: the passage it's about is gone from “The Station”. It read: “${quote}”`);
 });

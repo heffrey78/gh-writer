@@ -1,4 +1,4 @@
-import type { Chapter, Novel, Scene } from "@gh-writer/core";
+import { readAnchor, type Chapter, type Novel, type Scene } from "@gh-writer/core";
 import { countWords } from "@gh-writer/core";
 import {
   caretBlock,
@@ -31,6 +31,8 @@ import type { QuickEntries } from "../bible/quick-entries.ts";
 import { NameEntryDialog } from "../bible/name-entry.tsx";
 import { useGitHubRepo } from "../github/repo.ts";
 import { RaisePanel, selectedPassage, useRaise } from "../issues/raise.tsx";
+import { IssuePanel, useIssuePanel } from "../issues/issue-panel.tsx";
+import { useIssueList } from "../issues/use-issues.ts";
 import { useQuickEntry } from "../bible/quick-entry.ts";
 import { mentionEntities } from "../bible/types.ts";
 import { useCurrentScene } from "./current.ts";
@@ -155,6 +157,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
       useMentionCard.getState().hide();
       useEntryPanel.setState({ entry: null });
       useRaise.setState({ passage: undefined, editor: undefined });
+      useIssuePanel.setState({ numbers: [], editor: undefined });
     },
     [viewId],
   );
@@ -162,6 +165,29 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
   // Issues about a passage (#9), for a novel on GitHub: from a command, or the selection's context menu.
   const repo = useGitHubRepo(novelId);
   const raising = useRaise((s) => s.passage !== undefined);
+  const issueOpen = useIssuePanel((s) => s.numbers.length > 0);
+  // Open issues about passages, beside them in the margin.
+  const openIssues = useIssueList(novelId, { state: "open" }, { enabled: !!repo });
+  const anchored = useMemo(
+    () =>
+      repo
+        ? (openIssues.data?.issues ?? []).flatMap((i) => {
+            const anchor = readAnchor(i.body);
+            const scene = anchor && novel.allScenes.find((s) => s.id === anchor.scene);
+            return anchor && scene ? [{ number: i.number, title: i.title, scene: scene.file, quote: anchor.quote }] : [];
+          })
+        : [],
+    [repo, openIssues.data, novel],
+  );
+  const issueMarks = {
+    issues: anchored,
+    onOpen: (numbers: number[]) => {
+      if (!editor || editor.isDestroyed) return;
+      useEntryPanel.setState({ entry: null });
+      useRaise.setState({ passage: undefined, editor: undefined });
+      useIssuePanel.getState().open(numbers, editor);
+    },
+  };
   const [menu, setMenu] = useState<{ x: number; y: number }>();
   const raiseFromSelection = () => {
     if (!editor || editor.isDestroyed) return;
@@ -171,6 +197,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
       return;
     }
     useEntryPanel.setState({ entry: null });
+    useIssuePanel.setState({ numbers: [], editor: undefined });
     useRaise.getState().open(passage, editor);
   };
   useCommands(
@@ -274,10 +301,10 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
   const heading = "scene" in view ? view.scene.title : chapterTitle(novel, view.chapter);
 
   const detailsScene = current && scenes.find((s) => s.id === current.id);
-  const showDetails = !entryOpen && !raising && details.open && loaded && detailsScene !== undefined;
+  const showDetails = !entryOpen && !raising && !issueOpen && details.open && loaded && detailsScene !== undefined;
 
   return (
-    <div className={entryOpen || raising ? "grid min-h-full lg:grid-cols-[minmax(0,1fr)_28rem]" : showDetails ? "grid min-h-full lg:grid-cols-[minmax(0,1fr)_20rem]" : "min-h-full"}>
+    <div className={entryOpen || raising || issueOpen ? "grid min-h-full lg:grid-cols-[minmax(0,1fr)_28rem]" : showDetails ? "grid min-h-full lg:grid-cols-[minmax(0,1fr)_20rem]" : "min-h-full"}>
       <div
         className="mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] content-start gap-3 px-6 py-6"
         onContextMenu={(e) => {
@@ -318,6 +345,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
             autofocus={autofocus}
             entities={entities}
             newEntry={newEntry}
+            issueMarks={issueMarks}
             onMention={onMention}
             {...(spell ? { spell } : {})}
           />
@@ -330,6 +358,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
             autofocus={autofocus}
             entities={entities}
             newEntry={newEntry}
+            issueMarks={issueMarks}
             onMention={onMention}
             {...(spell ? { spell } : {})}
           />
@@ -338,6 +367,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
       {showDetails && detailsScene && <SceneDetails key={detailsScene.file} novel={novel} workspace={workspace} path={detailsScene.file} title={detailsScene.title} newEntry={newEntry.create} />}
       <EntryPanel novelId={novelId} novel={novel} workspace={workspace} spell={spell} />
       {!entryOpen && <RaisePanel novelId={novelId} />}
+      {!entryOpen && !raising && <IssuePanel novelId={novelId} />}
       {menu && (
         <SelectionMenu
           at={menu}

@@ -10,6 +10,7 @@ import { proseContent } from "./extensions.ts";
 import { FindExtension } from "./find.ts";
 import { SearchHighlightExtension } from "./search.ts";
 import { SelectFocusExtension } from "./select-focus.ts";
+import { IssueMarksExtension, refreshIssueMarks, type AnchoredIssue } from "./issue-marks.ts";
 import { LinkSuggestExtension } from "./link-suggest.ts";
 import { MentionInfoExtension, type MentionTarget } from "./mention-info.ts";
 import { MentionSuggestExtension, type MentionEntity, type MentionType } from "./mention-suggest.ts";
@@ -44,6 +45,8 @@ export interface SceneEditorProps {
   entities?: readonly MentionEntity[];
   /** "New <type>" in the @ menu: the types, and a function making an entry that returns its ID at once. */
   newEntry?: NewEntryProps;
+  /** Open issues about passages, shown in the margin beside them; `onOpen` gets the ones chosen. */
+  issueMarks?: IssueMarksProps;
   /** A mention was hovered, or Alt+Enter pressed beside one: for a card about its entity. */
   onMention?: MentionCallbacks;
 }
@@ -74,6 +77,26 @@ function useMentionInfoExtension(callbacks: MentionCallbacks | undefined) {
   const latest = useRef(callbacks);
   latest.current = callbacks;
   return MentionInfoExtension.configure({ onShow: (t) => latest.current?.show(t), onLeave: () => latest.current?.leave() });
+}
+
+export interface IssueMarksProps {
+  issues: readonly AnchoredIssue[];
+  onOpen: (numbers: number[]) => void;
+}
+
+/** Margin markers for the latest `issueMarks` prop, placed again when the issues change. */
+function useIssueMarksExtension(issueMarks: IssueMarksProps | undefined) {
+  const latest = useRef(issueMarks);
+  latest.current = issueMarks;
+  return IssueMarksExtension.configure({ issues: () => latest.current?.issues ?? [], onOpen: (n) => latest.current?.onOpen(n) });
+}
+
+/** Re-place the markers when the list of issues changes (not on every render). */
+function useIssueMarksRefresh(editor: Editor | null, issueMarks: IssueMarksProps | undefined) {
+  const key = JSON.stringify(issueMarks?.issues ?? []);
+  useEffect(() => {
+    if (editor) refreshIssueMarks(editor);
+  }, [editor, key]);
 }
 
 export interface NewEntryProps {
@@ -114,10 +137,12 @@ export function SceneEditor({
   spell,
   entities,
   newEntry,
+  issueMarks,
   onMention,
 }: SceneEditorProps) {
   const spellExtension = useSpellExtension(spell);
   const mentionExtension = useMentionExtension(entities, newEntry);
+  const issueMarksExtension = useIssueMarksExtension(issueMarks);
   const mentionInfo = useMentionInfoExtension(onMention);
   const callbacks = useRef({ onChange, onReady });
   callbacks.current = { onChange, onReady };
@@ -141,6 +166,7 @@ export function SceneEditor({
       ...proseContent,
       UndoRedo,
       SelectFocusExtension,
+      issueMarksExtension,
       WritingModesExtension,
       WordCountExtension.configure({ sceneId }),
       FindExtension,
@@ -176,6 +202,7 @@ export function SceneEditor({
     loadMarkdown(editor, markdown);
   }, [editor, markdown]);
 
+  useIssueMarksRefresh(editor, issueMarks);
   useFlushOnLeave(flush);
 
   return <EditorContent editor={editor} className={className} />;
@@ -225,6 +252,8 @@ export interface ChapterEditorProps {
   entities?: readonly MentionEntity[];
   /** "New <type>" in the @ menu: the types, and a function making an entry that returns its ID at once. */
   newEntry?: NewEntryProps;
+  /** Open issues about passages, shown in the margin beside them; `onOpen` gets the ones chosen. */
+  issueMarks?: IssueMarksProps;
   /** A mention was hovered, or Alt+Enter pressed beside one: for a card about its entity. */
   onMention?: MentionCallbacks;
 }
@@ -244,10 +273,12 @@ export function ChapterEditor({
   spell,
   entities,
   newEntry,
+  issueMarks,
   onMention,
 }: ChapterEditorProps) {
   const spellExtension = useSpellExtension(spell);
   const mentionExtension = useMentionExtension(entities, newEntry);
+  const issueMarksExtension = useIssueMarksExtension(issueMarks);
   const mentionInfo = useMentionInfoExtension(onMention);
   const callbacks = useRef({ onChange, onReady });
   callbacks.current = { onChange, onReady };
@@ -281,7 +312,7 @@ export function ChapterEditor({
   }).current;
 
   const editor = useEditor({
-    extensions: [...chapterContent, UndoRedo, SelectFocusExtension, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, ...mentionExtension, mentionInfo],
+    extensions: [...chapterContent, UndoRedo, SelectFocusExtension, issueMarksExtension, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, ...mentionExtension, mentionInfo],
     editorProps: {
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": label, class: "ghw-prose ghw-chapter" },
     },
@@ -328,6 +359,7 @@ export function ChapterEditor({
     if (pending.current) pending.current.doc = editor.state.doc;
   }, [editor, scenes]);
 
+  useIssueMarksRefresh(editor, issueMarks);
   useFlushOnLeave(flush);
 
   return <EditorContent editor={editor} className={className} />;

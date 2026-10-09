@@ -666,3 +666,38 @@
   border-radius: 0.3rem;
   resize: vertical;
 }
+
+/* Open issues beside their passages (#9): a marker in the margin, the passage lit while it's pointed at. */
+.ghw-prose p {
+  position: relative;
+}
+.ghw-issue-marker {
+  position: absolute;
+  left: -2rem;
+  top: 0.15em;
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.25rem;
+  border: 1px solid var(--ghw-accent);
+  border-radius: 999px;
+  background: var(--ghw-accent-soft);
+  color: var(--ghw-accent);
+  font: 600 0.7rem/1 system-ui, sans-serif;
+  cursor: pointer;
+  user-select: none;
+}
+.ghw-issue-marker:hover,
+.ghw-issue-marker:focus-visible {
+  background: var(--ghw-accent);
+  color: var(--ghw-paper);
+  outline: 2px solid var(--ghw-accent);
+  outline-offset: 1px;
+}
+.ghw-issue-passage {
+  border-bottom: 1px dotted var(--ghw-accent);
+}
+.ghw-issue-passage.is-active {
+  background: var(--ghw-accent-soft);
+}

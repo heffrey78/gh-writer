@@ -1,4 +1,5 @@
 import type { IssueFilter } from "@gh-writer/client";
+import type { Novel } from "@gh-writer/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { MessageSquare, Plus, RefreshCw, Search } from "lucide-react";
 import { useEffect, useId, useState } from "react";
@@ -11,10 +12,12 @@ import { Field } from "../ui/field.tsx";
 import { Picker } from "../ui/picker.tsx";
 import { useViewParams } from "../ui/view-params.ts";
 import { IssuesState, LabelChip, LabelsField, MilestoneSelect, when } from "./parts.tsx";
+import type { Workspace } from "../novel/workspace.ts";
+import { passageOf } from "./anchors.ts";
 import { useIssueChanges, useIssueList } from "./use-issues.ts";
 
 /** The novel's GitHub issues: filtered by state, labels, milestone and words, with the filter in the address. */
-export function IssuesPage({ novelId }: { novelId: string }) {
+export function IssuesPage({ novelId, novel, workspace }: { novelId: string; novel: Novel; workspace: Workspace }) {
   const [params, setParams] = useViewParams();
   const queryClient = useQueryClient();
   const show = useNotice((n) => n.show);
@@ -130,6 +133,7 @@ export function IssuesPage({ novelId }: { novelId: string }) {
                 )}
                 {i.pending && <span className="text-warn">Not on GitHub yet</span>}
               </p>
+              <PassageLine novelId={novelId} passage={passageOf(i, novel, (f) => workspace.current(f))} />
             </li>
           ))}
         </ul>
@@ -144,6 +148,27 @@ export function IssuesPage({ novelId }: { novelId: string }) {
         />
       )}
     </div>
+  );
+}
+
+/** Where an issue's passage is, or that it's orphaned (the passage gone), with what it read. */
+export function PassageLine({ novelId, passage }: { novelId: string; passage: ReturnType<typeof passageOf> }) {
+  if (!passage) return null;
+  const quote = passage.anchor.quote.length > 120 ? `${passage.anchor.quote.slice(0, 117)}…` : passage.anchor.quote;
+  if (!passage.found) {
+    return (
+      <p className="text-xs text-warn">
+        Orphaned: the passage it's about is gone{passage.scene ? ` from “${passage.scene.title}”` : ""}. It read: “{quote}”
+      </p>
+    );
+  }
+  return (
+    <p className="text-xs text-muted">
+      About “{quote}” in{" "}
+      <Link to={`/novels/${novelId}/scene/${passage.scene!.id}`} className="underline">
+        {passage.scene!.title}
+      </Link>
+    </p>
   );
 }
 
