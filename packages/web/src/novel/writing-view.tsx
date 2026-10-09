@@ -28,6 +28,7 @@ import { joinSceneFile, splitSceneFile } from "@gh-writer/editor";
 import { api } from "../api.ts";
 import { useCommands } from "../commands.ts";
 import type { QuickEntries } from "../bible/quick-entries.ts";
+import { NameEntryDialog } from "../bible/name-entry.tsx";
 import { useQuickEntry } from "../bible/quick-entry.ts";
 import { mentionEntities } from "../bible/types.ts";
 import { useCurrentScene } from "./current.ts";
@@ -305,6 +306,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
       </div>
       {showDetails && detailsScene && <SceneDetails key={detailsScene.file} novel={novel} workspace={workspace} path={detailsScene.file} title={detailsScene.title} newEntry={newEntry.create} />}
       <EntryPanel novelId={novelId} novel={novel} workspace={workspace} spell={spell} />
+      <NameEntryDialog novel={novel} />
       <MentionCard novel={novel} />
     </div>
   );

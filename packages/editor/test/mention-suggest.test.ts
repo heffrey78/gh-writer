@@ -109,11 +109,14 @@ describe("MentionSuggestExtension", () => {
       { key: "artifact", label: "Artifact" },
     ];
     let made: [string, string][];
-    function openWithCreate(markdown: string, id: string | null = "char_n3w000") {
+    function openWithCreate(markdown: string, id: string | null = "char_n3w000", askName?: (type: string) => Promise<string | undefined>) {
       made = [];
       editor = new Editor({
         element: document.body.appendChild(document.createElement("div")),
-        extensions: [...proseContent, MentionSuggestExtension.configure({ entities: () => entities, types: () => types, onCreate: (type, name) => (made.push([type, name]), id ?? undefined) })],
+        extensions: [
+          ...proseContent,
+          MentionSuggestExtension.configure({ entities: () => entities, types: () => types, onCreate: (type, name) => (made.push([type, name]), id ?? undefined), askName }),
+        ],
       });
       loadMarkdown(editor, markdown);
       editor.commands.focus("end");
@@ -158,6 +161,58 @@ describe("MentionSuggestExtension", () => {
       openWithCreate("");
       type("@the bridge");
       expect(options()).toEqual(["The Varn Bridge as “the bridge”", "New character “the bridge”", "New artifact “the bridge”"]);
+    });
+
+    describe("right after @, before any name", () => {
+      /** An askName the test answers: the types asked for, and how to answer. */
+      function asker() {
+        const asked: string[] = [];
+        let answer: (name: string | undefined) => void = () => {};
+        const ask = (type: string) => (asked.push(type), new Promise<string | undefined>((r) => (answer = r)));
+        return { asked, ask, answer: async (name: string | undefined) => (answer(name), await Promise.resolve(), await Promise.resolve()) };
+      }
+
+      test("New <type>… rows follow the entries, only when the app can ask for a name", () => {
+        openWithCreate("Then");
+        type(" @");
+        expect(options().filter((o) => o!.startsWith("New"))).toEqual([]);
+        editor.destroy();
+        openWithCreate("Then", "loc_n3w000", asker().ask);
+        type(" @");
+        expect(options()).toEqual(["Ada Varn", "Ben Varn", "Mirela Kost", "The Varn Bridge", "New character…", "New location…", "New artifact…"]);
+        expect(active()?.index).toBe(0);
+      });
+
+      test("choosing one asks for the name, then puts the mention where the @ is, edits meanwhile and all", async () => {
+        const { asked, ask, answer } = asker();
+        openWithCreate("Then went.", "loc_n3w000", ask);
+        editor.commands.setTextSelection(6);
+        type("@");
+        key("ArrowUp");
+        key("ArrowUp");
+        expect(key("Enter")).toBe(true);
+        expect(asked).toEqual(["location"]);
+        expect(listbox()).toBeNull();
+        // The scene changes before the author answers: the @ moves with it.
+        editor.view.dispatch(editor.state.tr.insertText("Later. ", 1));
+        await answer("The Old Mill");
+        expect(made).toEqual([["location", "The Old Mill"]]);
+        expect(getMarkdown(editor)).toBe("Later. Then [The Old Mill](#loc_n3w000) went.\n");
+        expect(listbox()).toBeNull();
+      });
+
+      test("cancelled, the @ stays as typed and its suggestions stay closed", async () => {
+        const { ask, answer } = asker();
+        openWithCreate("Then", "loc_n3w000", ask);
+        type(" @");
+        key("ArrowUp");
+        key("Enter");
+        await answer(undefined);
+        expect(made).toEqual([]);
+        expect(getMarkdown(editor)).toBe("Then @\n");
+        expect(active()).toBeNull();
+        expect(editor.state.selection.from).toBe(7);
+      });
     });
 
     test("an entry that can't be made inserts nothing", () => {

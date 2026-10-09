@@ -79,6 +79,8 @@ function useMentionInfoExtension(callbacks: MentionCallbacks | undefined) {
 export interface NewEntryProps {
   types: readonly MentionType[];
   create: (type: string, name: string) => string | undefined;
+  /** Ask for a new entry's name (a dialog), for "New <type>…" chosen right after @: undefined if cancelled. */
+  ask?: (type: string) => Promise<string | undefined>;
 }
 
 /** @ suggestions and link suggestions over the latest `entities` and `newEntry` props, as extensions are set up once. */
@@ -91,6 +93,8 @@ function useMentionExtension(entities: readonly MentionEntity[] | undefined, new
       entities: read,
       types: () => latest.current.newEntry?.types ?? [],
       onCreate: (type, name) => latest.current.newEntry?.create(type, name),
+      // Set up once, like the editor's extensions: "New <type>…" right after @ only if the app can ask.
+      ...(newEntry?.ask ? { askName: (type: string) => latest.current.newEntry?.ask?.(type) ?? Promise.resolve(undefined) } : {}),
     }),
     LinkSuggestExtension.configure({ entities: read }),
   ];

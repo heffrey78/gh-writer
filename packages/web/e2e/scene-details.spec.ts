@@ -154,3 +154,15 @@ test("makes a new entry from a picker, and lists custom types in groups of their
   await expect(panel.getByRole("button", { name: /new type/i })).toHaveCount(0);
   await axe(page);
 });
+
+test("lists the built-in groups first, then custom types by name", async ({ page, app }) => {
+  await open(page, app);
+  const id = new URL(page.url()).pathname.split("/")[2]!;
+  const r = await page.request.post(`${app.url}/api/novels/${id}/bible/entity-types`, { data: { key: "prize", prefix: "prz", label: "Prize" }, headers: { origin: app.url } });
+  expect(r.status()).toBe(201);
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
+  await palette(page, "show scene details");
+  const panel = page.getByRole("complementary", { name: /^Details of/ });
+  await expect(panel.locator("fieldset > legend")).toHaveText(["Characters", "Locations", "Plotlines", "Themes", "Artifacts", "Prizes", "Story time"]);
+});

@@ -81,7 +81,8 @@ export function SceneDetails({
     const noun = novel.entityTypes.find((t) => t.key === type)?.label.toLowerCase();
     return newEntry && noun ? { create: { noun, create: (n) => newEntry(type, n) } } : {};
   };
-  const customTypes = novel.entityTypes.filter((t) => !t.builtin);
+  // After the built-in four, by name.
+  const customTypes = novel.entityTypes.filter((t) => !t.builtin).sort((a, b) => a.label.localeCompare(b.label));
   /** The scene's `entities` of a custom type, with each one's place in the whole list. */
   const ofCustom = (type: string) =>
     list("entities")
@@ -160,24 +161,6 @@ export function SceneDetails({
         );
       })}
 
-      {customTypes.map((t) => {
-        const chosen = ofCustom(t.key);
-        const label = plural(t.label);
-        return (
-          <Group key={t.key} label={label}>
-            <Chips items={chosen.map(({ id, i }) => ({ id, label: name(id), remove: () => removeAt("entities", i) }))} />
-            <Picker
-              label={`Add to ${label.toLowerCase()}`}
-              items={ofType(t.key).filter((i) => !chosen.some((c) => c.id === i.value))}
-              value={undefined}
-              onChange={(v) => v && append("entities", v)}
-              placeholder={`Add ${t.label.toLowerCase().match(/^[aeiou]/) ? "an" : "a"} ${t.label.toLowerCase()}…`}
-              {...making(t.key)}
-            />
-          </Group>
-        );
-      })}
-
       <Group label="Plotlines">
         <ul className="grid gap-2">
           {list("plotlines").map((p, i) => {
@@ -246,6 +229,24 @@ export function SceneDetails({
           {...making("theme")}
         />
       </Group>
+
+      {customTypes.map((t) => {
+        const chosen = ofCustom(t.key);
+        const label = plural(t.label);
+        return (
+          <Group key={t.key} label={label}>
+            <Chips items={chosen.map(({ id, i }) => ({ id, label: name(id), remove: () => removeAt("entities", i) }))} />
+            <Picker
+              label={`Add to ${label.toLowerCase()}`}
+              items={ofType(t.key).filter((i) => !chosen.some((c) => c.id === i.value))}
+              value={undefined}
+              onChange={(v) => v && append("entities", v)}
+              placeholder={`Add ${t.label.toLowerCase().match(/^[aeiou]/) ? "an" : "a"} ${t.label.toLowerCase()}…`}
+              {...making(t.key)}
+            />
+          </Group>
+        );
+      })}
 
       <Group label="Story time">
         <SelectField

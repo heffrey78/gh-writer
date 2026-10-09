@@ -1,6 +1,7 @@
 import { readFrontMatter, uniqueId, type Novel, type YamlEdit } from "@gh-writer/core";
 import { joinSceneFile } from "@gh-writer/editor";
 import { useRef } from "react";
+import { create } from "zustand";
 import type { Workspace } from "../novel/workspace.ts";
 import type { QuickEntries } from "./quick-entries.ts";
 
@@ -23,7 +24,24 @@ export function useQuickEntry(novel: Novel, entries: QuickEntries | undefined) {
     return id;
   };
 
-  return { types: novel.entityTypes.map((t) => ({ key: t.key, label: t.label })), create };
+  return { types: novel.entityTypes.map((t) => ({ key: t.key, label: t.label })), create, ask: askName };
+}
+
+/** The name the author is being asked for (NameEntryDialog), and where the answer goes. */
+export const useNaming = create<{ type: string | undefined; answer: (name: string | undefined) => void }>(() => ({ type: undefined, answer: () => {} }));
+
+/** Ask the author to name a new entry of `type`: undefined if they cancel. */
+function askName(type: string): Promise<string | undefined> {
+  useNaming.getState().answer(undefined);
+  return new Promise((resolve) =>
+    useNaming.setState({
+      type,
+      answer: (name) => {
+        useNaming.setState({ type: undefined, answer: () => {} });
+        resolve(name);
+      },
+    }),
+  );
 }
 
 const LISTS = ["characters", "locations", "entities", "plotlines", "themes"] as const;

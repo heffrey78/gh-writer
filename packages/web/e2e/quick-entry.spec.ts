@@ -113,3 +113,34 @@ test("a create cut off by a reload is made after it", async ({ page, app }) => {
   expect(novel.read("bible/characters/mira-kostova.md")).toContain(`id: ${id}\n`);
   await expect(saveStatus(page)).toHaveText("Saved");
 });
+
+test("right after @, New <type>… asks for the name in a dialog, then mentions it where the @ is", async ({ page, app }) => {
+  const novel = await open(page, app);
+  await caretInStation(page);
+  await page.keyboard.type(" @");
+  const rows = listbox(page).getByRole("group", { name: "New entry" }).getByRole("option");
+  await expect(rows).toHaveText(["New character…", "New location…", "New plotline…", "New theme…", "New artifact…"]);
+  await rows.filter({ hasText: "New location…" }).click();
+  const dialog = page.getByRole("dialog", { name: "New location" });
+  await expect(dialog.getByRole("textbox", { name: "Name" })).toBeFocused();
+  await axe(page);
+  await page.keyboard.type("The Old Mill");
+  await page.keyboard.press("Enter");
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
+  await page.keyboard.type("stood empty.");
+  await expect.poll(() => novel.read(STATION), { timeout: 10_000 }).toMatch(/in a wound\. \[The Old Mill\]\(#loc_\w{6}\) stood empty\./);
+  await expect.poll(() => existsSync(join(novel.dir, "bible/locations/the-old-mill.md"))).toBe(true);
+
+  // Cancelled: the @ stays as typed, and the menu stays closed.
+  await page.keyboard.type(" @");
+  await page.keyboard.press("ArrowUp");
+  await expect(listbox(page).getByRole("option", { selected: true })).toHaveText("New artifact…");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog", { name: "New artifact" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
+  await expect(listbox(page)).toHaveCount(0);
+  await page.keyboard.type("nothing.");
+  await expect.poll(() => novel.read(STATION), { timeout: 10_000 }).toContain("stood empty. @nothing.");
+});
