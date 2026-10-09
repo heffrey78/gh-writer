@@ -91,9 +91,11 @@ describe("versions in one copy", { timeout: 20_000 }, () => {
     expect(result.checkpoint).toMatchObject({ name: "Discarded version “Cut the subplot”", auto: true });
     expect(gitIn(dir, "show", `${result.checkpoint.commit}:./${SCENE}`)).toContain("Only in the cut.");
     expect(read(dir)).not.toContain("Only in the cut.");
-    // Restoring the checkpoint brings the text back.
-    await checkpoints.restore(result.checkpoint.id);
+    // A version started from the checkpoint brings it back.
+    const back = await v.start("Cut the subplot", { from: result.checkpoint.id });
+    expect(back).toMatchObject({ id: "cut-the-subplot", current: true });
     expect(read(dir)).toContain("Only in the cut.");
+    await expect(v.start("x", { from: "nope" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(v.discard("main")).rejects.toMatchObject({ code: "MAIN" });
   });
 

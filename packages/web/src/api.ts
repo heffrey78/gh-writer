@@ -18,4 +18,5 @@ export const keys = {
   /** Everything about a novel's GitHub issues: refetched together when they change. */
   issues: (id: string) => ["issues", id] as const,
   checkpoints: (id: string) => ["checkpoints", id] as const,
+  versions: (id: string) => ["versions", id] as const,
 };

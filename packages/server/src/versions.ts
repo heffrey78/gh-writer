@@ -116,10 +116,10 @@ export class Versions {
   }
 
   /**
-   * Start a version called `name` from the one open now (its saved work committed first), and open it.
-   * The first sync puts it on the remote.
+   * Start a version called `name` from the one open now (its saved work committed first), or from
+   * checkpoint `from` (a discarded version brought back), and open it. The first sync puts it on the remote.
    */
-  start(name: string): Promise<Version> {
+  start(name: string, { from }: { from?: string } = {}): Promise<Version> {
     const clean = name.replace(/\s+/g, " ").trim();
     if (!clean || clean.length > 100) return Promise.reject(new VersionError("BAD_NAME", "Give the version a name of 1 to 100 characters."));
     return this.#change(async () => {
@@ -129,7 +129,8 @@ export class Versions {
       let id = base;
       for (let n = 2; taken.has(id) || id === "main"; n++) id = `${base}-${n}`;
       const branch = `${VERSION_PREFIX}${id}`;
-      await g.raw(["switch", "--quiet", "--no-track", "-c", branch]);
+      const start = from === undefined ? "HEAD" : (await this.#checkpoints.get(from)).commit;
+      await g.raw(["switch", "--quiet", "--no-track", "-c", branch, start]);
       await g.raw(["config", `branch.${branch}.description`, clean]);
       return this.#get(id);
     });

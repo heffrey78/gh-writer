@@ -15,6 +15,7 @@ import { NewEntryDialog } from "../bible/new-entry.tsx";
 import { plural } from "../bible/types.ts";
 import { CheckpointsButton } from "./checkpoints.tsx";
 import { CompileButton, CompileDialog } from "./compile.tsx";
+import { useSwitchVersion, useVersions, useVersionsPanel, VersionsButton } from "./versions.tsx";
 import { SaveConflicts, SyncConflicts } from "./conflicts.tsx";
 import { useNovelEvents } from "./events.ts";
 import { ManuscriptSidebar } from "./manuscript-tree.tsx";
@@ -140,11 +141,17 @@ export function NovelPage() {
   const repo = useGitHubRepo(novelId);
   const model = novel.data?.novel;
   const conflict = sync.data?.state === "conflict";
+  const versions = useVersions(novelId);
+  const switchVersion = useSwitchVersion(novelId, workspace);
   useCommands(
     (): Command[] => [
       { id: "novel.syncNow", title: "Sync now", group: "Sync", run: () => syncNow.mutate() },
       ...(conflict ? [{ id: "novel.resolve", title: "Resolve sync conflicts", group: "Sync", run: () => setResolving(true) }] : []),
       { id: "novel.checkpoints", title: "Checkpoints: make or restore one", group: "Checkpoints", run: () => setCheckpointsOpen(true) },
+      { id: "novel.versions", title: "Versions: start, open or discard one", group: "Versions", keywords: ["alternate", "draft", "ending", "try"], run: () => useVersionsPanel.getState().set(true) },
+      ...(versions.data ?? [])
+        .filter((v) => !v.current)
+        .map((v) => ({ id: `novel.version.${v.id}`, title: `Open version: ${v.name}`, group: "Versions", run: () => switchVersion.mutate(v) })),
       { id: "novel.compile", title: "Compile the manuscript…", group: "Novel", keywords: ["export", "docx", "word", "epub", "pdf", "e-book", "manuscript"], run: () => setCompiling(true) },
       { id: "novel.bible", title: "Story bible", group: "Go to", run: () => void navigate(`/novels/${novelId}/bible`) },
       { id: "novel.outline", title: "Outline", group: "Go to", run: () => void navigate(`/novels/${novelId}/outline`) },
@@ -177,12 +184,13 @@ export function NovelPage() {
         }),
       ]),
     ],
-    [model, conflict, novelId, navigate, repo],
+    [model, conflict, novelId, navigate, repo, versions.data, switchVersion.mutate],
   );
 
   const actions = workspace && (
     <>
       <SaveStatus autosave={workspace.autosave} entries={entries?.store} />
+      <VersionsButton novelId={novelId} workspace={workspace} />
       <CheckpointsButton novelId={novelId} workspace={workspace} open={checkpointsOpen} onOpenChange={setCheckpointsOpen} />
       <CompileButton onOpen={() => setCompiling(true)} />
       <SyncBadge

@@ -392,8 +392,9 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
       ).data,
     /** The main version first. */
     versions: async (id: string) => (await request<{ versions: Version[] }>("GET", `/api/novels/${encodeURIComponent(id)}/versions`)).data.versions,
-    /** Start a version from the open one, and open it. */
-    startVersion: async (id: string, name: string) => (await request<{ version: Version }>("POST", `/api/novels/${encodeURIComponent(id)}/versions`, { name })).data.version,
+    /** Start a version from the open one (or from checkpoint `from`: a discarded version brought back), and open it. */
+    startVersion: async (id: string, name: string, from?: string) =>
+      (await request<{ version: Version }>("POST", `/api/novels/${encodeURIComponent(id)}/versions`, from === undefined ? { name } : { name, from })).data.version,
     switchVersion: async (id: string, versionId: string) =>
       (await request<{ version: Version }>("POST", `/api/novels/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/switch`)).data.version,
     /** Kept as an automatic checkpoint first: `checkpoint` in the result brings it back. */
