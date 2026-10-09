@@ -15,3 +15,4 @@ export { passageIssueBody, readAnchor, writeAnchor, type IssueAnchor, type Passa
 export { resolveAnchor, type AnchorMatch, type AnchorOptions } from "./anchor-match.ts";
 export { ISSUE_KINDS, kindLabel, kindOf, STOCK_LABELS, type IssueKind } from "./issue-kinds.ts";
 export { entityLabel, entityOfLabel, type LabelDef } from "./entity-labels.ts";
+export { compileBook, CompileError, numberWords, presets, type Block, type Book, type BookChapter, type BookSection, type CompileOptions, type Run } from "./compile.ts";

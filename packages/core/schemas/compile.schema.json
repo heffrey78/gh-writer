@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/heffrey78/gh-writer/schemas/v1/compile.schema.json",
+  "title": "compile.yaml",
+  "description": "How the manuscript is compiled to DOCX, EPUB and PDF: named presets.",
+  "type": "object",
+  "properties": {
+    "presets": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z0-9][a-z0-9_-]*$" },
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/preset" }
+    }
+  },
+  "required": ["presets"],
+  "additionalProperties": false,
+  "$defs": {
+    "preset": {
+      "type": "object",
+      "properties": {
+        "title_page": {
+          "type": "object",
+          "properties": {
+            "author": { "$ref": "common.schema.json#/$defs/nonEmptyText" },
+            "contact": { "type": "array", "items": { "type": "string" } },
+            "surname": { "$ref": "common.schema.json#/$defs/nonEmptyText" },
+            "short_title": { "$ref": "common.schema.json#/$defs/nonEmptyText" }
+          },
+          "additionalProperties": false
+        },
+        "scene_break": { "type": "string", "minLength": 1, "maxLength": 20 },
+        "chapter_heading": { "enum": ["number-and-title", "number", "title"] },
+        "front": { "type": "array", "items": { "$ref": "#/$defs/matter" } },
+        "back": { "type": "array", "items": { "$ref": "#/$defs/matter" } },
+        "word_count": { "enum": ["rounded", "exact", "none"] }
+      },
+      "additionalProperties": false
+    },
+    "matter": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+\\.md$",
+      "description": "A Markdown file in the novel (e.g. front/dedication.md): its first heading is its title."
+    }
+  }
+}

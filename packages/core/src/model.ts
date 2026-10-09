@@ -1,5 +1,6 @@
 import type { EntityTypeDef } from "./ids.ts";
 import type {
+  CompileFile,
   Diagnostic,
   EventRecord,
   NovelFile,
@@ -28,6 +29,8 @@ export interface Novel {
   relationships: Relationship[];
   events: StoryEvent[];
   layouts: Record<string, { nodes: Record<string, { x: number; y: number }> }>;
+  /** compile.yaml, if there is one. */
+  compile?: CompileFile;
   /** Diagnostics found while loading (parse, schema and structure problems). */
   diagnostics: Diagnostic[];
 }

@@ -3,7 +3,7 @@ import type { Chapter, Entity, Novel, Part, PlotlineRef, Relationship, Scene, St
 import { parseMarkdown, parseYaml } from "./parse.ts";
 import { checkSchema, type SchemaKind } from "./schemas.ts";
 import { joinPath, type FileSource } from "./source.ts";
-import type { Diagnostic, NovelFile, RelationshipTypeFile, SceneStatus, StoryTime } from "./types.ts";
+import type { CompileFile, Diagnostic, NovelFile, RelationshipTypeFile, SceneStatus, StoryTime } from "./types.ts";
 
 /** Highest novel repository schema version this build understands. */
 export const SCHEMA_VERSION = 1;
@@ -80,6 +80,17 @@ export async function loadNovel(source: FileSource): Promise<Novel> {
 
   const layouts = await yamlFile("diagrams/layouts.yaml", "layouts");
   if (layouts && isObject(layouts["layouts"])) novel.layouts = layouts["layouts"] as Novel["layouts"];
+
+  // How it's compiled (#19): the front and back matter a preset names must be there.
+  const compile = await yamlFile("compile.yaml", "compile");
+  if (compile && isObject(compile["presets"])) {
+    novel.compile = compile as unknown as CompileFile;
+    for (const [name, preset] of Object.entries(novel.compile.presets)) {
+      for (const path of [...(preset.front ?? []), ...(preset.back ?? [])]) {
+        if ((await source.read(path)) === undefined) diagnostics.push(error("E_MISSING_FILE", "compile.yaml", `Preset “${name}” names ${path}, which is missing`));
+      }
+    }
+  }
 
   return novel;
 

@@ -10,6 +10,8 @@ export interface NovelFile {
   id: string;
   title: string;
   author?: string;
+  /** BCP 47; default "en". */
+  language?: string;
   target?: { words?: number; date?: string };
   entity_types?: CustomEntityTypeFile[];
   relationship_types?: RelationshipTypeFile[];
@@ -132,4 +134,22 @@ export interface Diagnostic {
   pointer?: string;
   /** 1-based line number in the file, if known. */
   line?: number;
+}
+
+/** compile.yaml: how the manuscript is compiled (#19). */
+export interface CompileFile {
+  presets: Record<string, CompilePreset>;
+}
+
+export interface CompilePreset {
+  title_page?: { author?: string; contact?: string[]; surname?: string; short_title?: string };
+  /** Between scenes, and for a break within one. Default "#". */
+  scene_break?: string;
+  /** Default "number-and-title". */
+  chapter_heading?: "number-and-title" | "number" | "title";
+  /** Markdown files before and after the chapters. */
+  front?: string[];
+  back?: string[];
+  /** On the title page: "rounded" (default, as manuscript format asks), "exact" or "none". */
+  word_count?: "rounded" | "exact" | "none";
 }
