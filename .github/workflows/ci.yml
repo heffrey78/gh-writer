@@ -19,6 +19,16 @@ jobs:
       - run: npm test
       - name: Validate sample novel
         run: npm run validate -- examples/sample-novel
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Check the sample novel's EPUB with epubcheck
+        run: |
+          node scripts/compile-sample.ts dist/sample
+          curl -sSfL -o epubcheck.zip https://github.com/w3c/epubcheck/releases/download/v5.4.0/epubcheck-5.4.0.zip
+          unzip -q epubcheck.zip
+          java -jar epubcheck-5.4.0/epubcheck.jar dist/sample/the-bridge-at-varn.epub
 
   e2e:
     runs-on: ubuntu-latest
