@@ -97,3 +97,59 @@ body {
     opacity: 0;
   }
 }
+
+/* Markdown from GitHub (issues and comments): readable, in the app's colours. */
+.ghw-markdown {
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.ghw-markdown > * + * {
+  margin-top: 0.6em;
+}
+.ghw-markdown h1,
+.ghw-markdown h2,
+.ghw-markdown h3 {
+  font-weight: 600;
+}
+.ghw-markdown a {
+  color: var(--ghw-accent);
+  text-decoration: underline;
+}
+.ghw-markdown ul {
+  list-style: disc;
+  padding-left: 1.4em;
+}
+.ghw-markdown ol {
+  list-style: decimal;
+  padding-left: 1.4em;
+}
+.ghw-markdown blockquote {
+  border-left: 3px solid var(--ghw-rule);
+  padding-left: 0.8em;
+  color: var(--ghw-muted);
+}
+.ghw-markdown code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+  background: var(--ghw-panel);
+  border-radius: 0.25em;
+  padding: 0.1em 0.3em;
+}
+.ghw-markdown pre {
+  background: var(--ghw-panel);
+  border-radius: 0.4em;
+  padding: 0.6em 0.8em;
+  overflow-x: auto;
+}
+.ghw-markdown pre code {
+  background: none;
+  padding: 0;
+}
+.ghw-markdown table {
+  border-collapse: collapse;
+}
+.ghw-markdown th,
+.ghw-markdown td {
+  border: 1px solid var(--ghw-rule);
+  padding: 0.25em 0.5em;
+}

@@ -2,7 +2,7 @@ import type { SyncStatus } from "@gh-writer/client";
 import type { Novel } from "@gh-writer/core";
 import { useWritingModes } from "@gh-writer/editor/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router";
 import { api, keys } from "../api.ts";
 import { useCommands, type Command } from "../commands.ts";
@@ -34,6 +34,9 @@ import { unlink } from "../bible/quick-entry.ts";
 import { useEntryPanel } from "./mention-card.tsx";
 import { useNotice } from "./notice.tsx";
 import { useWritingEditor } from "./writing-view.tsx";
+import { useGitHubRepo } from "../github/repo.ts";
+import { IssuePage } from "../issues/issue-page.tsx";
+import { IssuesPage } from "../issues/issues-page.tsx";
 import { WritingView } from "./writing-view.tsx";
 
 // React Flow comes with the graph, loaded when it's first opened.
@@ -118,6 +121,7 @@ export function NovelPage() {
       });
     },
     sync: (status) => queryClient.setQueryData(keys.sync(novelId), status),
+    issues: () => void queryClient.invalidateQueries({ queryKey: keys.issues(novelId) }),
   });
 
   const syncNow = useMutation({
@@ -130,6 +134,8 @@ export function NovelPage() {
 
   const navigate = useNavigate();
   latest.current.navigate = (to) => void navigate(to);
+  // GitHub work tracking shows only for a novel on GitHub (#8).
+  const repo = useGitHubRepo(novelId);
   const model = novel.data?.novel;
   const conflict = sync.data?.state === "conflict";
   useCommands(
@@ -144,6 +150,12 @@ export function NovelPage() {
       { id: "novel.presence", title: "Presence matrix", group: "Go to", keywords: ["diagram", "characters", "themes", "locations"], run: () => void navigate(`/novels/${novelId}/presence`) },
       { id: "novel.swimlanes", title: "Plotline swimlanes", group: "Go to", keywords: ["diagram", "plotlines"], run: () => void navigate(`/novels/${novelId}/swimlanes`) },
       { id: "novel.graph", title: "Relationship graph", group: "Go to", keywords: ["diagram", "characters"], run: () => void navigate(`/novels/${novelId}/graph`) },
+      ...(repo
+        ? [
+            { id: "novel.issues", title: "Issues", group: "Go to", keywords: ["github", "notes", "to do", "plot holes"], run: () => void navigate(`/novels/${novelId}/issues`) },
+            { id: "novel.newIssue", title: "New issue", group: "GitHub", keywords: ["github", "note", "plot hole"], run: () => void navigate(`/novels/${novelId}/issues?new=1`) },
+          ]
+        : []),
       ...(model?.entityTypes ?? []).map((t) => ({ id: `novel.newEntry.${t.key}`, title: `New ${t.label.toLowerCase()}`, group: "Story bible", run: () => setNewEntry(t.key) })),
       ...(model?.entities ?? []).map((e) => ({
         id: `novel.entry.${e.id}`,
@@ -162,7 +174,7 @@ export function NovelPage() {
         }),
       ]),
     ],
-    [model, conflict, novelId, navigate],
+    [model, conflict, novelId, navigate, repo],
   );
 
   const actions = workspace && (
@@ -221,6 +233,7 @@ export function NovelPage() {
                 ["presence", "Presence"],
                 ["timeline", "Timeline"],
                 ["graph", "Graph"],
+                ...(repo ? [["issues", "Issues"]] : []),
               ].map(([path, label]) => (
                 <NavLink key={path} to={`/novels/${novelId}/${path}`} className={({ isActive }) => `rounded-md px-2 py-1 hover:bg-paper ${isActive ? "bg-accent-soft font-medium" : ""}`}>
                   {label}
@@ -263,6 +276,8 @@ export function NovelPage() {
               <Route path="corkboard" element={<CorkboardPage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="outline" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="bible" element={<BiblePage novelId={novelId} novel={book} />} />
+              <Route path="issues" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssuesPage novelId={novelId} />}</GitHubOnly>} />
+              <Route path="issues/:number" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssueRoute novelId={novelId} />}</GitHubOnly>} />
               <Route path="bible/:entityId" element={<EntryRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
               <Route path="*" element={<Missing what="page" />} />
             </Routes>
@@ -296,6 +311,19 @@ function SceneRoute(props: RouteProps) {
   const scene = props.novel.allScenes.find((s) => s.id === sceneId);
   const chapter = props.novel.allChapters.find((c) => c.id === scene?.chapterId);
   return scene ? <WritingView {...props} view={{ scene, chapter }} /> : <Missing what="scene" />;
+}
+
+/** A view only a novel on GitHub has: until that's known, a moment's wait; not on GitHub, the manuscript. */
+function GitHubOnly({ repo, novelId, children }: { repo: ReturnType<typeof useGitHubRepo>; novelId: string; children: () => ReactNode }) {
+  if (repo === undefined) return <p className="px-6 py-6 text-muted">Opening…</p>;
+  if (!repo) return <Navigate to={`/novels/${novelId}`} replace />;
+  return <>{children()}</>;
+}
+
+function IssueRoute({ novelId }: { novelId: string }) {
+  const { number } = useParams();
+  const n = Number(number);
+  return Number.isInteger(n) && n !== 0 ? <IssuePage key={n} novelId={novelId} number={n} /> : <Missing what="issue" />;
 }
 
 function Missing({ what }: { what: string }) {

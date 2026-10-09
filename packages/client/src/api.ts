@@ -363,6 +363,7 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
     },
     /** The story bible's changes: each is one commit; refusals throw ApiError with the server's code (STALE, BAD_REQUEST, BLOCKED…). */
     bible: bibleApi((id) => `/api/novels/${encodeURIComponent(id)}/bible`, request),
+    issues: issuesApi((id) => `/api/novels/${encodeURIComponent(id)}/issues`, request),
     /** Reshaping the manuscript: each is one commit; IDs never change. */
     manuscript: manuscriptApi((id) => `/api/novels/${encodeURIComponent(id)}/manuscript`, request),
     /** Hand-placed diagram positions (diagrams/layouts.yaml), saved like typing: committed with the next autosave. */
@@ -393,6 +394,101 @@ export async function* serverEvents(body: ReadableStream<Uint8Array>): AsyncGene
 }
 
 type Request = <T>(method: string, path: string, body?: unknown, options?: RequestOptions & { passing?: string }) => Promise<{ status: number; data: T }>;
+
+/** A comment on an issue; a negative ID until one made offline is on GitHub. */
+export interface IssueComment {
+  id: number;
+  body: string;
+  author: string;
+  createdAt: string;
+  updatedAt: string;
+  url: string;
+  pending?: boolean;
+}
+
+/** A GitHub issue of the novel's repository, as gh-writer has it (number negative while made offline). */
+export interface Issue {
+  number: number;
+  title: string;
+  body: string;
+  state: "open" | "closed";
+  labels: string[];
+  milestone: number | null;
+  author: string;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+  url: string;
+  commentCount: number;
+  comments: IssueComment[];
+  /** Changes made offline and not on GitHub yet. */
+  pending?: boolean;
+}
+
+export interface IssueLabel {
+  name: string;
+  color: string;
+  description: string;
+}
+
+export interface Milestone {
+  number: number;
+  title: string;
+  state: "open" | "closed";
+}
+
+export interface IssuesStatus {
+  repo: GitHubRepo | null;
+  refreshedAt: string | null;
+  error?: { code: string; message: string; resetAt?: string };
+  queued: number;
+  failed: { id: string; description: string; error: string }[];
+}
+
+export interface IssueFilter {
+  state?: "open" | "closed" | "all";
+  labels?: string[];
+  milestone?: number | "none";
+  q?: string;
+}
+
+export interface IssueInput {
+  title?: string;
+  body?: string;
+  labels?: string[];
+  milestone?: number | null;
+  state?: "open" | "closed";
+}
+
+export interface IssueList {
+  issues: Omit<Issue, "comments">[];
+  labels: IssueLabel[];
+  milestones: Milestone[];
+  status: IssuesStatus;
+}
+
+function issuesApi(root: (novelId: string) => string, request: Request) {
+  const call = async <T>(method: string, novelId: string, path: string, body?: unknown) => (await request<T>(method, `${root(novelId)}${path}`, body)).data;
+  return {
+    list: (novelId: string, filter: IssueFilter = {}) => {
+      const q = new URLSearchParams();
+      if (filter.state) q.set("state", filter.state);
+      if (filter.labels?.length) q.set("labels", filter.labels.join(","));
+      if (filter.milestone !== undefined) q.set("milestone", String(filter.milestone));
+      if (filter.q) q.set("q", filter.q);
+      const query = q.toString();
+      return call<IssueList>("GET", novelId, query ? `?${query}` : "");
+    },
+    get: (novelId: string, number: number) => call<Issue>("GET", novelId, `/${number}`),
+    create: (novelId: string, input: IssueInput & { title: string }) => call<Issue>("POST", novelId, "", input),
+    update: (novelId: string, number: number, input: IssueInput) => call<Issue>("PATCH", novelId, `/${number}`, input),
+    comment: (novelId: string, number: number, body: string) => call<IssueComment>("POST", novelId, `/${number}/comments`, { body }),
+    /** Bring the cache up to date with GitHub, and send changes made offline. */
+    refresh: (novelId: string) => call<{ changed: boolean; status: IssuesStatus }>("POST", novelId, "/refresh"),
+    /** Drop a change GitHub refused. */
+    discard: (novelId: string, change: string) => call<{ status: IssuesStatus }>("DELETE", novelId, `/queue/${encodeURIComponent(change)}`),
+  };
+}
 
 function bibleApi(root: (novelId: string) => string, request: Request) {
   const call = async <T>(method: string, novelId: string, path: string, body?: unknown) => (await request<T>(method, `${root(novelId)}${path}`, body)).data;

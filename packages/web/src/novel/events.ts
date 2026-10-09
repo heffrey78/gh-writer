@@ -5,6 +5,8 @@ import type { FileEvent } from "./workspace.ts";
 export interface NovelEventHandlers {
   file?: (e: FileEvent) => void;
   sync?: (status: SyncStatus) => void;
+  /** The novel's cached GitHub issues changed. */
+  issues?: () => void;
 }
 
 /**
@@ -20,6 +22,7 @@ export function useNovelEvents(novelId: string, handlers: NovelEventHandlers): b
     source.addEventListener("ready", () => setConnected(true));
     source.addEventListener("file", (e) => latest.current.file?.(JSON.parse((e as MessageEvent<string>).data) as FileEvent));
     source.addEventListener("sync", (e) => latest.current.sync?.(JSON.parse((e as MessageEvent<string>).data) as SyncStatus));
+    source.addEventListener("issues", () => latest.current.issues?.());
     source.onerror = () => setConnected(false);
     return () => source.close();
   }, [novelId]);

@@ -15,5 +15,7 @@ export const keys = {
   library: ["library"] as const,
   novel: (id: string) => ["novel", id] as const,
   sync: (id: string) => ["sync", id] as const,
+  /** Everything about a novel's GitHub issues: refetched together when they change. */
+  issues: (id: string) => ["issues", id] as const,
   checkpoints: (id: string) => ["checkpoints", id] as const,
 };

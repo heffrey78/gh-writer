@@ -8,7 +8,8 @@ import { api, keys } from "../api.ts";
  * sync status, which the novel's event stream keeps current, so putting a novel on GitHub turns it on
  * in the same session.
  */
-export function useGitHubRepo(novelId: string): GitHubRepo | null {
+export function useGitHubRepo(novelId: string): GitHubRepo | null | undefined {
   const sync = useQuery({ queryKey: keys.sync(novelId), queryFn: () => api.sync(novelId) });
-  return sync.data?.github ?? null;
+  // Undefined until the status is known: a page shouldn't send the author away while it loads.
+  return sync.data ? (sync.data.github ?? null) : undefined;
 }
