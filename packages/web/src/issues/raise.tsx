@@ -1,5 +1,5 @@
 import { ApiError } from "@gh-writer/client";
-import { ISSUE_KINDS, type Novel } from "@gh-writer/core";
+import { entityLabel, ISSUE_KINDS, type Novel } from "@gh-writer/core";
 import { caretScene } from "@gh-writer/editor";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Editor } from "@tiptap/core";
@@ -12,7 +12,7 @@ import { githubKey, useConnect } from "../github/connect.tsx";
 import { useNotice } from "../novel/notice.tsx";
 import { Button } from "../ui/button.tsx";
 import { Field } from "../ui/field.tsx";
-import { LabelsField, pickableLabels } from "./parts.tsx";
+import { labelChoices, LabelsField } from "./parts.tsx";
 import { useIssueMeta } from "./use-issues.ts";
 
 /** The kinds of note about a passage: each a label (kind/…) with its colour. */
@@ -24,6 +24,8 @@ export interface Passage {
   scene: string;
   sceneTitle: string;
   quote: string;
+  /** The entries mentioned in the passage. */
+  mentions: string[];
 }
 
 /**
@@ -47,7 +49,9 @@ export function selectedPassage(editor: Editor, novel: Novel): Passage | undefin
   const quote = state.doc.textBetween(from, end, "\n\n", (leaf) => (leaf.type.name === "hardBreak" ? "\n" : String(leaf.attrs.label ?? ""))).trim();
   const scene = novel.allScenes.find((s) => s.file === path);
   if (!quote || !scene) return undefined;
-  return { path: scene.file, scene: scene.id, sceneTitle: scene.title, quote };
+  const mentions = new Set<string>();
+  state.doc.nodesBetween(from, end, (node) => void (node.type.name === "mention" && node.attrs.id && mentions.add(String(node.attrs.id))));
+  return { path: scene.file, scene: scene.id, sceneTitle: scene.title, quote, mentions: [...mentions] };
 }
 
 /** The passage an issue is being raised about, and the editor to go back to. */
@@ -63,13 +67,13 @@ export const useRaise = create<{ passage: Passage | undefined; editor: Editor | 
 }));
 
 /** Raise an issue about the selected passage, beside the text: its kind, a title, a note and labels. */
-export function RaisePanel({ novelId }: { novelId: string }) {
+export function RaisePanel({ novelId, novel }: { novelId: string; novel: Novel }) {
   const { passage, close } = useRaise();
   if (!passage) return null;
-  return <Raise key={`${passage.scene}:${passage.quote}`} novelId={novelId} passage={passage} close={close} />;
+  return <Raise key={`${passage.scene}:${passage.quote}`} novelId={novelId} novel={novel} passage={passage} close={close} />;
 }
 
-function Raise({ novelId, passage, close }: { novelId: string; passage: Passage; close: () => void }) {
+function Raise({ novelId, novel, passage, close }: { novelId: string; novel: Novel; passage: Passage; close: () => void }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const show = useNotice((n) => n.show);
@@ -77,7 +81,23 @@ function Raise({ novelId, passage, close }: { novelId: string; passage: Passage;
   const [kind, setKind] = useState<string>(KINDS[0]!.key);
   const [title, setTitle] = useState("");
   const [details, setDetails] = useState("");
-  const [labels, setLabels] = useState<string[]>([]);
+  // Who and what the passage is about, to start with: the scene's people, places and threads, and anything it mentions.
+  const [labels, setLabels] = useState<string[]>(() => {
+    const scene = novel.allScenes.find((s) => s.id === passage.scene);
+    const ids = [
+      ...(scene?.pov ? [scene.pov] : []),
+      ...(scene?.characters ?? []),
+      ...(scene?.locations ?? []),
+      ...(scene?.entities ?? []),
+      ...(scene?.plotlines.map((p) => p.id) ?? []),
+      ...(scene?.themes.map((t) => t.id) ?? []),
+      ...passage.mentions,
+    ];
+    return [...new Set(ids)].flatMap((id) => {
+      const entity = novel.entities.find((e) => e.id === id);
+      return entity ? [entityLabel(novel, entity).name] : [];
+    });
+  });
   const [busy, setBusy] = useState(false);
   const ids = { heading: useId(), details: useId() };
   const panel = useRef<HTMLElement>(null);
@@ -155,7 +175,7 @@ function Raise({ novelId, passage, close }: { novelId: string; passage: Passage;
           </label>
           <textarea id={ids.details} value={details} onChange={(e) => setDetails(e.target.value)} rows={4} className="rounded-md border border-rule bg-raised px-3 py-2" placeholder="Optional; Markdown, as on GitHub" />
         </div>
-        <LabelsField label="Labels" chosen={labels} labels={pickableLabels(meta)} onChange={setLabels} />
+        <LabelsField label="Labels" chosen={labels} labels={labelChoices(meta, novel)} onChange={setLabels} />
         <div className="flex justify-end gap-2">
           <Button onClick={close}>Cancel</Button>
           <Button type="submit" variant="primary" disabled={!title.trim() || busy}>

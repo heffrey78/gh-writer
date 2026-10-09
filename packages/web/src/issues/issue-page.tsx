@@ -8,7 +8,7 @@ import { useNotice } from "../novel/notice.tsx";
 import { Button } from "../ui/button.tsx";
 import { Field } from "../ui/field.tsx";
 import { Markdown } from "./markdown.tsx";
-import { ensureKind, IssuesState, kindIn, KindSelect, LabelsField, MilestoneField, pickableLabels, when, withKind } from "./parts.tsx";
+import { ensureKind, IssuesState, kindIn, KindSelect, labelChoices, LabelsField, MilestoneField, when, withKind } from "./parts.tsx";
 import type { Workspace } from "../novel/workspace.ts";
 import { passageOf } from "./anchors.ts";
 import { PassageLine } from "./issues-page.tsx";
@@ -49,7 +49,7 @@ export function IssuePage({ novelId, novel, workspace, number }: { novelId: stri
   }
   if (!data) return <p className="px-6 py-6 text-muted">Loading the issue…</p>;
 
-  const labels = pickableLabels(meta);
+  const labels = labelChoices(meta, novel);
   const kind = kindIn(data.labels);
   const submitComment = async () => {
     if (!comment.trim()) return;

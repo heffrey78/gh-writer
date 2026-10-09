@@ -163,6 +163,7 @@ export class IssueStore {
   #file: string | undefined;
   #status: IssuesStatus = { repo: null, refreshedAt: null, queued: 0, failed: [] };
   #refreshing: Promise<boolean> | undefined;
+  #again: Promise<boolean> | undefined;
   #listeners = new Set<() => void>();
   #used = new Set<string>();
   #saving: Promise<void> = Promise.resolve();
@@ -221,7 +222,18 @@ export class IssueStore {
    * failure is kept in the status (and thrown) while the cache keeps serving.
    */
   refresh(): Promise<boolean> {
-    this.#refreshing ??= this.#refresh().finally(() => (this.#refreshing = undefined));
+    // Asked again while one is under way: that one may have started before what's asked about
+    // happened, so one more follows it (shared by everyone asking meanwhile).
+    if (this.#refreshing) {
+      this.#again ??= this.#refreshing
+        .catch(() => false)
+        .then(() => {
+          this.#again = undefined;
+          return this.refresh();
+        });
+      return this.#again;
+    }
+    this.#refreshing = this.#refresh().finally(() => (this.#refreshing = undefined));
     return this.#refreshing;
   }
 

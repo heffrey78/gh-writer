@@ -22,6 +22,8 @@ let answers: string[];
 let offline = false;
 /** The next request to this method and path reaches GitHub, but its answer is lost. */
 let loseNext: string | undefined;
+/** GitHub answers this much later (ms). */
+let slow = 0;
 
 beforeAll(async () => {
   ({ fresh, cleanUp } = scratch("issues"));
@@ -43,9 +45,12 @@ beforeEach(async () => {
   answers = [];
   offline = false;
   loseNext = undefined;
+  slow = 0;
   const recording: typeof fetch = async (input, init) => {
     if (offline) throw new TypeError("fetch failed");
     const res = await fetch(input, init);
+    // The answer comes back late: GitHub has already answered as things were when asked.
+    if (slow) await new Promise((r) => setTimeout(r, slow));
     if (loseNext === `${init?.method ?? "GET"} ${new URL(String(input)).pathname}`) {
       loseNext = undefined;
       throw new TypeError("fetch failed");
@@ -161,6 +166,19 @@ describe("issues", () => {
     const again = open();
     expect((await again.list()).issues).toHaveLength(2);
     await expect(again.create({ title: "Offline" })).rejects.toMatchObject({ code: "NO_SIGN_IN" });
+  });
+
+  it("a refresh asked for while one is under way sees what happened since that one began", async () => {
+    seed();
+    const issues = open();
+    await issues.refresh();
+    slow = 40;
+    const first = issues.refresh();
+    await new Promise((r) => setTimeout(r, 10));
+    fake.addIssue("ada", repoName(), { title: "Added meanwhile" });
+    const second = issues.refresh();
+    await Promise.all([first, second]);
+    expect((await issues.list()).issues.map((i) => i.title)).toContain("Added meanwhile");
   });
 
   it("reports a rate limit with when it resets, and keeps serving the cache", async () => {

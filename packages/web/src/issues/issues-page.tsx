@@ -11,7 +11,7 @@ import { Modal } from "../ui/dialog.tsx";
 import { Field } from "../ui/field.tsx";
 import { Picker } from "../ui/picker.tsx";
 import { useViewParams } from "../ui/view-params.ts";
-import { ensureKind, IssuesState, KindSelect, LabelChip, LabelsField, MilestoneField, MilestoneSelect, MilestonesDialog, pickableLabels, when, withKind } from "./parts.tsx";
+import { displayLabel, ensureKind, IssuesState, KindSelect, LabelChip, labelChoices, LabelsField, MilestoneField, MilestoneSelect, MilestonesDialog, when, withKind } from "./parts.tsx";
 import type { Workspace } from "../novel/workspace.ts";
 import { passageOf } from "./anchors.ts";
 import { useIssueChanges, useIssueList, useIssueMeta } from "./use-issues.ts";
@@ -24,6 +24,7 @@ export function IssuesPage({ novelId, novel, workspace }: { novelId: string; nov
   const ids = { search: useId(), state: useId(), milestone: useId(), kind: useId() };
   const meta = useIssueMeta(novelId);
   const [managing, setManaging] = useState(false);
+  const choices = labelChoices(meta, novel);
   const state = (params.get("state") ?? "open") as NonNullable<IssueFilter["state"]>;
   const labels = (params.get("labels") ?? "").split(",").filter(Boolean);
   const milestone = params.get("milestone") ?? "";
@@ -101,12 +102,12 @@ export function IssuesPage({ novelId, novel, workspace }: { novelId: string; nov
           </label>
           <KindSelect id={ids.kind} value={kind} onChange={(v) => setParams({ kind: v })} any />
           {labels.map((l) => (
-            <LabelChip key={l} name={l} labels={data?.labels ?? []} onRemove={() => setParams({ labels: labels.filter((x) => x !== l).join(",") })} />
+            <LabelChip key={l} name={l} labels={choices} onRemove={() => setParams({ labels: labels.filter((x) => x !== l).join(",") })} />
           ))}
           <Picker
             className="w-56"
             label="Filter by label"
-            items={[...new Set([...pickableLabels(meta).map((l) => l.name), ...labels])].map((name) => ({ value: name, label: name }))}
+            items={[...new Set([...choices.map((l) => l.name), ...labels])].map((name) => ({ value: name, label: displayLabel(name, choices), group: choices.find((c) => c.name === name)?.group ?? "Other labels", keywords: [name] }))}
             value={undefined}
             chosen={labels}
             onChange={(v) => v && setParams({ labels: (labels.includes(v) ? labels.filter((x) => x !== v) : [...labels, v]).join(",") })}
@@ -151,6 +152,7 @@ export function IssuesPage({ novelId, novel, workspace }: { novelId: string; nov
       {creating && (
         <NewIssue
           novelId={novelId}
+          novel={novel}
           onClose={() => {
             setCreating(false);
             if (params.get("new")) setParams({ new: undefined });
@@ -183,7 +185,7 @@ export function PassageLine({ novelId, passage }: { novelId: string; passage: Re
 }
 
 /** A new issue: its title, details, labels and milestone. */
-function NewIssue({ novelId, onClose }: { novelId: string; onClose: () => void }) {
+function NewIssue({ novelId, novel, onClose }: { novelId: string; novel: Novel; onClose: () => void }) {
   const navigate = useNavigate();
   const meta = useIssueMeta(novelId);
   const changes = useIssueChanges(novelId);
@@ -220,7 +222,7 @@ function NewIssue({ novelId, onClose }: { novelId: string; onClose: () => void }
           </label>
           <KindSelect id={ids.kind} value={kind} onChange={setKind} />
         </div>
-        <LabelsField label="Labels" chosen={labels} labels={pickableLabels(meta)} onChange={setLabels} />
+        <LabelsField label="Labels" chosen={labels} labels={labelChoices(meta, novel)} onChange={setLabels} />
         <div className="flex items-center gap-2">
           <label htmlFor={ids.milestone} className="text-sm font-medium">
             Milestone

@@ -1,5 +1,6 @@
 import type { IssueLabel, IssueList, IssuesStatus, Milestone } from "@gh-writer/client";
-import { ISSUE_KINDS, kindLabel, kindOf, STOCK_LABELS } from "@gh-writer/core";
+import { entityLabel, entityOfLabel, ISSUE_KINDS, kindLabel, kindOf, STOCK_LABELS, type Novel } from "@gh-writer/core";
+import { plural } from "../bible/types.ts";
 import { useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { useId, useState } from "react";
@@ -14,16 +15,25 @@ import { Picker } from "../ui/picker.tsx";
 const time = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 export const when = (iso: string) => time.format(new Date(iso));
 
-/** A label as GitHub colours it (a kind by its name: "Plot hole"), optionally with a button to take it off. */
-export function LabelChip({ name, labels, onRemove }: { name: string; labels: IssueLabel[]; onRemove?: () => void }) {
+/** A label for the author: a kind by its name ("Plot hole"), a bible entry's by the entry's name ("Ada Varn"). */
+export function displayLabel(name: string, labels: readonly IssueLabel[]): string {
+  const kind = kindOf(name);
+  if (kind) return kind.label;
+  const entry = /^(.+) · [a-z]{2,8}_[0-9a-hjkmnp-tv-z]{6}$/.exec(labels.find((l) => l.name === name)?.description ?? "");
+  return entry ? entry[1]! : name;
+}
+
+/** A label as GitHub colours it, by the name the author knows it by, optionally with a button to take it off. */
+export function LabelChip({ name, labels, onRemove }: { name: string; labels: readonly IssueLabel[]; onRemove?: () => void }) {
   const kind = kindOf(name);
   const color = labels.find((l) => l.name === name)?.color ?? kind?.color ?? "ededed";
+  const shown = displayLabel(name, labels);
   return (
     <span className="inline-flex items-center gap-1 rounded-full border border-rule bg-raised px-2 py-0.5 text-xs">
       <span className="inline-block size-2 rounded-full" style={{ background: `#${color}` }} aria-hidden />
-      {kind?.label ?? name}
+      {shown}
       {onRemove && (
-        <button type="button" onClick={onRemove} aria-label={`Remove label “${kind?.label ?? name}”`} className="rounded text-muted hover:text-ink">
+        <button type="button" onClick={onRemove} aria-label={`Remove label “${shown}”`} className="rounded text-muted hover:text-ink">
           <X className="size-3" aria-hidden />
         </button>
       )}
@@ -35,9 +45,10 @@ export function LabelChip({ name, labels, onRemove }: { name: string; labels: Is
  * Labels chosen, as chips, and a picker listing every label with the chosen ones checked: choosing
  * one adds it or takes it off; a name no label has can be made a new label.
  */
-export function LabelsField({ label, chosen, labels, onChange }: { label: string; chosen: string[]; labels: IssueLabel[]; onChange: (labels: string[]) => void }) {
+export function LabelsField({ label, chosen, labels, onChange }: { label: string; chosen: string[]; labels: readonly LabelChoice[]; onChange: (labels: string[]) => void }) {
   // The chosen ones are listed even when they're not among those offered (a stock label already on it).
   const names = [...labels.map((l) => l.name), ...chosen.filter((c) => !labels.some((l) => l.name === c))];
+  const groupOf = (name: string) => labels.find((l) => l.name === name)?.group ?? OTHER;
   return (
     <div className="grid gap-1.5">
       {chosen.length > 0 && (
@@ -51,10 +62,10 @@ export function LabelsField({ label, chosen, labels, onChange }: { label: string
       )}
       <Picker
         label={`Add to ${label.toLowerCase()}`}
-        items={names.map((name) => {
-          const description = labels.find((l) => l.name === name)?.description;
-          return { value: name, label: name, ...(description ? { keywords: [description] } : {}) };
-        })}
+        items={names
+          .map((name) => ({ value: name, label: displayLabel(name, labels), group: groupOf(name), keywords: [name, labels.find((l) => l.name === name)?.description ?? ""] }))
+          // Bible entries by type first, then the other labels.
+          .sort((a, b) => Number(a.group === OTHER) - Number(b.group === OTHER))}
         value={undefined}
         chosen={chosen}
         onChange={(v) => v && onChange(chosen.includes(v) ? chosen.filter((x) => x !== v) : [...chosen, v])}
@@ -64,6 +75,28 @@ export function LabelsField({ label, chosen, labels, onChange }: { label: string
       />
     </div>
   );
+}
+
+/** A label to offer, with the group it's listed under: a bible entry's type ("Characters"), or "Other labels". */
+export type LabelChoice = IssueLabel & { group: string };
+const OTHER = "Other labels";
+
+/**
+ * Labels to offer: every bible entry's (whether or not its label is on GitHub yet), by type, then the
+ * repository's other labels worth offering (see pickableLabels).
+ */
+export function labelChoices(meta: Pick<IssueList, "labels" | "issues"> | undefined, novel: Novel): LabelChoice[] {
+  const entries = novel.entityTypes.flatMap((t) =>
+    novel.entities
+      .filter((e) => e.type === t.key)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((e) => ({ ...entityLabel(novel, e), group: plural(t.label) })),
+  );
+  const others = pickableLabels(meta)
+    // An entry's label is offered as the entry (above), under its current name.
+    .filter((l) => !entityOfLabel(novel, l))
+    .map((l) => ({ ...l, group: OTHER }));
+  return [...entries, ...others];
 }
 
 /**

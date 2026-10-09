@@ -366,7 +366,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
       </div>
       {showDetails && detailsScene && <SceneDetails key={detailsScene.file} novel={novel} workspace={workspace} path={detailsScene.file} title={detailsScene.title} newEntry={newEntry.create} />}
       <EntryPanel novelId={novelId} novel={novel} workspace={workspace} spell={spell} />
-      {!entryOpen && <RaisePanel novelId={novelId} />}
+      {!entryOpen && <RaisePanel novelId={novelId} novel={novel} />}
       {!entryOpen && !raising && <IssuePanel novelId={novelId} />}
       {menu && (
         <SelectionMenu

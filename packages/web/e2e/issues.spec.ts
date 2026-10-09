@@ -60,7 +60,7 @@ test("lists, filters, creates, comments on, labels, edits, closes and reopens is
   const id = await open(page, app);
   const repo = await onGitHub(page, app, id);
   repo.milestones.push({ number: 1, title: "Second draft", state: "open" });
-  const hole = app.github.addIssue("ada", "varn", { title: "Ada can't be on the bridge and at the station", labels: ["kind/continuity", "char/ada"], milestone: 1, body: "See **chapter two**." });
+  const hole = app.github.addIssue("ada", "varn", { title: "Ada can't be on the bridge and at the station", labels: ["kind/continuity", "second-pass"], milestone: 1, body: "See **chapter two**." });
   app.github.comment(hole, "The clock says otherwise.");
   app.github.addIssue("ada", "varn", { title: "Research 1920s rail timetables", labels: ["kind/research"] });
   const done = app.github.addIssue("ada", "varn", { title: "Rename the ferry" });
@@ -84,7 +84,7 @@ test("lists, filters, creates, comments on, labels, edits, closes and reopens is
   await page.getByRole("button", { name: "Refresh from GitHub" }).click();
   await page.getByRole("button", { name: /^Filter by label/ }).click();
   await expect(page.getByRole("option", { name: "bug" })).toHaveCount(0);
-  await expect(page.getByRole("option", { name: "char/ada" })).toBeVisible();
+  await expect(page.getByRole("option", { name: "second-pass" })).toBeVisible();
   await page.keyboard.press("Escape");
   await page.getByRole("combobox", { name: "State" }).selectOption("closed");
   await expect(issueList(page).getByRole("link")).toHaveText(["Rename the ferry"]);
@@ -100,7 +100,7 @@ test("lists, filters, creates, comments on, labels, edits, closes and reopens is
   await form.getByRole("textbox", { name: "Details" }).fill("It's *Marta* in chapter one.");
   await form.getByRole("combobox", { name: "Kind" }).selectOption({ label: "Continuity" });
   await form.getByRole("button", { name: /^Add to labels/ }).click();
-  await page.keyboard.type("char/ada");
+  await page.keyboard.type("second-pass");
   await page.keyboard.press("Enter");
   await axe(page);
   // The list stays open for more; Escape closes it, not the form.
@@ -109,7 +109,7 @@ test("lists, filters, creates, comments on, labels, edits, closes and reopens is
   await form.getByRole("button", { name: "Create issue" }).click();
   await expect(page.getByRole("heading", { level: 1, name: /The ferry's name changes in chapter four #4/ })).toBeVisible();
   await expect(page).toHaveURL(/\/issues\/4$/);
-  expect(repo.issues.find((i) => i.number === 4)).toMatchObject({ title: "The ferry's name changes in chapter four", labels: ["char/ada", "kind/continuity"] });
+  expect(repo.issues.find((i) => i.number === 4)).toMatchObject({ title: "The ferry's name changes in chapter four", labels: ["second-pass", "kind/continuity"] });
   await expect(page.locator(".ghw-markdown em")).toHaveText("Marta");
 
   await page.getByRole("textbox", { name: "Add a comment" }).fill("Fixed in chapter four.");
@@ -122,25 +122,25 @@ test("lists, filters, creates, comments on, labels, edits, closes and reopens is
   await page.keyboard.type("loc/ferry");
   await page.getByRole("option", { name: "New label “loc/ferry”" }).click();
   await page.keyboard.press("Escape");
-  await expect.poll(() => repo.issues.find((i) => i.number === 4)?.labels).toEqual(["char/ada", "loc/ferry", "kind/continuity"]);
+  await expect.poll(() => repo.issues.find((i) => i.number === 4)?.labels).toEqual(["second-pass", "loc/ferry", "kind/continuity"]);
   await about.getByRole("combobox", { name: "Kind" }).selectOption({ label: "Revision" });
-  await expect.poll(() => repo.issues.find((i) => i.number === 4)?.labels).toEqual(["char/ada", "loc/ferry", "kind/revision"]);
+  await expect.poll(() => repo.issues.find((i) => i.number === 4)?.labels).toEqual(["second-pass", "loc/ferry", "kind/revision"]);
   expect(repo.labels.find((l) => l.name === "kind/revision")?.color).toBe("7057ff");
   // Chosen labels stay in the list, checked: choosing one again takes it off, and its name isn't offered as new.
   await about.getByRole("button", { name: /^Add to labels/ }).click();
-  await expect(page.getByRole("option", { name: "char/ada chosen", exact: true })).toBeVisible();
+  await expect(page.getByRole("option", { name: "second-pass chosen", exact: true })).toBeVisible();
   await expect(page.getByRole("option", { name: "loc/ferry chosen", exact: true })).toBeVisible();
-  await page.keyboard.type("char/ada");
+  await page.keyboard.type("second-pass");
   await expect(page.getByRole("option", { name: /New label/ })).toHaveCount(0);
   await page.keyboard.press("Enter");
   await expect.poll(() => repo.issues.find((i) => i.number === 4)?.labels).toEqual(["loc/ferry", "kind/revision"]);
   // Still listed, now unchecked, and the list stays open for the next.
-  await expect(page.getByRole("option", { name: "char/ada", exact: true })).toBeVisible();
-  await page.keyboard.type("char/ada");
+  await expect(page.getByRole("option", { name: "second-pass", exact: true })).toBeVisible();
+  await page.keyboard.type("second-pass");
   await page.keyboard.press("Enter");
-  await expect.poll(() => repo.issues.find((i) => i.number === 4)?.labels).toEqual(["loc/ferry", "char/ada", "kind/revision"]);
+  await expect.poll(() => repo.issues.find((i) => i.number === 4)?.labels).toEqual(["loc/ferry", "second-pass", "kind/revision"]);
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("option", { name: "char/ada chosen", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("option", { name: "second-pass chosen", exact: true })).toHaveCount(0);
   await about.getByRole("combobox", { name: "Milestone" }).selectOption({ label: "Second draft" });
   await expect.poll(() => repo.issues.find((i) => i.number === 4)?.milestone).toBe(1);
   // A new milestone, from here.
@@ -236,6 +236,9 @@ test("raises an issue about selected text, quoted, linked and anchored, without 
   await expect(panel.getByRole("textbox", { name: "Title" })).toBeFocused();
   await axe(page);
   await panel.getByText("Continuity").click();
+  // Labelled to start with by who and what the scene is about, by name; any can come off.
+  await expect(panel.getByRole("list", { name: "Labels" }).getByRole("listitem")).toHaveText(["Ada Varn", "Varn Station", "The Sale", "Inheritance"]);
+  await panel.getByRole("button", { name: "Remove label “Inheritance”" }).click();
   await panel.getByRole("textbox", { name: "Title" }).fill("Who counted the flags?");
   await panel.getByRole("textbox", { name: "Note" }).fill("Ben counts them in chapter two.");
   await panel.getByRole("textbox", { name: "Title" }).press("Enter");
@@ -245,7 +248,10 @@ test("raises an issue about selected text, quoted, linked and anchored, without 
   const url = page.url();
 
   const issue = repo.issues[0]!;
-  expect(issue).toMatchObject({ title: "Who counted the flags?", labels: ["kind/continuity"] });
+  expect(issue).toMatchObject({ title: "Who counted the flags?", labels: ["kind/continuity", "char/ada-varn", "loc/varn-station", "plot/the-sale"] });
+  // The entries' labels, made with their type's colour and the entry's name and ID.
+  expect(repo.labels.find((l) => l.name === "char/ada-varn")).toEqual({ name: "char/ada-varn", color: "1f77b4", description: "Ada Varn · char_7f3k2q" });
+  expect(repo.labels.find((l) => l.name === "loc/varn-station")?.color).toBe("2ca02c");
   expect(issue.body).toContain("Ben counts them in chapter two.\n\n> She stood with her bag at her feet and counted them twice, the way you count stitches in a wound.\n\nFrom [*The Station*](");
   expect(issue.body).toMatch(new RegExp(`\\(${app.github.url}/ada/varn/blob/[0-9a-f]{40}/manuscript/01-return/01-arrival/01-the-station\\.md\\?plain=1#L\\d+\\)`));
   expect(readAnchor(issue.body)).toMatchObject({ scene: "sc_5tat1n", quote: "She stood with her bag at her feet and counted them twice, the way you count stitches in a wound.", commit: expect.stringMatching(/^[0-9a-f]{40}$/) });
@@ -352,4 +358,31 @@ test("milestones: made, renamed, closed and reopened from the Issues view", asyn
   await expect(page).toHaveURL(/milestone=1/);
   // Labels on a new repository are the writing kinds, not GitHub's software labels.
   expect(repo.labels.map((l) => l.name)).toEqual(["kind/plot-hole", "kind/continuity", "kind/research", "kind/idea", "kind/revision"]);
+});
+
+test("bible entries as labels: picked by name, shown by name, filtered by", async ({ page, app }) => {
+  const id = await open(page, app);
+  const repo = await onGitHub(page, app, id);
+  app.github.addIssue("ada", "varn", { title: "Who owns the toll house?" });
+  app.github.addIssue("ada", "varn", { title: "The ferry's name" });
+  await views(page).getByRole("link", { name: "Issues" }).click();
+  await issueList(page).getByRole("link", { name: "Who owns the toll house?" }).click();
+  const about = page.getByRole("complementary", { name: "About this issue" });
+  await about.getByRole("button", { name: /^Add to labels/ }).click();
+  await expect(page.getByRole("group", { name: "Characters" }).getByRole("option")).toContainText(["Ada Varn", "Ben Varn", "Mirela Kost", "Tomas Hale"]);
+  await page.keyboard.type("Ben");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Escape");
+  await expect.poll(() => repo.issues.find((i) => i.number === 1)?.labels).toEqual(["char/ben-varn"]);
+  await expect(about.getByRole("list", { name: "Labels" })).toHaveText("Ben Varn");
+  expect(repo.labels.find((l) => l.name === "char/ben-varn")?.description).toBe("Ben Varn · char_b3n0vs");
+
+  await page.getByRole("link", { name: "All issues" }).click();
+  await expect(issueList(page).getByRole("listitem").filter({ hasText: "Who owns the toll house?" })).toContainText("Ben Varn");
+  await page.getByRole("button", { name: /^Filter by label/ }).click();
+  await page.keyboard.type("Ben Varn");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Escape");
+  await expect(issueList(page).getByRole("link")).toHaveText(["Who owns the toll house?"]);
+  await expect(page).toHaveURL(/labels=char%2Fben-varn|labels=char\/ben-varn/);
 });
