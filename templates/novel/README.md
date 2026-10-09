@@ -38,4 +38,8 @@ When you create a repository from this template, the **Set up novel** workflow r
 
 Every push that changes the story also runs the **Diagrams** workflow, which redraws the snapshots in `diagrams/` and commits them, so they stay current on github.com. To draw them locally: `node .github/gh-writer/snapshots.mjs`.
 
+## Compiling the book
+
+The **Compile** workflow makes the manuscript into a Word file in standard manuscript format, an EPUB e-book and a PDF. It runs for every named checkpoint you make in the gh-writer app, attaching the files to a Release named after it (under Releases on the repository page), and on demand from the Actions tab (choose a preset and a range of chapters; the files are kept with the run). Presets live in `compile.yaml`. To compile locally: `node .github/gh-writer/compile.mjs` (files go to `compiled/`).
+
 The full format is specified in [docs/format/v1.md](https://github.com/heffrey78/gh-writer/blob/main/docs/format/v1.md).

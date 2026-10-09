@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import { newId, SCHEMA_VERSION } from "@gh-writer/core";
+import { runCompile } from "./compile-command.ts";
 import { runServe } from "./serve-command.ts";
 import { runSnapshots } from "./snapshots-command.ts";
 import { runValidate } from "./validate-command.ts";
@@ -16,6 +17,12 @@ Commands:
   validate [dir] [--json]   Check a novel repository (default: current directory)
   snapshots [dir] [--check] Write the diagram snapshots (diagrams/*.svg, diagrams/README.md);
                             with --check, only report whether they're current (exit 1 if not)
+  compile [dir]             Compile the manuscript to files, as the app does
+      --format <list>       docx, epub, pdf, comma-separated (default: all three)
+      --preset <name>       A preset in compile.yaml (default: its first)
+      --from <chapter>      The first chapter to compile, by ID (default: the first)
+      --to <chapter>        The last, by ID (default: the last)
+      --out <dir>           Where the files go (default: compiled/ in the novel)
   new-id <prefix>           Print a new random ID, e.g. "gh-writer new-id char"
 
 Options:
@@ -32,6 +39,11 @@ async function main(argv: string[]): Promise<number> {
       json: { type: "boolean" },
       check: { type: "boolean" },
       port: { type: "string" },
+      format: { type: "string" },
+      preset: { type: "string" },
+      from: { type: "string" },
+      to: { type: "string" },
+      out: { type: "string" },
       "sync-every": { type: "string" },
       open: { type: "boolean", default: true },
       help: { type: "boolean", short: "h" },
@@ -67,6 +79,10 @@ async function main(argv: string[]): Promise<number> {
       return runValidate(rest[0] ?? ".", { json: values.json });
     case "snapshots":
       return runSnapshots(rest[0] ?? ".", { check: values.check ?? false });
+    case "compile": {
+      const { format, preset, from, to, out } = values;
+      return runCompile(rest[0] ?? ".", { format, preset, from, to, out });
+    }
     case "new-id": {
       const prefix = rest[0];
       if (!prefix || !/^[a-z]{2,8}$/.test(prefix)) {

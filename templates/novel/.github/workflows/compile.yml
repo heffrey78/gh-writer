@@ -1,0 +1,79 @@
+name: Compile
+
+# Compiles the manuscript to Word (standard manuscript format), EPUB and PDF, with the same files
+# as the gh-writer app makes from the same commit. Runs on demand (Actions → Compile → Run workflow),
+# keeping the files with the run, and for every named checkpoint pushed from the app (a checkpoint/…
+# tag), attaching them to a Release named after it. Checkpoints gh-writer takes by itself (before a
+# restore) are skipped.
+on:
+  push:
+    tags: ["checkpoint/**"]
+  workflow_dispatch:
+    inputs:
+      preset:
+        description: "Preset in compile.yaml (empty: its first, or standard manuscript format)"
+        required: false
+      from:
+        description: "First chapter, by ID (empty: the first)"
+        required: false
+      to:
+        description: "Last chapter, by ID (empty: the last)"
+        required: false
+      format:
+        description: "Formats, comma-separated"
+        required: false
+        default: "docx,epub,pdf"
+
+permissions:
+  contents: write
+
+jobs:
+  compile:
+    if: ${{ !github.event.repository.is_template }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Read the checkpoint
+        id: checkpoint
+        if: github.event_name == 'push'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          # The tag as made, with its message: the checkout may not keep it annotated.
+          git fetch --force origin "+refs/tags/$TAG:refs/tags/$TAG"
+          message=$(git tag --list --format='%(contents)' "$TAG")
+          if printf '%s\n' "$message" | grep -q '^Checkpoint: *auto$'; then
+            echo "A checkpoint gh-writer took by itself: nothing to compile."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+          name=$(printf '%s\n' "$message" | head -n 1)
+          echo "name=${name:-$TAG}" >> "$GITHUB_OUTPUT"
+      - name: Compile
+        if: steps.checkpoint.outputs.skip != 'true'
+        env:
+          PRESET: ${{ inputs.preset }}
+          FROM: ${{ inputs.from }}
+          TO: ${{ inputs.to }}
+          FORMAT: ${{ inputs.format || 'docx,epub,pdf' }}
+        run: node .github/gh-writer/compile.mjs . --out compiled --format "$FORMAT" ${PRESET:+--preset "$PRESET"} ${FROM:+--from "$FROM"} ${TO:+--to "$TO"}
+      - name: Keep the files with the run
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled
+          path: compiled/
+      - name: Attach the files to a Release for the checkpoint
+        if: github.event_name == 'push' && steps.checkpoint.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          NAME: ${{ steps.checkpoint.outputs.name }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" compiled/* --clobber
+          else
+            gh release create "$TAG" compiled/* --verify-tag --title "$NAME" --notes "The manuscript at the checkpoint “$NAME”, compiled by gh-writer."
+          fi

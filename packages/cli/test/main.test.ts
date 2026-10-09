@@ -157,3 +157,27 @@ describe("standalone validator bundle", () => {
     expect(run(out, broken)).toMatchObject({ code: 1 });
   }, 30_000);
 });
+
+describe("gh-writer compile", () => {
+  it("writes each format into compiled/ (which ignores itself), dated from the commit, chapters as asked", () => {
+    const novel = join(tmp, "compile-me");
+    cpSync(sample, novel, { recursive: true });
+    for (const args of [["init", "-q"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "Draft"]]) spawnSync("git", ["-C", novel, ...args]);
+    const r = run(main, "compile", novel, "--format", "docx,pdf", "--from", "ch_01dde6", "--to", "ch_01dde6");
+    expect(r.code, r.out + r.err).toBe(0);
+    expect(r.out).toMatch(/^Compiled 1 chapter \(145 words\): .*compiled\/the-bridge-at-varn-chapter-2\.docx, .*compiled\/the-bridge-at-varn-chapter-2\.pdf\n$/);
+    expect(readFileSync(join(novel, "compiled/.gitignore"), "utf8")).toContain("*");
+    // The files leave the novel as committed: compiling again gives the same bytes.
+    expect(spawnSync("git", ["-C", novel, "status", "--porcelain"], { encoding: "utf8" }).stdout).toBe("");
+    const first = readFileSync(join(novel, "compiled/the-bridge-at-varn-chapter-2.pdf"));
+    expect(run(main, "compile", novel, "--format", "pdf", "--from", "ch_01dde6", "--to", "ch_01dde6").code).toBe(0);
+    expect(readFileSync(join(novel, "compiled/the-bridge-at-varn-chapter-2.pdf")).equals(first)).toBe(true);
+  });
+
+  it("says what's wrong with a format, preset or range, exiting 1", () => {
+    const out = join(tmp, "nowhere");
+    expect(run(main, "compile", sample, "--format", "odt", "--out", out)).toMatchObject({ code: 1, out: expect.stringContaining('not "odt"') });
+    expect(run(main, "compile", sample, "--preset", "nope", "--out", out)).toMatchObject({ code: 1, out: expect.stringContaining("nope") });
+    expect(run(main, "compile", sample, "--from", "ch_h01d50", "--to", "ch_arr1va", "--out", out)).toMatchObject({ code: 1, out: expect.stringContaining("ends before it starts") });
+  });
+});

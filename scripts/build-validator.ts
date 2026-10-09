@@ -1,14 +1,18 @@
-// Bundle the validator (or, with --snapshots, the diagram snapshot writer) into one dependency-free
-// ES module for novel repositories.
-// Usage: node scripts/build-validator.ts [--snapshots] [outfile]   (default: dist/validate.mjs or dist/snapshots.mjs)
+// Bundle the validator (or, with --snapshots, the diagram snapshot writer; with --compile, the
+// compiler, its type copied alongside in fonts/) into one dependency-free ES module for novel repositories.
+// Usage: node scripts/build-validator.ts [--snapshots|--compile] [outfile]   (default: dist/<name>.mjs)
 import { build } from "esbuild";
-import { readFileSync } from "node:fs";
+import { cpSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
-const snapshots = process.argv.includes("--snapshots");
-const outfile = process.argv.slice(2).find((a) => !a.startsWith("--")) ?? (snapshots ? "dist/snapshots.mjs" : "dist/validate.mjs");
-const entry = snapshots ? "snapshots-standalone.ts" : "standalone.ts";
-const what = snapshots ? "diagram snapshot writer" : "novel validator";
-const usage = snapshots ? "node snapshots.mjs [dir] [--check]" : "node validate.mjs [dir] [--json]";
+const TOOLS = {
+  validate: { entry: "standalone.ts", what: "novel validator", usage: "node validate.mjs [dir] [--json]" },
+  snapshots: { entry: "snapshots-standalone.ts", what: "diagram snapshot writer", usage: "node snapshots.mjs [dir] [--check]" },
+  compile: { entry: "compile-standalone.ts", what: "manuscript compiler", usage: "node compile.mjs [dir] [--format docx,epub,pdf] [--preset <name>] [--from <chapter>] [--to <chapter>] [--out <dir>]" },
+};
+const name = process.argv.includes("--snapshots") ? "snapshots" : process.argv.includes("--compile") ? "compile" : "validate";
+const { entry, what, usage } = TOOLS[name];
+const outfile = process.argv.slice(2).find((a) => !a.startsWith("--")) ?? `dist/${name}.mjs`;
 const { version } = JSON.parse(readFileSync(new URL("../packages/cli/package.json", import.meta.url), "utf8")) as { version: string };
 
 await build({
@@ -29,4 +33,5 @@ await build({
     ].join("\n"),
   },
 });
+if (name === "compile") cpSync(new URL("../packages/export/fonts", import.meta.url), join(dirname(outfile), "fonts"), { recursive: true });
 console.log(`Built ${outfile}`);

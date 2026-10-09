@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@gh-writer/core": "0.1.0",
+    "@gh-writer/export": "0.1.0",
     "@gh-writer/server": "0.1.0"
   }
 }

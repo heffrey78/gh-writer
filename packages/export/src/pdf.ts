@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
+import nodeZlib from "node:zlib";
 import { numberWords, type Block, type Book, type Run } from "@gh-writer/core";
+import { zlibSync } from "fflate";
 import * as fontkit from "fontkit";
 import PDFDocument from "pdfkit";
 
@@ -41,12 +43,33 @@ const SIZE = 12;
 const LINE = 2 * SIZE;
 const INDENT = PT / 2;
 
+/** Liberation Serif from a folder holding its four LiberationSerif-*.ttf files. */
+export function readFonts(dir: URL): PdfFonts {
+  const read = (name: string) => readFileSync(new URL(`LiberationSerif-${name}.ttf`, dir));
+  return { regular: read("Regular"), italic: read("Italic"), bold: read("Bold"), boldItalic: read("BoldItalic") };
+}
+
 let bundled: PdfFonts | undefined;
 /** Liberation Serif, from gh-writer's fonts folder. */
 export function defaultFonts(): PdfFonts {
-  const read = (name: string) => readFileSync(new URL(`../fonts/LiberationSerif-${name}.ttf`, import.meta.url));
-  bundled ??= { regular: read("Regular"), italic: read("Italic"), bold: read("Bold"), boldItalic: read("BoldItalic") };
+  bundled ??= readFonts(new URL("../fonts/", import.meta.url));
   return bundled;
+}
+
+/**
+ * Run `fn` with pdfkit compressing through fflate, as its browser build does, rather than Node's zlib:
+ * Node's bytes vary with its version (zlib or zlib-ng), fflate's don't, so a book makes the same PDF
+ * on the author's machine and in the novel's GitHub Action. pdfkit compresses only as it writes the
+ * document out (pages are buffered), all within `fn`, synchronously: nothing else sees the swap.
+ */
+function portableDeflate<T>(fn: () => T): T {
+  const original = nodeZlib.deflateSync;
+  nodeZlib.deflateSync = ((data: Uint8Array) => Buffer.from(zlibSync(data))) as typeof nodeZlib.deflateSync;
+  try {
+    return fn();
+  } finally {
+    nodeZlib.deflateSync = original;
+  }
 }
 
 export function toPdf(book: Book, { date = new Date(0), fonts = defaultFonts() }: PdfOptions = {}): Promise<PdfResult> {
@@ -164,6 +187,6 @@ export function toPdf(book: Book, { date = new Date(0), fonts = defaultFonts() }
     doc.on("data", (c: Uint8Array) => chunks.push(c));
     doc.on("end", () => resolve({ pdf: Buffer.concat(chunks), missing: [...missing] }));
     doc.on("error", reject);
-    doc.end();
+    portableDeflate(() => doc.end());
   });
 }

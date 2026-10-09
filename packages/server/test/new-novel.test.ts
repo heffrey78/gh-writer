@@ -57,7 +57,8 @@ describe("Library.create", () => {
     // Every template file is there, the scripts and workflows byte for byte, and no template ID is left.
     expect(filesIn(novel.path)).toEqual(filesIn(DEFAULT_TEMPLATE));
     for (const file of filesIn(DEFAULT_TEMPLATE).filter((f) => f.startsWith(".github/") || f === ".gitattributes")) {
-      expect(readFileSync(join(novel.path, file)), file).toEqual(readFileSync(join(DEFAULT_TEMPLATE, file)));
+      // Buffer.equals: toEqual compares a large file (the compiler, its fonts) byte by byte, slowly.
+      expect(readFileSync(join(novel.path, file)).equals(readFileSync(join(DEFAULT_TEMPLATE, file))), file).toBe(true);
     }
     for (const file of filesIn(novel.path).filter((f) => !f.startsWith(".github/"))) {
       expect(readFileSync(join(novel.path, file), "utf8"), file).not.toMatch(/_temp1a\b/);

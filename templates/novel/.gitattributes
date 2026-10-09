@@ -1,1 +1,2 @@
 .github/gh-writer/*.mjs linguist-generated=true
+.github/gh-writer/fonts/*.ttf binary

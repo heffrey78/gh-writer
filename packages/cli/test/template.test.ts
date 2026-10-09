@@ -1,10 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { runCompile } from "../src/compile-command.ts";
 
 const repo = fileURLToPath(new URL("../../../", import.meta.url));
 const template = join(repo, "templates/novel");
@@ -37,6 +38,48 @@ describe("novel template", () => {
       expect(check.status, `${dir}: ${check.stdout} (run \`npm run build:template\`)`).toBe(0);
     }
   }, 30_000);
+
+  it("vendors a compiler that matches the current source, with gh-writer's type alongside", () => {
+    const fresh = join(tmp, "compile", "compile.mjs");
+    expect(node([join(repo, "scripts/build-validator.ts"), "--compile", fresh]).status).toBe(0);
+    const vendored = join(template, ".github/gh-writer");
+    expect(readFileSync(join(vendored, "compile.mjs"), "utf8") === readFileSync(fresh, "utf8"), "run `npm run build:template`").toBe(true);
+    const fonts = join(repo, "packages/export/fonts");
+    expect(readdirSync(join(vendored, "fonts")).sort()).toEqual(readdirSync(fonts).sort());
+    for (const f of readdirSync(fonts)) expect(readFileSync(join(vendored, "fonts", f)).equals(readFileSync(join(fonts, f))), f).toBe(true);
+  }, 60_000);
+
+  it("the vendored compiler makes the same files, byte for byte, as the app's compiler from the same commit", async () => {
+    const novel = join(tmp, "compile-sample");
+    cpSync(join(repo, "examples/sample-novel"), novel, { recursive: true });
+    for (const args of [["init", "-q"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "Draft"]]) spawnSync("git", ["-C", novel, ...args]);
+    const bundled = node([join(template, ".github/gh-writer/compile.mjs"), novel, "--out", join(tmp, "by-bundle")]);
+    expect(bundled.status, bundled.stdout + bundled.stderr).toBe(0);
+    expect(await runCompile(novel, { out: join(tmp, "by-app") }, () => {})).toBe(0);
+    const files = readdirSync(join(tmp, "by-app")).sort();
+    expect(files).toEqual(["the-bridge-at-varn.docx", "the-bridge-at-varn.epub", "the-bridge-at-varn.pdf"]);
+    expect(readdirSync(join(tmp, "by-bundle")).sort()).toEqual(files);
+    for (const f of files) expect(readFileSync(join(tmp, "by-bundle", f)).equals(readFileSync(join(tmp, "by-app", f))), f).toBe(true);
+  }, 60_000);
+
+  it("compiles named checkpoints into a Release, and on demand with a preset and range", () => {
+    const wf = parse(readFileSync(join(template, ".github/workflows/compile.yml"), "utf8")) as {
+      on: { push: { tags: string[] }; workflow_dispatch: { inputs: Record<string, unknown> } };
+      permissions: { contents: string };
+      jobs: { compile: { if: string; steps: { if?: string; run?: string; uses?: string }[] } };
+    };
+    expect(wf.on.push.tags).toEqual(["checkpoint/**"]);
+    expect(Object.keys(wf.on.workflow_dispatch.inputs)).toEqual(["preset", "from", "to", "format"]);
+    expect(wf.permissions.contents).toBe("write");
+    expect(wf.jobs.compile.if).toContain("is_template");
+    const steps = wf.jobs.compile.steps;
+    const runs = steps.map((s) => s.run ?? "").join("\n");
+    // Checkpoints gh-writer takes by itself carry this trailer (packages/server/src/checkpoints.ts).
+    expect(runs).toContain("grep -q '^Checkpoint: *auto$'");
+    expect(runs).toContain("node .github/gh-writer/compile.mjs . --out compiled");
+    expect(runs).toContain('gh release create "$TAG" compiled/* --verify-tag --title "$NAME"');
+    expect(steps.find((s) => s.uses?.startsWith("actions/upload-artifact"))?.if).toBe("github.event_name == 'workflow_dispatch'");
+  });
 
   it("the vendored snapshot writer redraws a novel's relationships after a relationship changes", () => {
     const novel = join(tmp, "sample-copy");
