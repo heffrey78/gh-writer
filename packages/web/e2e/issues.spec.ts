@@ -386,3 +386,54 @@ test("bible entries as labels: picked by name, shown by name, filtered by", asyn
   await expect(issueList(page).getByRole("link")).toHaveText(["Who owns the toll house?"]);
   await expect(page).toHaveURL(/labels=char%2Fben-varn|labels=char\/ben-varn/);
 });
+
+test("an entry's open issues on its page, a scene's in its details; renames follow; deleting offers to remove the label", async ({ page, app }) => {
+  const id = await open(page, app);
+  const repo = await onGitHub(page, app, id);
+  await expect(views(page).getByRole("link", { name: "Issues" })).toBeVisible();
+  app.github.addIssue("ada", "varn", { title: "Where was Ada at noon?", labels: ["char/ada-varn"] });
+  const coat = app.github.addIssue("ada", "varn", { title: "Ada's coat", labels: ["char/ada-varn"] });
+  app.github.touch(coat, { state: "closed" });
+  app.github.addIssue("ada", "varn", { title: "Ben's debt", labels: ["char/ben-varn"] });
+  const quote = "She stood with her bag at her feet and counted them twice, the way you count stitches in a wound.";
+  app.github.addIssue("ada", "varn", { title: "Who counted the flags?", body: passageIssueBody({ details: "", quote, sceneTitle: "The Station", anchor: { scene: "sc_5tat1n", quote } }) });
+  const headers = { origin: app.url };
+  await page.request.post(`${app.url}/api/novels/${id}/issues/refresh`, { headers });
+
+  // Ada's entry: her open issues, as label:char/ada-varn finds them on GitHub.
+  await page.goto(`${app.url}/novels/${id}/bible/char_7f3k2q`);
+  const openIssues = page.getByRole("region", { name: /^Open issues/ });
+  const onGitHubToo = repo.issues.filter((i) => i.state === "open" && i.labels.includes("char/ada-varn")).map((i) => i.title);
+  await expect(openIssues.getByRole("listitem")).toHaveText(onGitHubToo.map((t) => new RegExp(`^${t.replace(/[?]/g, "\\?")}`)));
+  await expect(openIssues).toContainText("On GitHub it's the label char/ada-varn.");
+  await axe(page);
+
+  // Renamed: her label follows on GitHub, her issues with it.
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill("Ada Kost");
+  await page.getByRole("button", { name: "Save details" }).click();
+  await expect.poll(() => repo.labels.map((l) => l.name), { timeout: 10_000 }).toContain("char/ada-kost");
+  expect(repo.labels.map((l) => l.name)).not.toContain("char/ada-varn");
+  expect(repo.issues.find((i) => i.title === "Where was Ada at noon?")?.labels).toEqual(["char/ada-kost"]);
+  await expect(openIssues).toContainText("On GitHub it's the label char/ada-kost.");
+  await expect(openIssues.getByRole("listitem")).toHaveText([/^Where was Ada at noon\?/]);
+
+  // The Station's details: the issue about its passage, opened beside the text.
+  await page.getByRole("tree", { name: "Manuscript" }).getByRole("treeitem", { name: /^The Station,/ }).click();
+  await expect(page.getByRole("textbox", { name: "Scene text" })).toBeFocused();
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.keyboard.type("show scene details");
+  await page.keyboard.press("Enter");
+  const details = page.getByRole("complementary", { name: "Details of “The Station”" });
+  await details.getByRole("group", { name: "Open issues" }).getByRole("button", { name: "Who counted the flags?" }).click();
+  await expect(page.getByRole("complementary", { name: /Who counted the flags\?/ })).toBeVisible();
+
+  // An entry deleted: its label can go too.
+  const made = (await (await page.request.post(`${app.url}/api/novels/${id}/bible/entities`, { data: { type: "character", name: "Lena Dray" }, headers })).json()) as { id: string };
+  await page.request.post(`${app.url}/api/novels/${id}/issues/labels`, { data: { name: "char/lena-dray", color: "1f77b4", description: `Lena Dray · ${made.id}` }, headers });
+  await page.goto(`${app.url}/novels/${id}/bible/${made.id}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Lena Dray" })).toBeVisible();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(notice(page)).toContainText("Deleted “Lena Dray”. Its label char/lena-dray is still on GitHub");
+  await notice(page).getByRole("button", { name: "Remove label" }).click();
+  await expect.poll(() => repo.labels.map((l) => l.name)).not.toContain("char/lena-dray");
+});

@@ -1,5 +1,9 @@
 import type { EntityFields, Reference } from "@gh-writer/client";
-import { backlinks, type Entity, type Novel, type Relationship, type SceneLink } from "@gh-writer/core";
+import { backlinks, entityOfLabel, type Entity, type Novel, type Relationship, type SceneLink } from "@gh-writer/core";
+import { useGitHubRepo } from "../github/repo.ts";
+import { EntryIssues } from "../issues/entry-issues.tsx";
+import { useIssueList } from "../issues/use-issues.ts";
+import { useNotice } from "../novel/notice.tsx";
 import { SceneEditor, type SpellService } from "@gh-writer/editor/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, X } from "lucide-react";
@@ -89,6 +93,10 @@ export function EntryPage({
   });
 
   const [references, setReferences] = useState<Reference[]>();
+  // On GitHub, the entry's label (if it's there): offered for removal when the entry goes.
+  const repo = useGitHubRepo(novelId);
+  const githubLabel = useIssueList(novelId, { state: "open" }, { enabled: !!repo }).data?.labels.find((l) => entityOfLabel(novel, l)?.id === entity.id);
+  const show = useNotice((n) => n.show);
   const remove = useMutation({
     mutationFn: async (confirm: boolean) => api.bible.deleteEntity(novelId, entity.id, await base(), confirm),
     onSuccess: async (result) => {
@@ -96,6 +104,20 @@ export function EntryPage({
       setReferences(undefined);
       await refresh();
       void navigate(`/novels/${novelId}/bible`);
+      if (repo && githubLabel) {
+        show({
+          message: `Deleted “${entity.name}”. Its label ${githubLabel.name} is still on GitHub, on its issues.`,
+          action: {
+            label: "Remove label",
+            run: () =>
+              void api.issues
+                .deleteLabel(novelId, githubLabel.name)
+                .then(() => show({ message: `Removed the label ${githubLabel.name} from GitHub.` }))
+                .catch((e: unknown) => show({ message: `Couldn't remove the label: ${e instanceof Error ? e.message : String(e)}` }))
+                .finally(() => void queryClient.invalidateQueries({ queryKey: keys.issues(novelId) })),
+          },
+        });
+      }
     },
   });
 
@@ -195,6 +217,8 @@ export function EntryPage({
           <p className="text-sm text-muted">Opening…</p>
         )}
       </section>
+
+      <EntryIssues novelId={novelId} novel={novel} entity={entity} />
 
       <section aria-labelledby={`${ids.links}-h`} className="grid gap-3">
         <h2 id={`${ids.links}-h`} className="font-semibold">

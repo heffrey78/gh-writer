@@ -364,7 +364,16 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
           />
         )}
       </div>
-      {showDetails && detailsScene && <SceneDetails key={detailsScene.file} novel={novel} workspace={workspace} path={detailsScene.file} title={detailsScene.title} newEntry={newEntry.create} />}
+      {showDetails && detailsScene && <SceneDetails
+          key={detailsScene.file}
+          novel={novel}
+          workspace={workspace}
+          path={detailsScene.file}
+          title={detailsScene.title}
+          newEntry={newEntry.create}
+          issues={repo ? anchored.filter((a) => a.scene === detailsScene.file).map(({ number, title }) => ({ number, title })) : undefined}
+          onOpenIssue={(n) => issueMarks.onOpen([n])}
+        />}
       <EntryPanel novelId={novelId} novel={novel} workspace={workspace} spell={spell} />
       {!entryOpen && <RaisePanel novelId={novelId} novel={novel} />}
       {!entryOpen && !raising && <IssuePanel novelId={novelId} />}

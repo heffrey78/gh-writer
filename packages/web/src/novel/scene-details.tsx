@@ -49,6 +49,8 @@ export function SceneDetails({
   path,
   title,
   newEntry,
+  issues,
+  onOpenIssue,
 }: {
   novel: Novel;
   workspace: Workspace;
@@ -56,6 +58,9 @@ export function SceneDetails({
   title: string;
   /** Make an entry of a type from a picker's search (see useQuickEntry): returns its ID at once. */
   newEntry?: (type: string, name: string) => string | undefined;
+  /** Open issues raised about the scene's passages (a novel on GitHub), and how to open one beside the text. */
+  issues?: { number: number; title: string }[] | undefined;
+  onOpenIssue?: (number: number) => void;
 }) {
   const file = useStore(workspace.store, (s) => s.files[path]);
   const show = useNotice((s) => s.show);
@@ -247,6 +252,25 @@ export function SceneDetails({
           </Group>
         );
       })}
+
+      {issues && (
+        <Group label="Open issues">
+          {issues.length ? (
+            <ul className="grid gap-1">
+              {issues.map((i) => (
+                <li key={i.number}>
+                  <button type="button" onClick={() => onOpenIssue?.(i.number)} className="text-left underline-offset-2 hover:underline">
+                    {i.title}
+                  </button>{" "}
+                  <span className="text-muted">{i.number > 0 ? `#${i.number}` : "not on GitHub yet"}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted">None about this scene's passages.</p>
+          )}
+        </Group>
+      )}
 
       <Group label="Story time">
         <SelectField

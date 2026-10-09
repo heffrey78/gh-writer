@@ -488,6 +488,8 @@ function issuesApi(root: (novelId: string) => string, request: Request) {
       call<Issue>("POST", novelId, "/passage", passage),
     /** Make a label on the repository (with its colour) if it isn't there yet. */
     ensureLabel: (novelId: string, label: IssueLabel) => call<IssueLabel>("POST", novelId, "/labels", label),
+    /** Delete a label from the repository (a deleted entry's): its issues lose it. */
+    deleteLabel: (novelId: string, name: string) => call<object>("DELETE", novelId, `/labels/${encodeURIComponent(name)}`),
     /** Make a milestone on GitHub (needs GitHub: not queued offline). */
     createMilestone: (novelId: string, title: string) => call<Milestone>("POST", novelId, "/milestones", { title }),
     updateMilestone: (novelId: string, number: number, change: { title?: string; state?: "open" | "closed" }) => call<Milestone>("PATCH", novelId, `/milestones/${number}`, change),
