@@ -6,6 +6,7 @@ status: revised
 pov: char_7f3k2q
 characters: [char_7f3k2q, char_b3n0vs]
 locations: [loc_br1dg3]
+entities: [art_p1an5x]
 plotlines:
   - id: plot_h315tz
     beat: The plans have been sold

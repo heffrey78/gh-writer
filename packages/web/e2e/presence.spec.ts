@@ -37,11 +37,11 @@ test("characters, places, themes and other entries against every scene, from the
   await expect(themes.getByRole("gridcell", { name: "The Betrayal: Trust present, strength 3" })).toBeVisible();
   await expect(page).toHaveURL(/type=theme/);
 
-  // A custom type has no list in a scene: it's there where the prose mentions it.
+  // A custom type is listed in a scene's entities, and named in its prose.
   await page.getByRole("combobox", { name: "Rows" }).selectOption({ label: "Artifacts" });
-  await expect(page.getByText("Artifacts have no list in a scene's details")).toBeVisible();
-  await expect(grid(page, "Artifacts by scene").getByRole("gridcell", { name: "The Betrayal: The Original Plans mentioned only" })).toBeVisible();
-  await expect(grid(page, "Artifacts by scene").getByRole("gridcell", { name: /mentioned only$/ })).toHaveCount(1);
+  await expect(page.getByText("listed in the scene's artifacts")).toBeVisible();
+  await expect(grid(page, "Artifacts by scene").getByRole("gridcell", { name: "The Betrayal: The Original Plans present" })).toBeVisible();
+  await expect(grid(page, "Artifacts by scene").getByRole("gridcell", { name: /present$/ })).toHaveCount(1);
 
   // The same grid as the swimlanes: one tab stop, arrows within.
   await page.getByRole("combobox", { name: "Rows" }).selectOption({ label: "Characters" });
@@ -84,10 +84,16 @@ test("a cell puts someone in a scene, or takes them out, through the scene's met
   await page.keyboard.press("Escape");
   await expect(trust).toHaveAccessibleName("The Betrayal: Trust present, strength 1");
 
-  // Custom types are there by mention only: a cell explains rather than toggles.
+  // A custom type toggles the same way, in the scene's entities.
   await page.getByRole("combobox", { name: "Rows" }).selectOption({ label: "Artifacts" });
-  await grid(page, "Artifacts by scene").locator("tbody").getByRole("gridcell").first().click();
-  await expect(page.getByRole("status").filter({ hasText: "Artifacts are in a scene where its prose mentions them" })).toBeVisible();
+  const plans = grid(page, "Artifacts by scene").getByRole("gridcell", { name: /^The Station: The Original Plans/ });
+  await plans.click();
+  await expect.poll(() => novel.read(STATION).split("\n---")[0]).toContain("\nentities:\n  - art_p1an5x");
+  await expect(plans).toHaveAccessibleName("The Station: The Original Plans present");
+  await plans.focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("dialog", { name: "The Original Plans in “The Station”" }).getByRole("button", { name: "Remove from this scene" }).click();
+  await expect(plans).toHaveAccessibleName("The Station: The Original Plans not there");
 });
 
 test("the matrix and the scene details panel agree after an edit in either", async ({ page, app }) => {

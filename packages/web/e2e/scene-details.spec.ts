@@ -77,6 +77,7 @@ test("edits every detail of a scene, changing only those lines of its front matt
         "pov: char_b3n0vs",
         "characters: [char_7f3k2q, char_b3n0vs, char_m1re1a]",
         "locations: [loc_5tat10]",
+        "entities: [art_p1an5x]",
         "plotlines:",
         "  - id: plot_h315tz",
         "    beat: Ben has sold the plans",

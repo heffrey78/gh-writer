@@ -11,6 +11,7 @@
     "pov": { "$ref": "common.schema.json#/$defs/id" },
     "characters": { "$ref": "common.schema.json#/$defs/idList" },
     "locations": { "$ref": "common.schema.json#/$defs/idList" },
+    "entities": { "$ref": "common.schema.json#/$defs/idList" },
     "plotlines": {
       "type": "array",
       "items": {

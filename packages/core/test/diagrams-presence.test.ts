@@ -2,17 +2,18 @@ import { fileURLToPath } from "node:url";
 import { loadNovel, mentions } from "../src/index.ts";
 import { nodeSource } from "../src/node.ts";
 import { describe, expect, it } from "vitest";
-import { gaps, gridKey, presence, sortRows, totals } from "../src/diagrams.ts";
+import { gaps, gridKey, presence, sceneList, sortRows, totals } from "../src/diagrams.ts";
 
 const novel = await loadNovel(nodeSource(fileURLToPath(new URL("../../../examples/sample-novel/", import.meta.url))));
 
 describe("presence", () => {
   it("matches the scenes' metadata exactly, for every type with a list", () => {
-    for (const [type, field] of [["character", "characters"], ["location", "locations"], ["theme", "themes"], ["plotline", "plotlines"]] as const) {
+    for (const [type, field] of [["character", "characters"], ["location", "locations"], ["theme", "themes"], ["plotline", "plotlines"], ["artifact", "entities"]] as const) {
+      expect(sceneList(type)).toBe(field);
       const m = presence(novel, type);
       for (const scene of novel.scenes) {
         const listed = new Set<string>(
-          field === "characters" ? [...(scene.pov ? [scene.pov] : []), ...scene.characters] : field === "locations" ? scene.locations : scene[field].map((x) => x.id),
+          field === "characters" ? [...(scene.pov ? [scene.pov] : []), ...scene.characters] : field === "locations" || field === "entities" ? scene[field] : scene[field].map((x) => x.id),
         );
         for (const row of m.rows) expect(m.marks.get(gridKey(row.id, scene.id))?.listed ?? false, `${type} ${row.name} in ${scene.title}`).toBe(listed.has(row.id));
       }
@@ -25,13 +26,15 @@ describe("presence", () => {
     expect(characters.marks.get(gridKey("char_b3n0vs", "sc_0d9wm4"))).toMatchObject({ listed: true, pov: false });
     const themes = presence(novel, "theme");
     expect(themes.marks.get(gridKey("theme_trvst5", "sc_0d9wm4"))).toMatchObject({ listed: true, strength: 3 });
-    // Custom types have no list: present where mentioned.
+    // Custom types are listed in a scene's entities, or present where mentioned.
     const artifacts = presence(novel, "artifact");
+    expect(artifacts.marks.size).toBeGreaterThan(0);
     for (const [key, mark] of artifacts.marks) {
-      expect(mark).toMatchObject({ listed: false, mentioned: true });
-      const scene = novel.scenes.find((s) => s.id === key.split("|")[1])!;
-      expect(mentions(scene.body).some((x) => x.id === key.split("|")[0])).toBe(true);
+      const [entry, id] = key.split("|") as [string, string];
+      const scene = novel.scenes.find((s) => s.id === id)!;
+      expect(mark).toMatchObject({ listed: scene.entities.includes(entry), mentioned: mentions(scene.body).some((x) => x.id === entry) });
     }
+    expect(artifacts.marks.get(gridKey("art_p1an5x", "sc_0d9wm4"))).toMatchObject({ listed: true });
   });
 
   it("counts and sorts rows by first appearance, total, or name", () => {

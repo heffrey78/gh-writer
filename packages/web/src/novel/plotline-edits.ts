@@ -1,7 +1,7 @@
 import type { YamlEdit } from "@gh-writer/core";
 
 /** A scene's lists of entries. */
-export type SceneList = "characters" | "locations" | "themes" | "plotlines";
+export type SceneList = "characters" | "locations" | "themes" | "plotlines" | "entities";
 
 /** One change to an entry in a scene's list: add it, remove it, or set (undefined: drop) one of its fields. */
 export type EntryChange = { add: true } | { remove: true } | { field: string; value: string | number | undefined };

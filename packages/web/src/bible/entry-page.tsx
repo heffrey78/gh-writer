@@ -15,7 +15,7 @@ import { Field } from "../ui/field.tsx";
 import { RelationshipsPanel } from "./relationships.tsx";
 import { mentionEntities, typeOf } from "./types.ts";
 
-const VIA: Record<SceneLink, string> = { pov: "point of view", characters: "present", locations: "set here", plotlines: "plotline", themes: "theme", mention: "mentioned" };
+const VIA: Record<SceneLink, string> = { pov: "point of view", characters: "present", locations: "set here", entities: "present", plotlines: "plotline", themes: "theme", mention: "mentioned" };
 
 type FieldRow = { key: string; value: string; kind: "string" | "number" | "boolean" };
 

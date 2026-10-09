@@ -6,7 +6,6 @@ import { gridKey } from "@gh-writer/core/diagrams";
 import { readSize, SceneGrid, SizeSelect, type GridMark } from "../diagrams/scene-grid.tsx";
 import { ExportMenu } from "../diagrams/export-menu.tsx";
 import { presenceSvg } from "@gh-writer/core/snapshots";
-import { useNotice } from "../novel/notice.tsx";
 import { entryEdits, type EntryChange } from "../novel/plotline-edits.ts";
 import { useSceneEdit } from "../novel/scene-edit.ts";
 import type { Workspace } from "../novel/workspace.ts";
@@ -15,7 +14,7 @@ import { DEFAULT_GAP, gaps, zoomed, type Gap } from "@gh-writer/core/diagrams";
 import { GapControls } from "../diagrams/gap-controls.tsx";
 import { amount, readGap, writeGap } from "../diagrams/gap-param.ts";
 import { useViewParams } from "../ui/view-params.ts";
-import { LISTS, presence, sortRows, totals, type Presence, type RowOrder } from "@gh-writer/core/diagrams";
+import { presence, sceneList, sortRows, totals, type Presence, type RowOrder } from "@gh-writer/core/diagrams";
 
 const number = new Intl.NumberFormat();
 const ORDERS: [RowOrder, string][] = [
@@ -70,14 +69,14 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
     return out;
   }, [absences, whole]);
   const shaded = useMemo(() => new Set(inGap.keys()), [inGap]);
-  const listedIn = LISTS[type];
-  const show = useNotice((n) => n.show);
+  const listedIn = sceneList(type);
+  // What the legend calls the list: custom types' entries are listed as, e.g., "artifacts".
+  const listName = listedIn === "entities" ? plural(label).toLowerCase() : listedIn;
   const sceneEdit = useSceneEdit(novelId, workspace);
   const [editing, setEditing] = useState<{ row: string; scene: string; el: HTMLElement }>();
 
   /** A change to an entry in a scene's list (and, for a character, its point of view). */
   const change = (scene: Scene, entry: Entity, what: EntryChange | { pov: boolean }, done?: string) =>
-    listedIn &&
     sceneEdit(
       scene,
       (fm): YamlEdit[] => {
@@ -94,10 +93,6 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
   const choose = (row: string, scene: Scene, el: HTMLElement) => {
     const entry = m.rows.find((r) => r.id === row);
     if (!entry) return;
-    if (!listedIn) {
-      show({ message: `${plural(label)} are in a scene where its prose mentions them: type @ in the scene to add one.` });
-      return;
-    }
     if (m.marks.get(gridKey(row, scene.id))?.listed) setEditing({ row, scene: scene.id, el });
     else void change(scene, entry, { add: true }, `Added ${entry.name} to “${scene.title}”.`);
   };
@@ -152,21 +147,15 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
       </div>
       <p className="text-sm text-muted">
         Each column is a scene, in reading order.{" "}
-        {listedIn ? (
+        <span className="inline-block size-3 rounded-full bg-accent align-middle" aria-hidden /> listed in the scene's {listName}
+        {type === "character" && (
           <>
-            <span className="inline-block size-3 rounded-full bg-accent align-middle" aria-hidden /> listed in the scene's {listedIn}
-            {type === "character" && (
-              <>
-                {" "}
-                (<span className="inline-block size-3 rounded-full bg-accent align-middle ring-2 ring-accent ring-offset-1" aria-hidden /> its point of view)
-              </>
-            )}
-            {type === "theme" && ", larger for a stronger one"},{" "}
+            {" "}
+            (<span className="inline-block size-3 rounded-full bg-accent align-middle ring-2 ring-accent ring-offset-1" aria-hidden /> its point of view)
           </>
-        ) : (
-          `${plural(label)} have no list in a scene's details: they're there where the prose mentions them. `
         )}
-        <span className="inline-block size-2.5 rounded-full border border-dashed border-accent align-middle" aria-hidden /> mentioned in the prose{listedIn ? " but not listed" : ""}; shaded, an absence of more than{" "}
+        {type === "theme" && ", larger for a stronger one"},{" "}
+        <span className="inline-block size-2.5 rounded-full border border-dashed border-accent align-middle" aria-hidden /> mentioned in the prose but not listed; shaded, an absence of more than{" "}
         {amount(threshold)}. The number by each name is how many scenes it's in.
       </p>
       {!m.rows.length || !m.scenes.length ? (
@@ -184,7 +173,7 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
           shaded={shaded}
           cellLabel={(row: string, scene: Scene) => describe(scene.title, m.rows.find((r) => r.id === row)?.name ?? row, m.marks.get(gridKey(row, scene.id)), inGap.get(gridKey(row, scene.id)))}
           onChoose={choose}
-          hasPopup={(row, scene) => !!listedIn && !!m.marks.get(gridKey(row, scene))?.listed}
+          hasPopup={(row, scene) => !!m.marks.get(gridKey(row, scene))?.listed}
           size={size}
         />
       )}
@@ -214,7 +203,7 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
           )}
         </section>
       )}
-      {editing && editingEntry && editingScene && listedIn && (
+      {editing && editingEntry && editingScene && (
         <PresenceEditor
           anchor={editing.el}
           type={type}

@@ -96,6 +96,24 @@ describe("validate", () => {
     expect(r.diagnostics.find((d) => d.pointer === "/pov")!.message).toBe("pov must be a character, but loc_aaaaaa is a location");
   });
 
+  it("a scene's entities are entries of custom types", async () => {
+    const custom = `${NOVEL}entity_types:\n  - {key: artifact, prefix: art, folder: artifacts, label: Artifact}\n`;
+    const ok = await fixture({
+      "novel.yaml": custom,
+      "bible/artifacts/plans.md": "---\nid: art_aaaaaa\nname: Plans\n---\n",
+      "manuscript/01-one/02-b.md": scene("sc_bbbbbb", "B", "entities: [art_aaaaaa]\n"),
+    });
+    expect(ok.diagnostics).toEqual([]);
+    expect(ok.novel.scenes.find((s) => s.id === "sc_bbbbbb")!.entities).toEqual(["art_aaaaaa"]);
+
+    const wrong = await fixture({ "novel.yaml": custom, "manuscript/01-one/02-b.md": scene("sc_bbbbbb", "B", "entities: [char_aaaaaa, art_zzzzzz]\n") });
+    expect(wrong.diagnostics.map((d) => [d.code, d.pointer])).toEqual([
+      ["E_REF_TYPE", "/entities/0"],
+      ["E_DANGLING_REF", "/entities/1"],
+    ]);
+    expect(wrong.diagnostics[0]!.message).toBe("entities must be an entry of a custom type, but char_aaaaaa is a character");
+  });
+
   it("E_UNKNOWN_REL_TYPE, E_REL_ENDPOINT_TYPE and E_REL_RANGE", async () => {
     const r = await fixture({ "bible/relationships.yaml": rels(
       "{id: rel_aaaaaa, from: char_aaaaaa, to: char_bbbbbb, type: enemies}",

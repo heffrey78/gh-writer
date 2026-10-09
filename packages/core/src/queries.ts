@@ -1,7 +1,7 @@
 import { mentions, sceneById, type Novel, type Relationship, type Scene, type StoryEvent } from "./model.ts";
 
 /** How a scene refers to an entity. */
-export type SceneLink = "pov" | "characters" | "locations" | "plotlines" | "themes" | "mention";
+export type SceneLink = "pov" | "characters" | "locations" | "entities" | "plotlines" | "themes" | "mention";
 
 export interface Backlinks {
   /** Scenes that name the entity, in reading order (scenes outside the order last), with how. */
@@ -21,6 +21,7 @@ export function backlinks(novel: Novel, id: string): Backlinks {
     if (scene.pov === id) via.push("pov");
     if (scene.characters.includes(id)) via.push("characters");
     if (scene.locations.includes(id)) via.push("locations");
+    if (scene.entities.includes(id)) via.push("entities");
     if (scene.plotlines.some((p) => p.id === id)) via.push("plotlines");
     if (scene.themes.some((t) => t.id === id)) via.push("themes");
     if (mentions(scene.body).some((m) => m.id === id)) via.push("mention");

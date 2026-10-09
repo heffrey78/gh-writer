@@ -74,7 +74,8 @@ export function validateNovel(novel: Novel): Diagnostic[] {
     }
   }
 
-  /** Check that `id` names a record of an allowed kind (entity type keys, or "scene"). */
+  const builtinTypes = new Set(novel.entityTypes.filter((t) => t.builtin).map((t) => t.key));
+  /** Check that `id` names a record of an allowed kind (entity type keys, "scene", "*entity": any entry, "*custom": a custom type's). */
   function ref(id: string | undefined, allowed: string[], file: string, pointer: string, field: string, line?: number) {
     if (id === undefined) return;
     const target = index.get(id);
@@ -84,17 +85,19 @@ export function validateNovel(novel: Novel): Diagnostic[] {
       return;
     }
     const kind = target.kind === "entity" ? target.type! : target.kind;
-    if (!allowed.includes(kind) && !(allowed.includes("*entity") && target.kind === "entity")) {
-      const wanted = allowed.map((a) => (a === "*entity" ? "a bible entity" : `a ${a}`)).join(" or ");
+    const custom = target.kind === "entity" && !builtinTypes.has(kind);
+    if (!allowed.includes(kind) && !(allowed.includes("*entity") && target.kind === "entity") && !(allowed.includes("*custom") && custom)) {
+      const wanted = allowed.map((a) => (a === "*entity" ? "a bible entity" : a === "*custom" ? "an entry of a custom type" : `a ${a}`)).join(" or ");
       push("error", "E_REF_TYPE", file, `${field} must be ${wanted}, but ${id} is ${article(describe(target))}`, where);
     }
   }
 
-  // Scenes.
+  // Scenes. `entities` holds custom types only: the built-in four have their own lists.
   for (const s of novel.allScenes) {
     ref(s.pov, ["character"], s.file, "/pov", "pov");
     s.characters.forEach((id, i) => ref(id, ["character"], s.file, `/characters/${i}`, "characters"));
     s.locations.forEach((id, i) => ref(id, ["location"], s.file, `/locations/${i}`, "locations"));
+    s.entities.forEach((id, i) => ref(id, ["*custom"], s.file, `/entities/${i}`, "entities"));
     s.plotlines.forEach((p, i) => ref(p.id, ["plotline"], s.file, `/plotlines/${i}`, "plotlines"));
     s.themes.forEach((t, i) => ref(t.id, ["theme"], s.file, `/themes/${i}`, "themes"));
     if (s.pov && !s.characters.includes(s.pov)) {

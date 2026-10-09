@@ -98,7 +98,7 @@ export interface GraphFilter {
 
 /** Everything a scene refers to: point of view, people, places, plotlines, themes and mentions. */
 export function presentIn(scene: Scene): Set<string> {
-  return new Set([...(scene.pov ? [scene.pov] : []), ...scene.characters, ...scene.locations, ...scene.plotlines.map((p) => p.id), ...scene.themes.map((t) => t.id), ...mentions(scene.body).map((m) => m.id)]);
+  return new Set([...(scene.pov ? [scene.pov] : []), ...scene.characters, ...scene.locations, ...scene.entities, ...scene.plotlines.map((p) => p.id), ...scene.themes.map((t) => t.id), ...mentions(scene.body).map((m) => m.id)]);
 }
 
 /** The entities the scene filters (plotline, range) allow, or undefined when neither is set. */
@@ -259,13 +259,18 @@ export function zoomed(novel: Novel, scenes: Scene[], zoom: string | undefined):
 
 // ——— Presence ———
 
-/** The scene field an entity type is listed in; other (custom) types are present only by mention. */
+/** The scene field each built-in entity type is listed in. */
 export const LISTS: Record<string, "characters" | "locations" | "themes" | "plotlines"> = {
   character: "characters",
   location: "locations",
   theme: "themes",
   plotline: "plotlines",
 };
+
+/** The scene field an entity type is listed in: its own for the built-in four, `entities` for custom types. */
+export function sceneList(type: string): "characters" | "locations" | "themes" | "plotlines" | "entities" {
+  return LISTS[type] ?? "entities";
+}
 
 export interface Presence {
   /** In the scene's metadata (for a character: its characters, or its point of view). */
@@ -307,6 +312,7 @@ export function presence(novel: Novel, type: string, scenes: Scene[] = novel.sce
     if (type === "location") for (const id of scene.locations) listed.set(id, {});
     if (type === "theme") for (const t of scene.themes) listed.set(t.id, { ...(t.strength !== undefined ? { strength: t.strength } : {}), ...(t.note ? { note: t.note } : {}) });
     if (type === "plotline") for (const p of scene.plotlines) listed.set(p.id, { weight: p.weight, ...(p.beat ? { note: p.beat } : {}) });
+    if (!LISTS[type]) for (const id of scene.entities) listed.set(id, {});
     for (const id of new Set([...listed.keys(), ...named])) {
       if (!ids.has(id)) continue;
       marks.set(gridKey(id, scene.id), { ...listed.get(id), listed: listed.has(id), pov: type === "character" && scene.pov === id, mentioned: named.has(id) });
