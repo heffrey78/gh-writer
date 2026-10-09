@@ -12,3 +12,4 @@ export { editFrontMatter, editYaml, numberedName, readFrontMatter, slugify, uniq
 export { backlinks, relationshipHistory, type Backlinks, type RelationshipSpan, type SceneLink } from "./queries.ts";
 export { durationMs, overlaps, storyInstant, storyTimeline, type Overlap, type StoryInstant, type StoryTimeline, type TimelineItem } from "./time.ts";
 export { passageIssueBody, readAnchor, writeAnchor, type IssueAnchor, type PassageIssue } from "./issue-anchor.ts";
+export { resolveAnchor, type AnchorMatch, type AnchorOptions } from "./anchor-match.ts";
