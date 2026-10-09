@@ -14,6 +14,7 @@ import { EntryPage } from "../bible/entry-page.tsx";
 import { NewEntryDialog } from "../bible/new-entry.tsx";
 import { plural } from "../bible/types.ts";
 import { CheckpointsButton } from "./checkpoints.tsx";
+import { CompileButton, CompileDialog } from "./compile.tsx";
 import { SaveConflicts, SyncConflicts } from "./conflicts.tsx";
 import { useNovelEvents } from "./events.ts";
 import { ManuscriptSidebar } from "./manuscript-tree.tsx";
@@ -57,6 +58,7 @@ export function NovelPage() {
   const [entries, setEntries] = useState<QuickEntries>();
   const [resolving, setResolving] = useState(false);
   const [checkpointsOpen, setCheckpointsOpen] = useState(false);
+  const [compiling, setCompiling] = useState(false);
   const [newEntry, setNewEntry] = useState<string | null>(null);
   const focus = useWritingModes((m) => m.focus);
   const spell = useSpell(api, novelId, novel.data?.novel);
@@ -143,6 +145,7 @@ export function NovelPage() {
       { id: "novel.syncNow", title: "Sync now", group: "Sync", run: () => syncNow.mutate() },
       ...(conflict ? [{ id: "novel.resolve", title: "Resolve sync conflicts", group: "Sync", run: () => setResolving(true) }] : []),
       { id: "novel.checkpoints", title: "Checkpoints: make or restore one", group: "Checkpoints", run: () => setCheckpointsOpen(true) },
+      { id: "novel.compile", title: "Compile the manuscript…", group: "Novel", keywords: ["export", "docx", "word", "epub", "pdf", "e-book", "manuscript"], run: () => setCompiling(true) },
       { id: "novel.bible", title: "Story bible", group: "Go to", run: () => void navigate(`/novels/${novelId}/bible`) },
       { id: "novel.outline", title: "Outline", group: "Go to", run: () => void navigate(`/novels/${novelId}/outline`) },
       { id: "novel.corkboard", title: "Corkboard", group: "Go to", run: () => void navigate(`/novels/${novelId}/corkboard`) },
@@ -181,6 +184,7 @@ export function NovelPage() {
     <>
       <SaveStatus autosave={workspace.autosave} entries={entries?.store} />
       <CheckpointsButton novelId={novelId} workspace={workspace} open={checkpointsOpen} onOpenChange={setCheckpointsOpen} />
+      <CompileButton onOpen={() => setCompiling(true)} />
       <SyncBadge
         status={sync.data}
         onSyncNow={() => syncNow.mutate()}
@@ -285,6 +289,7 @@ export function NovelPage() {
         </div>
       </div>
       <SyncConflicts novelId={novelId} novel={book} workspace={workspace} open={resolving} onClose={() => setResolving(false)} />
+      {compiling && <CompileDialog novelId={novelId} novel={book} workspace={workspace} onClose={() => setCompiling(false)} />}
       <SaveConflicts novel={book} workspace={workspace} />
       <NoticeBar />
       <NewEntryDialog novelId={novelId} novel={book} type={newEntry ?? undefined} open={newEntry !== null} onOpenChange={(o) => !o && setNewEntry(null)} />

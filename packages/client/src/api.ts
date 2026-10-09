@@ -333,6 +333,24 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
       return status === 409 ? { ok: false, current: data.current } : { ok: true, hash: data.hash };
     },
     sync: async (id: string) => (await request<SyncStatus>("GET", `/api/novels/${encodeURIComponent(id)}/sync`)).data,
+    /** Compile the manuscript (or chapters from…to) with a preset, to one format: the file, its name, and characters the PDF couldn't show. */
+    compile: async (id: string, options: { format: "docx" | "epub" | "pdf"; preset?: string; from?: string; to?: string }) => {
+      const res = await fetch(`${baseUrl}/api/novels/${encodeURIComponent(id)}/compile`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify(options),
+        credentials: "same-origin",
+      }).catch((e: unknown) => {
+        throw new ApiError(0, "UNREACHABLE", `Couldn't reach gh-writer: ${e instanceof Error ? e.message : String(e)}`);
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { code?: string; error?: string };
+        throw new ApiError(res.status, data.code ?? "HTTP", data.error ?? `Compile failed: HTTP ${res.status}`);
+      }
+      const filename = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? `novel.${options.format}`;
+      const missing = [...decodeURIComponent(res.headers.get("x-missing-characters") ?? "")];
+      return { blob: await res.blob(), filename, missing };
+    },
     /** Newest first. */
     checkpoints: async (id: string) => (await request<{ checkpoints: Checkpoint[] }>("GET", `/api/novels/${encodeURIComponent(id)}/checkpoints`)).data.checkpoints,
     createCheckpoint: async (id: string, name: string) =>
