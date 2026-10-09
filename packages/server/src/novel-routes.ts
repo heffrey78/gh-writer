@@ -4,6 +4,7 @@ import { streamSSE } from "hono/streaming";
 import { bibleRoutes } from "./bible-routes.ts";
 import { issueRoutes } from "./issues-routes.ts";
 import { compileRoutes } from "./compile-routes.ts";
+import { versionRoutes } from "./version-routes.ts";
 import { diagramRoutes } from "./diagrams.ts";
 import { manuscriptRoutes } from "./manuscript-routes.ts";
 import { CheckpointError } from "./checkpoints.ts";
@@ -169,6 +170,7 @@ export function novelRoutes(library: Library, workspaces: Workspaces, github?: G
   bibleRoutes(routes);
   issueRoutes(routes);
   compileRoutes(routes);
+  versionRoutes(routes);
   diagramRoutes(routes);
   manuscriptRoutes(routes);
 

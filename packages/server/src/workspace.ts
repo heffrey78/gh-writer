@@ -13,6 +13,7 @@ import { git } from "./git.ts";
 import { githubRepoOf, type GitHub, type GitHubRepo } from "./github.ts";
 import { IssueStore } from "./issues.ts";
 import { Syncer, type SyncerOptions, type SyncStatus } from "./sync.ts";
+import { Versions } from "./versions.ts";
 
 /** A file that changed on disk. `hash` is null once the file is gone. */
 export interface FileEvent {
@@ -50,6 +51,8 @@ export class NovelWorkspace {
   /** Syncs with the remote in the background, unless turned off. */
   readonly syncer: Syncer | undefined;
   readonly checkpoints: Checkpoints;
+  /** Alternate versions of the novel: one open at a time. */
+  readonly versions: Versions;
   /** Story bible changes, one commit each. */
   readonly bible: BibleOperations;
   /** Manuscript structure changes, one commit each. */
@@ -89,6 +92,12 @@ export class NovelWorkspace {
       committer: this.committer ?? new Committer(root),
       exclusive: (fn) => this.exclusive(fn),
       onCreate: () => this.syncer?.tagsChanged(),
+    });
+    this.versions = new Versions(root, {
+      committer: this.committer ?? new Committer(root),
+      checkpoints: this.checkpoints,
+      exclusive: (fn) => this.exclusive(fn),
+      onChange: () => this.syncer?.branchChanged(),
     });
     this.bible = new BibleOperations(root, (fn) => this.exclusive(fn));
     this.manuscript = new ManuscriptOperations(root, (fn) => this.exclusive(fn));

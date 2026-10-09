@@ -1,7 +1,8 @@
-import { countWords, loadNovel, parseMarkdown } from "@gh-writer/core";
+import { countWords, loadNovel, parseMarkdown, type Novel } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
 import type { Committer } from "./committer.ts";
 import { atomicWrite, writablePath } from "./files.ts";
+import { commitSource } from "./git-source.ts";
 import { git } from "./git.ts";
 
 /** Checkpoints are annotated tags under this prefix; sync fetches and pushes them. */
@@ -160,13 +161,23 @@ export class Checkpoints {
     });
   }
 
-  async #create(name: string, auto: boolean): Promise<Checkpoint> {
-    const result = await this.#committer.commit();
-    if ("skipped" in result && result.skipped !== "NOTHING") {
-      const blocked = (await this.#committer.status()).blocked;
-      throw new CheckpointError("BLOCKED", `Your latest work couldn't be committed, so no checkpoint was made. ${blocked?.message ?? ""}`.trim());
+  /**
+   * An automatic checkpoint of `commit` (not necessarily the one checked out): what a discarded version
+   * is kept as, so it can be brought back. Run inside the caller's exclusive section.
+   */
+  keep(name: string, commit: string): Promise<Checkpoint> {
+    return this.#create(name, true, commit);
+  }
+
+  async #create(name: string, auto: boolean, commit?: string): Promise<Checkpoint> {
+    if (commit === undefined) {
+      const result = await this.#committer.commit();
+      if ("skipped" in result && result.skipped !== "NOTHING") {
+        const blocked = (await this.#committer.status()).blocked;
+        throw new CheckpointError("BLOCKED", `Your latest work couldn't be committed, so no checkpoint was made. ${blocked?.message ?? ""}`.trim());
+      }
     }
-    const words = await this.#words();
+    const words = commit === undefined ? await this.#words() : wordsIn(await loadNovel(await commitSource(this.root, commit)));
     const g = git(this.root);
     // A second after the newest checkpoint at the latest, so names sort in the order they were made even
     // within one second (a restore right after a checkpoint) or after the clock steps back.
@@ -176,15 +187,14 @@ export class Checkpoints {
     if (newest && stamp(at) <= newest) at = new Date(parseStamp(newest).getTime() + 1000);
     const tag = `checkpoint/${stamp(at)}-${slug(name)}`;
     const trailers = [`${WORDS_TRAILER}: ${words}`, ...(auto ? [`${AUTO_TRAILER}: auto`] : [])];
-    await g.raw(["tag", "--annotate", "-m", name, "-m", trailers.join("\n"), tag, "HEAD"]);
+    await g.raw(["tag", "--annotate", "-m", name, "-m", trailers.join("\n"), tag, commit ?? "HEAD"]);
     this.#onCreate();
     return this.get(tag.slice("checkpoint/".length));
   }
 
   /** Manuscript words in the work tree, which matches HEAD once saved work is committed. */
   async #words(): Promise<number> {
-    const novel = await loadNovel(nodeSource(this.root));
-    return novel.allScenes.reduce((sum, scene) => sum + countWords(scene.body), 0);
+    return wordsIn(await loadNovel(nodeSource(this.root)));
   }
 
   async #sceneAt(tag: string, sceneId: string): Promise<{ path: string; title: string; content: string }> {
@@ -205,6 +215,11 @@ export class Checkpoints {
   }
 }
 
+/** The manuscript's words. */
+export function wordsIn(novel: Novel): number {
+  return novel.allScenes.reduce((sum, scene) => sum + countWords(scene.body), 0);
+}
+
 /** UTC date and time, for tag names that sort: 2026-10-05-183012. */
 function stamp(d: Date): string {
   return d.toISOString().replace(/\.\d+Z$/, "").replace("T", "-").replaceAll(":", "");
@@ -217,7 +232,7 @@ function parseStamp(s: string): Date {
 }
 
 /** A tag-safe slug of the name: "Before the big cut" → "before-the-big-cut". */
-function slug(name: string): string {
+export function slug(name: string, fallback = "checkpoint"): string {
   const s = name
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
@@ -226,5 +241,5 @@ function slug(name: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 40)
     .replace(/-+$/, "");
-  return s || "checkpoint";
+  return s || fallback;
 }

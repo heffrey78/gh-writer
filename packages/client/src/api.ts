@@ -110,6 +110,28 @@ export interface Checkpoint {
   commit: string;
 }
 
+/** An alternate version of the novel (or the main one). */
+export interface Version {
+  /** "main" for the main version. */
+  id: string;
+  name: string;
+  main: boolean;
+  current: boolean;
+  /** Made on another computer: opening it brings it here. */
+  remoteOnly: boolean;
+  words: number;
+  /** When it last changed (ISO). */
+  date: string;
+  commit: string;
+}
+
+export interface DiscardResult {
+  /** Restoring this checkpoint brings the discarded version's text back. */
+  checkpoint: Checkpoint;
+  /** The version open now. */
+  current: string;
+}
+
 export interface RestoreResult {
   /** Restore this checkpoint to undo the restore. */
   undo: Checkpoint;
@@ -364,6 +386,15 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
           sceneId === undefined ? {} : { sceneId },
         )
       ).data,
+    /** The main version first. */
+    versions: async (id: string) => (await request<{ versions: Version[] }>("GET", `/api/novels/${encodeURIComponent(id)}/versions`)).data.versions,
+    /** Start a version from the open one, and open it. */
+    startVersion: async (id: string, name: string) => (await request<{ version: Version }>("POST", `/api/novels/${encodeURIComponent(id)}/versions`, { name })).data.version,
+    switchVersion: async (id: string, versionId: string) =>
+      (await request<{ version: Version }>("POST", `/api/novels/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}/switch`)).data.version,
+    /** Kept as an automatic checkpoint first: `checkpoint` in the result brings it back. */
+    discardVersion: async (id: string, versionId: string) =>
+      (await request<DiscardResult>("DELETE", `/api/novels/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}`)).data,
     /** The conflicts a sync left to settle, or null. */
     conflicts: async (id: string) => (await request<{ conflicts: Conflicts | null }>("GET", `/api/novels/${encodeURIComponent(id)}/conflicts`)).data.conflicts,
     /**

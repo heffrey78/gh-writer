@@ -2,6 +2,7 @@ import { CHECKPOINT_PREFIX } from "./checkpoints.ts";
 import { operationInProgress, type Committer } from "./committer.ts";
 import { commitMerge, ConflictError, openConflicts, prepareMerge, type Conflicts, type FileResolution, type PreparedMerge } from "./conflicts.ts";
 import { classifyGitError, git, GitFailure, type GitAuthSource } from "./git.ts";
+import { discardedVersions, setDiscardedVersions, VERSION_PREFIX } from "./versions.ts";
 
 export interface SyncerOptions {
   /** Sync this often (ms), and once when the novel is opened. Default 5 minutes; 0 syncs only on demand. */
@@ -162,6 +163,17 @@ export class Syncer {
     this.#tagsMade++;
   }
 
+  /**
+   * Another version was opened, or one made or discarded: the branch to sync is looked up afresh, and
+   * (unless syncing only on demand) a sync carries the change to the remote.
+   */
+  branchChanged(): void {
+    this.#target = undefined;
+    this.#outcome = undefined;
+    if (this.#intervalMs > 0) void this.syncAgain();
+    else this.#changed();
+  }
+
   /** What the author has to settle, merged afresh against the remote as last fetched; null without a conflict. */
   async conflicts(): Promise<Conflicts | null> {
     const target = this.#target;
@@ -270,17 +282,20 @@ export class Syncer {
     for (let attempt = 1; ; attempt++) {
       // The configured refspecs are named because naming any refspec replaces them.
       await remote.raw(["fetch", "--quiet", target.remote, ...target.fetch, FETCH_CHECKPOINTS]);
+      await this.#pruneVersions(target, remote);
       const conflict = await this.#exclusive(() => this.#integrate(target));
       if (conflict) return { kind: "conflict", files: conflict };
       const { ahead } = await this.#counts(target);
       const tags = this.#tagsMade;
       const pushTags = this.#tagsPushed < tags;
-      if (!ahead && !pushTags) return { kind: "ok" };
+      const deletes = await this.#versionDeletes(target);
+      if (!ahead && !pushTags && !deletes.length) return { kind: "ok" };
       try {
-        const refs = [`HEAD:${target.mergeRef}`, ...(pushTags ? [PUSH_CHECKPOINTS] : [])];
+        const refs = [`HEAD:${target.mergeRef}`, ...(pushTags ? [PUSH_CHECKPOINTS] : []), ...deletes.map((b) => `:refs/heads/${b}`)];
         await remote.raw(["push", "--quiet", ...(target.upstream ? [] : ["--set-upstream"]), target.remote, ...refs]);
         target.upstream = true;
         this.#tagsPushed = tags;
+        if (deletes.length) await setDiscardedVersions(this.root, []);
         return { kind: "ok" };
       } catch (e) {
         const failure = classifyGitError(e);
@@ -323,6 +338,31 @@ export class Syncer {
       await commitMerge(this.root, prepared, {}, mergeMessage(target.remote, prepared, "merged"));
     }
     return undefined;
+  }
+
+  /** Versions discarded here that are still on the remote, by branch; the rest are forgotten. */
+  async #versionDeletes(target: Target): Promise<string[]> {
+    const discarded = await discardedVersions(this.root);
+    if (!discarded.length) return [];
+    const g = git(this.root);
+    const onRemote: string[] = [];
+    for (const branch of discarded) {
+      // The open version is never deleted from under the author (it was opened again since).
+      if (branch === target.branch) continue;
+      if ((await g.raw(["rev-parse", "--verify", "--quiet", `refs/remotes/${target.remote}/${branch}`]).catch(() => "")).trim()) onRemote.push(branch);
+    }
+    if (!onRemote.length) await setDiscardedVersions(this.root, []);
+    return onRemote;
+  }
+
+  /**
+   * Forget versions deleted on the remote (discarded on another computer). A fetch of the version
+   * branches alone, so pruning can't touch checkpoints made here and not yet pushed.
+   */
+  async #pruneVersions(target: Target, remote: ReturnType<typeof git>): Promise<void> {
+    const tracking = `refs/remotes/${target.remote}/${VERSION_PREFIX}`;
+    const any = (await git(this.root).raw(["for-each-ref", "--count=1", "--format=%(refname)", tracking]).catch(() => "")).trim();
+    if (any) await remote.raw(["fetch", "--quiet", "--prune", target.remote, `+refs/heads/${VERSION_PREFIX}*:${tracking}*`]);
   }
 
   async #resolveTarget(): Promise<Target | null> {
