@@ -10,6 +10,7 @@ import { IssuesError, type IssueFilter, type IssueInput } from "./issues.ts";
  * POST  /:id/issues                            { title, body?, labels?, milestone? } → 201 the issue
  * PATCH /:id/issues/:number                    { title?, body?, labels?, milestone?, state? } → the issue
  * POST  /:id/issues/:number/comments           { body } → 201 the comment
+ * POST  /:id/issues/passage                    { path, scene, sceneTitle, quote, title, details?, kind?: { name, color, description }, labels? } → 201 the issue
  * POST  /:id/issues/refresh                    → { changed, status } (and sends changes queued offline)
  * DELETE /:id/issues/queue/:change             → drop a queued change (one GitHub refused)
  * While GitHub can't be reached, changes are made in the cache and queued: the answers say `pending`.
@@ -64,6 +65,27 @@ export function issueRoutes(routes: Hono<Env>): void {
       if (q.q) filter.text = q.q;
       return issues(c).list(filter);
     }),
+  );
+  routes.post("/:id/issues/passage", (c) =>
+    answer(
+      c,
+      async () => {
+        const raw = await body(c);
+        const text = (k: string) => (typeof raw[k] === "string" ? (raw[k] as string) : "");
+        const kind = raw.kind as Record<string, unknown> | undefined;
+        return issues(c).raise({
+          path: text("path"),
+          scene: text("scene"),
+          sceneTitle: text("sceneTitle"),
+          quote: text("quote"),
+          title: text("title"),
+          details: text("details"),
+          ...(kind && typeof kind.name === "string" ? { kind: { name: kind.name, color: typeof kind.color === "string" ? kind.color : "ededed", description: typeof kind.description === "string" ? kind.description : "" } } : {}),
+          ...(Array.isArray(raw.labels) ? { labels: raw.labels.filter((l): l is string => typeof l === "string") } : {}),
+        });
+      },
+      201,
+    ),
   );
   routes.post("/:id/issues/refresh", (c) => answer(c, async () => ({ changed: await issues(c).refresh(), status: await issues(c).status() })));
   routes.delete("/:id/issues/queue/:change", (c) =>

@@ -11,3 +11,4 @@ export { merge2, merge3, resolveMerge, type MergeChunk, type MergeResult, type R
 export { editFrontMatter, editYaml, numberedName, readFrontMatter, slugify, uniqueFileName, uniqueId, type YamlEdit, type YamlPath } from "./edit.ts";
 export { backlinks, relationshipHistory, type Backlinks, type RelationshipSpan, type SceneLink } from "./queries.ts";
 export { durationMs, overlaps, storyInstant, storyTimeline, type Overlap, type StoryInstant, type StoryTimeline, type TimelineItem } from "./time.ts";
+export { passageIssueBody, readAnchor, writeAnchor, type IssueAnchor, type PassageIssue } from "./issue-anchor.ts";

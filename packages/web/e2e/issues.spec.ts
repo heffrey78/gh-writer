@@ -1,3 +1,4 @@
+import { readAnchor } from "@gh-writer/core";
 import type { Page } from "@playwright/test";
 import { axe, expect, test, type App } from "./fixtures.ts";
 
@@ -37,6 +38,15 @@ test("a local novel has no issues; put on GitHub, they appear in the same sessio
   await page.keyboard.press("ControlOrMeta+k");
   await page.keyboard.type("new issue");
   await expect(page.getByRole("option", { name: /New issue/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  // Nor a way to raise one from a passage.
+  const passage = page.getByRole("textbox", { name: "Chapter text" }).getByText(/the way you count stitches in a wound\./);
+  await passage.click({ clickCount: 3 });
+  await passage.click({ button: "right" });
+  await expect(page.getByRole("menu", { name: "Selected text" })).toHaveCount(0);
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.keyboard.type("raise an issue");
+  await expect(page.getByRole("option", { name: /Raise an issue/ })).toHaveCount(0);
   await page.keyboard.press("Escape");
 
   await onGitHub(page, app, id);
@@ -169,4 +179,48 @@ test("signed out, the issues are still there and a change offers to reconnect", 
   await expect(page.getByRole("alert").filter({ hasText: "isn't signed in to GitHub" })).toBeVisible();
   await page.getByRole("link", { name: "All issues" }).click();
   await expect(issueList(page).getByRole("link")).toHaveText(["Check the tide tables"]);
+});
+
+test("raises an issue about selected text, quoted, linked and anchored, without leaving the text", async ({ page, app }) => {
+  const id = await open(page, app);
+  const repo = await onGitHub(page, app, id);
+  await expect(views(page).getByRole("link", { name: "Issues" })).toBeVisible();
+  const text = page.getByRole("textbox", { name: "Chapter text" });
+  const passage = text.getByText(/the way you count stitches in a wound\./);
+  await passage.click({ clickCount: 3 });
+  await passage.click({ button: "right" });
+  const menu = page.getByRole("menu", { name: "Selected text" });
+  await expect(menu.getByRole("menuitem", { name: "Raise an issue…" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  const panel = page.getByRole("complementary", { name: "Raise an issue" });
+  await expect(panel).toContainText("She stood with her bag at her feet and counted them twice");
+  await expect(panel).toContainText("in “The Station”");
+  await expect(panel.getByRole("textbox", { name: "Title" })).toBeFocused();
+  await axe(page);
+  await panel.getByText("Continuity").click();
+  await panel.getByRole("textbox", { name: "Title" }).fill("Who counted the flags?");
+  await panel.getByRole("textbox", { name: "Note" }).fill("Ben counts them in chapter two.");
+  await panel.getByRole("textbox", { name: "Title" }).press("Enter");
+  await expect(notice(page)).toContainText("Raised #1 “Who counted the flags?”.");
+  await expect(panel).toHaveCount(0);
+  await expect(text).toBeFocused();
+  const url = page.url();
+
+  const issue = repo.issues[0]!;
+  expect(issue).toMatchObject({ title: "Who counted the flags?", labels: ["kind/continuity"] });
+  expect(issue.body).toContain("Ben counts them in chapter two.\n\n> She stood with her bag at her feet and counted them twice, the way you count stitches in a wound.\n\nFrom [*The Station*](");
+  expect(issue.body).toMatch(new RegExp(`\\(${app.github.url}/ada/varn/blob/[0-9a-f]{40}/manuscript/01-return/01-arrival/01-the-station\\.md\\?plain=1#L\\d+\\)`));
+  expect(readAnchor(issue.body)).toMatchObject({ scene: "sc_5tat1n", quote: "She stood with her bag at her feet and counted them twice, the way you count stitches in a wound.", commit: expect.stringMatching(/^[0-9a-f]{40}$/) });
+  expect(repo.labels.find((l) => l.name === "kind/continuity")?.color).toBe("fbca04");
+  expect(page.url()).toBe(url);
+
+  // From the palette too.
+  await text.getByText(/Twelve years had not moved the station clock/).click({ clickCount: 3 });
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.keyboard.type("raise an issue");
+  await page.keyboard.press("Enter");
+  await expect(panel).toContainText("Twelve years had not moved the station clock");
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await expect(text).toBeFocused();
 });

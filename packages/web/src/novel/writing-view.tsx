@@ -29,6 +29,8 @@ import { api } from "../api.ts";
 import { useCommands } from "../commands.ts";
 import type { QuickEntries } from "../bible/quick-entries.ts";
 import { NameEntryDialog } from "../bible/name-entry.tsx";
+import { useGitHubRepo } from "../github/repo.ts";
+import { RaisePanel, selectedPassage, useRaise } from "../issues/raise.tsx";
 import { useQuickEntry } from "../bible/quick-entry.ts";
 import { mentionEntities } from "../bible/types.ts";
 import { useCurrentScene } from "./current.ts";
@@ -152,8 +154,28 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
     () => () => {
       useMentionCard.getState().hide();
       useEntryPanel.setState({ entry: null });
+      useRaise.setState({ passage: undefined, editor: undefined });
     },
     [viewId],
+  );
+
+  // Issues about a passage (#9), for a novel on GitHub: from a command, or the selection's context menu.
+  const repo = useGitHubRepo(novelId);
+  const raising = useRaise((s) => s.passage !== undefined);
+  const [menu, setMenu] = useState<{ x: number; y: number }>();
+  const raiseFromSelection = () => {
+    if (!editor || editor.isDestroyed) return;
+    const passage = selectedPassage(editor, novel);
+    if (!passage) {
+      useNotice.getState().show({ message: "Select the passage the issue is about first." });
+      return;
+    }
+    useEntryPanel.setState({ entry: null });
+    useRaise.getState().open(passage, editor);
+  };
+  useCommands(
+    () => (repo ? [{ id: "writing.raiseIssue", title: "Raise an issue about the selection…", group: "GitHub", keywords: ["note", "plot hole", "continuity", "research", "github"], run: raiseFromSelection }] : []),
+    [repo, editor, novel],
   );
   const sceneOf = (sceneId: string | undefined) => ("scene" in view ? view.scene : novel.allScenes.find((s) => s.file === sceneId));
   const onMention = {
@@ -252,11 +274,20 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
   const heading = "scene" in view ? view.scene.title : chapterTitle(novel, view.chapter);
 
   const detailsScene = current && scenes.find((s) => s.id === current.id);
-  const showDetails = !entryOpen && details.open && loaded && detailsScene !== undefined;
+  const showDetails = !entryOpen && !raising && details.open && loaded && detailsScene !== undefined;
 
   return (
-    <div className={entryOpen ? "grid min-h-full lg:grid-cols-[minmax(0,1fr)_28rem]" : showDetails ? "grid min-h-full lg:grid-cols-[minmax(0,1fr)_20rem]" : "min-h-full"}>
-      <div className="mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] content-start gap-3 px-6 py-6">
+    <div className={entryOpen || raising ? "grid min-h-full lg:grid-cols-[minmax(0,1fr)_28rem]" : showDetails ? "grid min-h-full lg:grid-cols-[minmax(0,1fr)_20rem]" : "min-h-full"}>
+      <div
+        className="mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] content-start gap-3 px-6 py-6"
+        onContextMenu={(e) => {
+          // On selected text in the editor, unless something there (the spelling menu) took the click.
+          if (!repo || !editor || editor.isDestroyed || e.defaultPrevented || !editor.view.dom.contains(e.target as Node)) return;
+          if (!selectedPassage(editor, novel)) return;
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY });
+        }}
+      >
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-xl font-semibold">{heading}</h1>
           <WordCount chapterWords={chapterWords} />
@@ -306,8 +337,61 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
       </div>
       {showDetails && detailsScene && <SceneDetails key={detailsScene.file} novel={novel} workspace={workspace} path={detailsScene.file} title={detailsScene.title} newEntry={newEntry.create} />}
       <EntryPanel novelId={novelId} novel={novel} workspace={workspace} spell={spell} />
+      {!entryOpen && <RaisePanel novelId={novelId} />}
+      {menu && (
+        <SelectionMenu
+          at={menu}
+          onClose={(back) => {
+            setMenu(undefined);
+            if (back && editor && !editor.isDestroyed) editor.commands.focus(null, { scrollIntoView: false });
+          }}
+          onRaise={() => {
+            setMenu(undefined);
+            raiseFromSelection();
+          }}
+        />
+      )}
       <NameEntryDialog novel={novel} />
       <MentionCard novel={novel} />
+    </div>
+  );
+}
+
+/** What can be done with the selected text: a menu at the pointer, by keyboard too (Escape returns to the text). */
+function SelectionMenu({ at, onClose, onRaise }: { at: { x: number; y: number }; onClose: (back: boolean) => void; onRaise: () => void }) {
+  const menu = useRef<HTMLDivElement>(null);
+  const first = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    first.current?.focus();
+    // On Linux and macOS the menu opens as the button goes down; the editor takes the focus back as it
+    // comes up: take it again then.
+    const refocus = () => setTimeout(() => first.current?.focus());
+    // Closed by a click anywhere else (not by losing focus, for the same reason).
+    const outside = (e: PointerEvent) => !menu.current?.contains(e.target as Node) && onClose(false);
+    document.addEventListener("mouseup", refocus, { once: true });
+    document.addEventListener("pointerdown", outside);
+    return () => {
+      document.removeEventListener("mouseup", refocus);
+      document.removeEventListener("pointerdown", outside);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div
+      ref={menu}
+      role="menu"
+      aria-label="Selected text"
+      onKeyDown={(e) => {
+        if (e.key === "Escape" || e.key === "Tab") {
+          e.preventDefault();
+          onClose(true);
+        }
+      }}
+      style={{ left: Math.min(at.x, window.innerWidth - 220), top: Math.min(at.y, window.innerHeight - 60) }}
+      className="fixed z-50 grid min-w-48 rounded-md border border-rule bg-raised p-1 text-sm shadow-lg"
+    >
+      <button ref={first} type="button" role="menuitem" onClick={onRaise} className="rounded px-2 py-1.5 text-left hover:bg-accent-soft focus:bg-accent-soft focus:outline-none">
+        Raise an issue…
+      </button>
     </div>
   );
 }

@@ -1,6 +1,7 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { readAnchor } from "@gh-writer/core";
 import { createServer, GitHub, Library, memoryStore, sessionCookie, type TokenStore } from "../src/index.ts";
 import { IssueStore, type IssuesError } from "../src/issues.ts";
 import { fakeGitHub, type FakeGitHub } from "./fake-github.ts";
@@ -264,6 +265,46 @@ describe("offline", () => {
     expect(issuesOf().issues.find((i) => i.number === 1)?.comments.map((x) => x.body)).toContain("Still here.");
     await issues.discard(status.failed[0]!.id);
     expect((await issues.status()).failed).toEqual([]);
+  });
+});
+
+describe("raising an issue about a passage", () => {
+  const STATION = "manuscript/01-return/01-arrival/01-the-station.md";
+  const quote = "Twelve years had not moved the station clock.";
+  const kind = { name: "kind/plot-hole", color: "d73a4a", description: "Something that can't happen" };
+
+  it("quotes the passage, links the scene at its commit and line, labels its kind, and hides the anchor", async () => {
+    seed();
+    const issues = open();
+    await issues.refresh();
+    const made = await issues.raise({ path: STATION, scene: "sc_5tat1n", sceneTitle: "The Station", quote, title: "The clock ran fast, or slow?", details: "Chapter two says slow.", kind, labels: ["char/ada"] });
+    const commit = gitIn(dir, "rev-parse", "HEAD").trim();
+    const line = readFileSync(join(dir, STATION), "utf8").split("\n").findIndex((l) => l.includes(quote)) + 1;
+    expect(line).toBeGreaterThan(0);
+    const onGitHub = issuesOf().issues.find((i) => i.number === made.number)!;
+    expect(onGitHub.labels).toEqual(["kind/plot-hole", "char/ada"]);
+    expect(onGitHub.body).toContain(`Chapter two says slow.\n\n> ${quote}\n\nFrom [*The Station*](${fake.url}/ada/${repoName()}/blob/${commit}/${STATION}?plain=1#L${line}).`);
+    expect(readAnchor(onGitHub.body)).toEqual({ scene: "sc_5tat1n", quote, commit });
+    // The kind's label, made with its colour once.
+    expect(issuesOf().labels.find((l) => l.name === "kind/plot-hole")).toEqual(kind);
+    await issues.raise({ path: STATION, scene: "sc_5tat1n", sceneTitle: "The Station", quote, title: "Again", kind });
+    expect(issuesOf().labels.filter((l) => l.name === "kind/plot-hole")).toHaveLength(1);
+  });
+
+  it("is queued like any change while GitHub can't be reached", async () => {
+    seed();
+    const issues = open();
+    await issues.refresh();
+    offline = true;
+    const made = await issues.raise({ path: STATION, scene: "sc_5tat1n", sceneTitle: "The Station", quote, title: "Offline note", kind });
+    expect(made).toMatchObject({ number: -1, pending: true, labels: ["kind/plot-hole"] });
+    expect(readAnchor(made.body)?.scene).toBe("sc_5tat1n");
+    // The queued raise's own try, still offline, settles first.
+    await new Promise((r) => setTimeout(r, 50));
+    offline = false;
+    await issues.refresh();
+    expect(issuesOf().issues.find((i) => i.title === "Offline note")?.labels).toEqual(["kind/plot-hole"]);
+    await expect(issues.raise({ path: STATION, scene: "sc_5tat1n", sceneTitle: "The Station", quote: "  ", title: "Nothing" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });
 

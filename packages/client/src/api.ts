@@ -483,6 +483,9 @@ function issuesApi(root: (novelId: string) => string, request: Request) {
     create: (novelId: string, input: IssueInput & { title: string }) => call<Issue>("POST", novelId, "", input),
     update: (novelId: string, number: number, input: IssueInput) => call<Issue>("PATCH", novelId, `/${number}`, input),
     comment: (novelId: string, number: number, body: string) => call<IssueComment>("POST", novelId, `/${number}/comments`, { body }),
+    /** Raise an issue about a passage: quoted, linked, labelled with its kind, and anchored (#9). */
+    raise: (novelId: string, passage: { path: string; scene: string; sceneTitle: string; quote: string; title: string; details?: string; kind?: IssueLabel; labels?: string[] }) =>
+      call<Issue>("POST", novelId, "/passage", passage),
     /** Bring the cache up to date with GitHub, and send changes made offline. */
     refresh: (novelId: string) => call<{ changed: boolean; status: IssuesStatus }>("POST", novelId, "/refresh"),
     /** Drop a change GitHub refused. */

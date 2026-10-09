@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { passageIssueBody } from "@gh-writer/core";
 import { git } from "./git.ts";
 import { GitHubError, unreachable, type GitHub, type GitHubRepo } from "./github.ts";
 
@@ -108,6 +109,21 @@ export interface IssueFilter {
   milestone?: number | "none";
   /** Words that must all appear in the title, body or comments (any case). */
   text?: string;
+}
+
+/** An issue about a passage of a scene (#9). */
+export interface Passage {
+  /** The scene file, relative to the novel. */
+  path: string;
+  /** The scene's ID (sc_…) and title. */
+  scene: string;
+  sceneTitle: string;
+  quote: string;
+  title: string;
+  details?: string;
+  /** Its kind, as a label made on the repository with this colour when first used. */
+  kind?: Label;
+  labels?: string[];
 }
 
 export interface IssueInput {
@@ -245,6 +261,54 @@ export class IssueStore {
     const key = this.#cache!.nextKey--;
     const issue = await this.#queue({ kind: "comment", number: n, key, body }, `Comment on ${label(n)}`, n);
     return issue.comments.find((c) => c.id === key)!;
+  }
+
+  /**
+   * Raise an issue about a passage: its body has the note, the passage quoted and a link to the scene
+   * on GitHub at the latest commit holding it (at the passage's line when found there), and the
+   * hidden anchor gh-writer finds the passage by (D1). Queued like any other while offline.
+   */
+  async raise(passage: Passage): Promise<Issue> {
+    if (!passage.quote.trim()) throw new IssuesError("BAD_REQUEST", "Select the passage the issue is about.");
+    const repo = await this.#requireRepo();
+    if (passage.kind) await this.ensureLabel(passage.kind);
+    const where = await this.#permalink(repo, passage.path, passage.quote).catch(() => undefined);
+    const body = passageIssueBody({
+      details: passage.details ?? "",
+      quote: passage.quote,
+      sceneTitle: passage.sceneTitle,
+      ...(where ? { link: where.link } : {}),
+      anchor: { scene: passage.scene, quote: passage.quote, ...(where ? { commit: where.commit } : {}) },
+    });
+    const labels = [...new Set([...(passage.kind ? [passage.kind.name] : []), ...(passage.labels ?? [])])];
+    return this.create({ title: passage.title, body, labels });
+  }
+
+  /** Make a label on the repository if it isn't there yet, with its colour (best effort: GitHub makes a missing one anyway). */
+  async ensureLabel(label: Label): Promise<void> {
+    const cache = await this.#load();
+    const repo = this.#status.repo;
+    if (!repo || cache.labels.some((l) => l.name === label.name)) return;
+    try {
+      const made = (await this.#send(repo, "/labels", "POST", { name: label.name, color: label.color, description: label.description })) as Label;
+      cache.labels = [...cache.labels.filter((l) => l.name !== made.name), { name: made.name, color: made.color, description: made.description ?? "" }];
+      await this.#save();
+    } catch {
+      // Already there (made meanwhile), or GitHub can't be reached: the issue still gets the label.
+    }
+  }
+
+  /** The scene file on GitHub at the latest commit that has it, at the passage's first line if found there. */
+  async #permalink(repo: GitHubRepo, path: string, quote: string): Promise<{ commit: string; link: string } | undefined> {
+    const g = git(this.root);
+    const commit = (await g.raw(["log", "-1", "--format=%H", "--", path])).trim();
+    if (!commit) return undefined;
+    const inRepo = `${(await g.raw(["rev-parse", "--show-prefix"])).trim()}${path}`;
+    const text = await g.raw(["show", `${commit}:${inRepo}`]).catch(() => "");
+    const first = quote.trim().split("\n")[0]!.slice(0, 80);
+    const line = first ? text.split("\n").findIndex((l) => l.includes(first)) + 1 : 0;
+    const file = inRepo.split("/").map(encodeURIComponent).join("/");
+    return { commit, link: `${repo.url}/blob/${commit}/${file}${line ? `?plain=1#L${line}` : ""}` };
   }
 
   /** Drop a queued change (one GitHub refused): what it made in the cache goes with it. */
