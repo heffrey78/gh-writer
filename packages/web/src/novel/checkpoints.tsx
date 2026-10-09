@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { History } from "lucide-react";
 import { Dialog } from "radix-ui";
 import { useId, useState, type FormEvent } from "react";
+import { useNavigate } from "react-router";
 import { api, keys } from "../api.ts";
 import { ago } from "../format.ts";
 import { ErrorAlert } from "../ui/alert.tsx";
@@ -49,6 +50,7 @@ function Panel({ novelId, workspace, close }: { novelId: string; workspace: Work
   const autoId = useId();
   const scene = useCurrentScene((s) => s.scene);
   const show = useNotice((s) => s.show);
+  const navigate = useNavigate();
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: keys.checkpoints(novelId) });
     void queryClient.invalidateQueries({ queryKey: keys.novel(novelId) });
@@ -147,6 +149,16 @@ function Panel({ novelId, workspace, close }: { novelId: string; workspace: Work
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      close();
+                      void navigate(`/novels/${novelId}/compare?${new URLSearchParams({ from: `checkpoint:${c.id}`, to: "now" })}`);
+                    }}
+                    aria-label={`Compare “${c.name}” with now`}
+                  >
+                    Compare with now
+                  </Button>
                   <Confirm
                     title={`Restore the manuscript from “${c.name}”?`}
                     description="Every scene and bible entry goes back to how it was then. What you have now is kept in an automatic checkpoint, so you can undo this."

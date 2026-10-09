@@ -175,6 +175,17 @@ function Panel({ novelId, workspace, close }: { novelId: string; workspace: Work
                 </div>
                 {!v.current || !v.main ? (
                   <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        close();
+                        // The open version (as saved now) against this one, or against the main version.
+                        void navigate(`/novels/${novelId}/compare?${new URLSearchParams(v.current ? { from: "version:main", to: "now" } : { from: `version:${v.id}`, to: "now" })}`);
+                      }}
+                      aria-label={v.current ? `Compare “${v.name}” with the main version` : `Compare “${v.name}” with the open version`}
+                    >
+                      Compare
+                    </Button>
                     {!v.current && (
                       <Button size="sm" disabled={switchTo.isPending} onClick={() => switchTo.mutate(v, { onSuccess: close })} aria-label={`Open “${v.name}”`}>
                         Open

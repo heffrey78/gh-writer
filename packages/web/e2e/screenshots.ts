@@ -82,3 +82,30 @@ test("issues on GitHub", async ({ page, app }) => {
   await page.waitForTimeout(1200);
   await shoot(page, "issues");
 });
+
+test("comparing a version with the main one", async ({ page, app }) => {
+  const dir = app.novelRepo("varn");
+  await app.restart(dir);
+  await page.goto(app.launchUrl);
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
+  await page.getByRole("button", { name: "Versions: Main version is open" }).click();
+  await page.getByRole("textbox", { name: "New version" }).fill("A darker ending");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Versions: A darker ending is open" })).toBeVisible();
+  const { readFileSync, writeFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const station = join(dir, "manuscript/01-return/01-arrival/01-the-station.md");
+  writeFileSync(
+    station,
+    readFileSync(station, "utf8")
+      .replace("counted them twice, the way you count stitches in a wound", "counted them three times, the way her father had counted rivets")
+      .replace("Twelve years had not moved the station clock.", "Twelve years had not moved the station clock, and nobody had wound it either."),
+  );
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toContainText("counted rivets");
+  await page.getByRole("button", { name: "Dismiss" }).click();
+  await page.getByRole("button", { name: "Versions: A darker ending is open" }).click();
+  await page.getByRole("button", { name: "Compare “A darker ending” with the main version" }).click();
+  await page.getByRole("button", { name: /The Station/ }).click();
+  await expect(page.locator("ins").first()).toBeVisible();
+  await shoot(page, "compare");
+});

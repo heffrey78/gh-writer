@@ -15,6 +15,7 @@ import { NewEntryDialog } from "../bible/new-entry.tsx";
 import { plural } from "../bible/types.ts";
 import { CheckpointsButton } from "./checkpoints.tsx";
 import { CompileButton, CompileDialog } from "./compile.tsx";
+import { ComparePage } from "./compare-page.tsx";
 import { useSwitchVersion, useVersions, useVersionsPanel, VersionsButton } from "./versions.tsx";
 import { SaveConflicts, SyncConflicts } from "./conflicts.tsx";
 import { useNovelEvents } from "./events.ts";
@@ -159,6 +160,7 @@ export function NovelPage() {
       { id: "novel.timeline", title: "Timeline", group: "Go to", keywords: ["chronology", "story time", "flashback", "diagram"], run: () => void navigate(`/novels/${novelId}/timeline`) },
       { id: "novel.presence", title: "Presence matrix", group: "Go to", keywords: ["diagram", "characters", "themes", "locations"], run: () => void navigate(`/novels/${novelId}/presence`) },
       { id: "novel.swimlanes", title: "Plotline swimlanes", group: "Go to", keywords: ["diagram", "plotlines"], run: () => void navigate(`/novels/${novelId}/swimlanes`) },
+      { id: "novel.compare", title: "Compare: what changed between drafts", group: "Go to", keywords: ["diff", "changes"], run: () => void navigate(`/novels/${novelId}/compare`) },
       { id: "novel.graph", title: "Relationship graph", group: "Go to", keywords: ["diagram", "characters"], run: () => void navigate(`/novels/${novelId}/graph`) },
       ...(repo
         ? [
@@ -245,6 +247,7 @@ export function NovelPage() {
                 ["presence", "Presence"],
                 ["timeline", "Timeline"],
                 ["graph", "Graph"],
+                ["compare", "Compare"],
                 ...(repo ? [["issues", "Issues"]] : []),
               ].map(([path, label]) => (
                 <NavLink key={path} to={`/novels/${novelId}/${path}`} className={({ isActive }) => `rounded-md px-2 py-1 hover:bg-paper ${isActive ? "bg-accent-soft font-medium" : ""}`}>
@@ -288,6 +291,7 @@ export function NovelPage() {
               <Route path="corkboard" element={<CorkboardPage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="outline" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="bible" element={<BiblePage novelId={novelId} novel={book} />} />
+              <Route path="compare" element={<ComparePage novelId={novelId} />} />
               <Route path="issues" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssuesPage novelId={novelId} novel={book} workspace={workspace} />}</GitHubOnly>} />
               <Route path="issues/:number" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssueRoute novelId={novelId} novel={book} workspace={workspace} />}</GitHubOnly>} />
               <Route path="bible/:entityId" element={<EntryRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
