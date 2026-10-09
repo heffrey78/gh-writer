@@ -27,6 +27,7 @@ import { useStore } from "zustand";
 import { joinSceneFile, splitSceneFile } from "@gh-writer/editor";
 import { api } from "../api.ts";
 import { useCommands } from "../commands.ts";
+import { useQuickEntry } from "../bible/quick-entry.ts";
 import { mentionEntities } from "../bible/types.ts";
 import { useCurrentScene } from "./current.ts";
 import { EntryPanel, leaveMention, MentionCard, useEntryPanel, useMentionCard } from "./mention-card.tsx";
@@ -59,6 +60,7 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
   );
   const paths = scenes.map((s) => s.file);
   const entities = useMemo(() => mentionEntities(novel), [novel]);
+  const newEntry = useQuickEntry(novelId, novel, editor);
   // Focus goes to the text when a chapter or scene is opened, not when it reloads (files renamed by a move).
   const viewId = "scene" in view ? view.scene.id : view.chapter.id;
   const focusedView = useRef<string | undefined>(undefined);
@@ -270,6 +272,7 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
             onReady={setEditor}
             autofocus={autofocus}
             entities={entities}
+            newEntry={newEntry}
             onMention={onMention}
             {...(spell ? { spell } : {})}
           />
@@ -281,12 +284,13 @@ export function WritingView({ novelId, novel, workspace, view, spell }: Props) {
             onReady={setEditor}
             autofocus={autofocus}
             entities={entities}
+            newEntry={newEntry}
             onMention={onMention}
             {...(spell ? { spell } : {})}
           />
         )}
       </div>
-      {showDetails && detailsScene && <SceneDetails key={detailsScene.file} novel={novel} workspace={workspace} path={detailsScene.file} title={detailsScene.title} />}
+      {showDetails && detailsScene && <SceneDetails key={detailsScene.file} novel={novel} workspace={workspace} path={detailsScene.file} title={detailsScene.title} newEntry={newEntry.create} />}
       <EntryPanel novelId={novelId} novel={novel} workspace={workspace} spell={spell} />
       <MentionCard novel={novel} />
     </div>

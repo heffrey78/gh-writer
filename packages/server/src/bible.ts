@@ -6,6 +6,7 @@ import {
   editYaml,
   indexById,
   loadNovel,
+  ID_PATTERN,
   RESERVED_PREFIXES,
   slugify,
   uniqueFileName,
@@ -84,12 +85,15 @@ export class BibleOperations {
   }
 
   /** Add an entity of `type` (an entity type key, built-in or custom). */
-  createEntity(type: string, fields: EntityFields & { name: string }, notes = ""): Promise<OperationResult & { id: string; file: string }> {
+  createEntity(type: string, fields: EntityFields & { name: string }, notes = "", wanted?: string): Promise<OperationResult & { id: string; file: string }> {
     return this.#run(async (novel) => {
       const def = novel.entityTypes.find((t) => t.key === type);
       if (!def) throw new OperationError("BAD_REQUEST", `No entity type “${type}”.`);
       const name = required(fields.name, "name");
-      const id = uniqueId(def.prefix, new Set(indexById(novel).keys()));
+      const ids = new Set(indexById(novel).keys());
+      // The app may pick the ID itself (a mention written before the file): it must be new and of this type.
+      if (wanted !== undefined && (ID_PATTERN.exec(wanted)?.[1] !== def.prefix || ids.has(wanted))) throw new OperationError("BAD_REQUEST", `“${wanted}” can't be a new ${def.label.toLowerCase()}'s ID.`);
+      const id = wanted ?? uniqueId(def.prefix, ids);
       const folder = `bible/${def.folder}`;
       const taken = new Set(novel.entities.filter((e) => e.file.startsWith(`${folder}/`)).map((e) => e.file.slice(folder.length + 1)));
       const file = `${folder}/${uniqueFileName(slugify(name), ".md", taken)}`;

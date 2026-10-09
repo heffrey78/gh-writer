@@ -77,7 +77,7 @@ export {
   type SpellService,
 } from "./spell.ts";
 export { SpellEngine, type Misspellings } from "./spell-engine.ts";
-export { mentionSuggestKey, MentionSuggestExtension, suggestMentions, type MentionEntity, type MentionSuggestion, type MentionSuggestOptions } from "./mention-suggest.ts";
+export { mentionSuggestKey, MentionSuggestExtension, suggestMentions, type MentionEntity, type MentionSuggestion, type MentionSuggestOptions, type MentionType } from "./mention-suggest.ts";
 export { MENTION_INFO_KEYS, mentionAtCaret, MentionInfoExtension, type MentionInfoOptions, type MentionTarget } from "./mention-info.ts";
 export { SelectFocusExtension } from "./select-focus.ts";
 export { linkCommands, linkNameAtCaret, linkSuggestKey, LinkSuggestExtension, type LinkSuggestOptions } from "./link-suggest.ts";

@@ -90,11 +90,13 @@ export function validateNovel(novel: Novel): Diagnostic[] {
     }
   }
 
-  // Scenes.
+  // Scenes. `entities` holds custom types only: the built-in four have their own lists.
+  const customTypes = novel.entityTypes.filter((t) => !t.builtin).map((t) => t.key);
   for (const s of novel.allScenes) {
     ref(s.pov, ["character"], s.file, "/pov", "pov");
     s.characters.forEach((id, i) => ref(id, ["character"], s.file, `/characters/${i}`, "characters"));
     s.locations.forEach((id, i) => ref(id, ["location"], s.file, `/locations/${i}`, "locations"));
+    s.entities.forEach((id, i) => ref(id, customTypes, s.file, `/entities/${i}`, "entities"));
     s.plotlines.forEach((p, i) => ref(p.id, ["plotline"], s.file, `/plotlines/${i}`, "plotlines"));
     s.themes.forEach((t, i) => ref(t.id, ["theme"], s.file, `/themes/${i}`, "themes"));
     if (s.pov && !s.characters.includes(s.pov)) {

@@ -72,6 +72,8 @@ export interface Scene {
   pov?: string;
   characters: string[];
   locations: string[];
+  /** Entries of custom types (not characters, locations, plotlines or themes) in the scene. */
+  entities: string[];
   plotlines: PlotlineRef[];
   themes: ThemeRef[];
   when?: StoryTime;

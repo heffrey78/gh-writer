@@ -49,9 +49,23 @@ export function suggestMentions(entities: readonly MentionEntity[], query: strin
   return types.flatMap((type) => top.filter((s) => s.entity.type === type)).map(({ entity, label }) => ({ entity, label }));
 }
 
+/** A type of entry the @ menu can make a new one of. */
+export interface MentionType {
+  key: string;
+  /** "Character". */
+  label: string;
+}
+
 export interface MentionSuggestOptions {
   /** The entities to suggest; read on every keystroke, so it can change without remounting. */
   entities: () => readonly MentionEntity[];
+  /** The types offered as "New <type>" for what's typed after @; only with onCreate. */
+  types: () => readonly MentionType[];
+  /**
+   * Make an entry of `type` named `name` and return its ID at once, so the mention goes in while
+   * the file is written in the background; undefined if it can't be made.
+   */
+  onCreate?: ((type: string, name: string) => string | undefined) | undefined;
 }
 
 interface Active {
@@ -61,6 +75,9 @@ interface Active {
   to: number;
   query: string;
   items: MentionSuggestion[];
+  /** "New <type>" rows, after the items: what's typed, as a new entry's name. */
+  creates: MentionType[];
+  /** Across items then creates; -1 when nothing is chosen (no match yet), so Enter stays Enter. */
   index: number;
 }
 
@@ -103,10 +120,19 @@ export const MentionSuggestExtension = Extension.create<MentionSuggestOptions>({
   name: "mentionSuggest",
   // Before the keymaps, so Enter and Tab choose a suggestion rather than split or indent.
   priority: 1000,
-  addOptions: () => ({ entities: () => [] }),
+  addOptions: () => ({ entities: () => [], types: () => [], onCreate: undefined }),
   addProseMirrorPlugins() {
     const options = this.options;
     const editor = this.editor;
+
+    const choose = (view: EditorView, active: Active, index: number) => {
+      const item = active.items[index];
+      if (item) return insert(view, active, item);
+      const type = active.creates[index - active.items.length];
+      const name = active.query.trim();
+      const id = type && options.onCreate?.(type.key, name);
+      if (id) insert(view, active, { entity: { id, name, aliases: [], type: type.label }, label: name });
+    };
 
     const insert = (view: EditorView, active: Active, item: MentionSuggestion) => {
       const { state } = view;
@@ -133,26 +159,37 @@ export const MentionSuggestExtension = Extension.create<MentionSuggestOptions>({
             const dismissed = at && prev.dismissed !== null ? tr.mapping.map(prev.dismissed) : null;
             if (meta && "dismiss" in meta && at) return { active: null, dismissed: at.from };
             if (!at || dismissed === at.from) return { active: null, dismissed: at ? dismissed : null };
-            const items = suggestMentions(options.entities(), at.query);
-            if (!items.length) return { active: null, dismissed: null };
+            const entities = options.entities();
+            const items = suggestMentions(entities, at.query);
+            const name = at.query.trim().toLowerCase();
+            // A type is offered unless an entry of it already has that name.
+            const creates =
+              name && options.onCreate
+                ? options.types().filter((t) => !entities.some((e) => e.type === t.label && [e.name, ...e.aliases].some((n) => n.toLowerCase() === name)))
+                : [];
+            const n = items.length + creates.length;
+            if (!n) return { active: null, dismissed: null };
             const same = prev.active && prev.active.from === at.from && prev.active.query === at.query;
-            const index = meta && "index" in meta ? meta.index : same ? prev.active!.index : 0;
-            return { active: { ...at, items, index: Math.min(Math.max(index, 0), items.length - 1) }, dismissed: null };
+            const index = meta && "index" in meta ? meta.index : same ? prev.active!.index : items.length ? 0 : -1;
+            return { active: { ...at, items, creates, index: Math.min(Math.max(index, -1), n - 1) }, dismissed: null };
           },
         },
         props: {
           attributes(state): Record<string, string> {
             const active = mentionSuggestKey.getState(state)?.active;
-            return active ? { "aria-controls": LISTBOX, "aria-activedescendant": optionId(active.index), "aria-haspopup": "listbox" } : {};
+            if (!active) return {};
+            return { "aria-controls": LISTBOX, "aria-haspopup": "listbox", ...(active.index >= 0 ? { "aria-activedescendant": optionId(active.index) } : {}) };
           },
           handleKeyDown(view, event) {
             const active = mentionSuggestKey.getState(view.state)?.active;
             if (!active || event.isComposing) return false;
-            const n = active.items.length;
+            const n = active.items.length + active.creates.length;
             const move = (index: number) => view.dispatch(view.state.tr.setMeta(mentionSuggestKey, { index: (index + n) % n } satisfies Meta));
+            const plain = !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey;
             if (event.key === "ArrowDown") move(active.index + 1);
-            else if (event.key === "ArrowUp") move(active.index - 1);
-            else if ((event.key === "Enter" || event.key === "Tab") && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) insert(view, active, active.items[active.index]!);
+            else if (event.key === "ArrowUp") move(active.index < 0 ? n - 1 : active.index - 1);
+            // Nothing chosen yet (only "New …" rows): Enter and Tab keep their usual meaning.
+            else if ((event.key === "Enter" || event.key === "Tab") && plain && active.index >= 0) choose(view, active, active.index);
             else if (event.key === "Escape") {
               view.dispatch(view.state.tr.setMeta(mentionSuggestKey, { dismiss: true } satisfies Meta));
               // Only the suggestions close, not whatever Escape means around the editor.
@@ -207,13 +244,39 @@ export const MentionSuggestExtension = Extension.create<MentionSuggestOptions>({
               }
               list.append(group);
             }
+            if (active.creates.length) {
+              const group = document.createElement("div");
+              group.setAttribute("role", "group");
+              const heading = document.createElement("div");
+              heading.className = "ghw-mention-group";
+              heading.id = `${LISTBOX}-group-new`;
+              heading.setAttribute("role", "presentation");
+              heading.textContent = "New entry";
+              group.setAttribute("aria-labelledby", heading.id);
+              group.append(heading);
+              for (const type of active.creates) {
+                const index = i++;
+                const option = document.createElement("div");
+                option.id = optionId(index);
+                option.setAttribute("role", "option");
+                option.setAttribute("aria-selected", String(index === active.index));
+                option.textContent = `New ${type.label.toLowerCase()} “${active.query.trim()}”`;
+                option.addEventListener("mousedown", (e) => e.preventDefault());
+                option.addEventListener("click", () => {
+                  const now = mentionSuggestKey.getState(view.state)?.active;
+                  if (now) choose(view, now, index);
+                });
+                group.append(option);
+              }
+              list.append(group);
+            }
             const coords = view.coordsAtPos(active.from);
             list.style.left = `${Math.max(8, Math.min(coords.left, window.innerWidth - 280))}px`;
             const height = list.offsetHeight;
             const below = coords.bottom + 6;
             const above = coords.top - 6 - height;
             list.style.top = `${below + height <= window.innerHeight - 8 || above < 8 ? below : above}px`;
-            document.getElementById(optionId(active.index))?.scrollIntoView({ block: "nearest" });
+            if (active.index >= 0) document.getElementById(optionId(active.index))?.scrollIntoView({ block: "nearest" });
           };
 
           const update = () => {

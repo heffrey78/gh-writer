@@ -15,7 +15,7 @@ import { DEFAULT_GAP, gaps, zoomed, type Gap } from "@gh-writer/core/diagrams";
 import { GapControls } from "../diagrams/gap-controls.tsx";
 import { amount, readGap, writeGap } from "../diagrams/gap-param.ts";
 import { useViewParams } from "../ui/view-params.ts";
-import { LISTS, presence, sortRows, totals, type Presence, type RowOrder } from "@gh-writer/core/diagrams";
+import { presence, sceneList, sortRows, totals, type Presence, type RowOrder } from "@gh-writer/core/diagrams";
 
 const number = new Intl.NumberFormat();
 const ORDERS: [RowOrder, string][] = [
@@ -70,7 +70,7 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
     return out;
   }, [absences, whole]);
   const shaded = useMemo(() => new Set(inGap.keys()), [inGap]);
-  const listedIn = LISTS[type];
+  const listedIn = sceneList(type);
   const show = useNotice((n) => n.show);
   const sceneEdit = useSceneEdit(novelId, workspace);
   const [editing, setEditing] = useState<{ row: string; scene: string; el: HTMLElement }>();

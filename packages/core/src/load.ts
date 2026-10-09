@@ -201,6 +201,7 @@ export async function loadNovel(source: FileSource): Promise<Novel> {
       pov: str(d["pov"]),
       characters: strList(d["characters"]),
       locations: strList(d["locations"]),
+      entities: strList(d["entities"]),
       plotlines: refList(d["plotlines"]).map((r): PlotlineRef => ({
         id: r.id,
         weight: r.obj?.["weight"] === "minor" ? "minor" : "major",

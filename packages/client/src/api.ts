@@ -387,8 +387,9 @@ type Request = <T>(method: string, path: string, body?: unknown, options?: Reque
 function bibleApi(root: (novelId: string) => string, request: Request) {
   const call = async <T>(method: string, novelId: string, path: string, body?: unknown) => (await request<T>(method, `${root(novelId)}${path}`, body)).data;
   return {
-    createEntity: (novelId: string, type: string, fields: EntityFields & { name: string }, notes?: string) =>
-      call<OperationResult & { id: string; file: string }>("POST", novelId, "/entities", { type, ...fields, ...(notes ? { notes } : {}) }),
+    /** `id`: one the app picked (e.g. for a mention written before the file); otherwise the server picks. */
+    createEntity: (novelId: string, type: string, fields: EntityFields & { name: string }, notes?: string, id?: string) =>
+      call<OperationResult & { id: string; file: string }>("POST", novelId, "/entities", { type, ...fields, ...(notes ? { notes } : {}), ...(id ? { id } : {}) }),
     updateEntity: (novelId: string, id: string, base: string, changes: EntityFields) =>
       call<OperationResult & { file: string }>("PATCH", novelId, `/entities/${encodeURIComponent(id)}`, { base, changes }),
     /** Refused (not thrown) when something refers to it: the references come back; pass confirm to delete anyway. */
