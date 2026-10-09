@@ -9,11 +9,20 @@ interface Props {
   what: string;
 }
 
-class Boundary extends Component<Props, { error: Error | undefined }> {
-  override state: { error: Error | undefined } = { error: undefined };
+interface State {
+  error: Error | undefined;
+  pathname: string;
+}
+
+class Boundary extends Component<Props & { pathname: string }, State> {
+  override state: State = { error: undefined, pathname: this.props.pathname };
 
   static getDerivedStateFromError(error: Error) {
     return { error };
+  }
+
+  static getDerivedStateFromProps(props: { pathname: string }, state: State): Partial<State> | null {
+    return props.pathname === state.pathname ? null : { error: undefined, pathname: props.pathname };
   }
 
   override componentDidCatch(error: Error) {
@@ -38,12 +47,14 @@ class Boundary extends Component<Props, { error: Error | undefined }> {
 
 /**
  * A failure while rendering shows a message in place of what failed, not a blank page; the rest of
- * the app keeps working. Going to another address starts afresh.
+ * the app keeps working. Going to another address clears the message. With `remount` (a view), what's
+ * inside is built afresh at each address too; without it (a page), it keeps its state, such as a
+ * novel's open files and the saves under way.
  */
-export function ErrorBoundary({ children, what }: Props) {
+export function ErrorBoundary({ children, what, remount = false }: Props & { remount?: boolean }) {
   const { pathname } = useLocation();
   return (
-    <Boundary key={pathname} what={what}>
+    <Boundary key={remount ? pathname : undefined} pathname={pathname} what={what}>
       {children}
     </Boundary>
   );

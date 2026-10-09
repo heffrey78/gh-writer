@@ -131,6 +131,12 @@ test("when GitHub stops accepting the sign-in, sync says so and reconnecting res
   await axe(page);
 });
 
+/** Open a novel, ready to write: its text takes the focus once loaded, which would close a popover opened before. */
+async function openNovel(page: Page, app: App, id: string) {
+  await page.goto(`${app.url}/novels/${id}`);
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
+}
+
 /** Start a novel through the API: local only, no remote. */
 async function newNovel(page: Page, app: App, title: string) {
   const r = await page.request.post(`${app.url}/api/library/new`, { data: { title }, headers: { origin: app.url } });
@@ -167,7 +173,7 @@ test("puts a novel on GitHub from its sync badge, then syncs with it", async ({ 
   await connectButton(page).click();
   await signInWithCode(page, app);
   const novel = await newNovel(page, app, "Night Ferry");
-  await page.goto(`${app.url}/novels/${novel.id}`);
+  await openNovel(page, app, novel.id);
   await expect(badge(page)).toHaveAccessibleName("Sync: Local only");
   await badge(page).click();
   await page.getByRole("dialog").getByRole("button", { name: "Put on GitHub…" }).click();
@@ -180,7 +186,7 @@ test("puts a novel on GitHub from its sync badge, then syncs with it", async ({ 
 
   // A name that's taken says so, in the dialog.
   const other = await newNovel(page, app, "Second Ferry");
-  await page.goto(`${app.url}/novels/${other.id}`);
+  await openNovel(page, app, other.id);
   await badge(page).click();
   await page.getByRole("dialog").getByRole("button", { name: "Put on GitHub…" }).click();
   await publish.getByRole("textbox", { name: "Repository name" }).fill("ferry");
@@ -228,7 +234,7 @@ test("a sign-in without the workflow permission: publishing says so, and reconne
   await expect(page.getByRole("button", { name: "GitHub account: ada (needs reconnecting)" })).toBeVisible();
 
   const novel = await newNovel(page, app, "Bingo Parlor");
-  await page.goto(`${app.url}/novels/${novel.id}`);
+  await openNovel(page, app, novel.id);
   await badge(page).click();
   await page.getByRole("dialog").getByRole("button", { name: "Put on GitHub…" }).click();
   const publish = page.getByRole("dialog", { name: "Put on GitHub" });

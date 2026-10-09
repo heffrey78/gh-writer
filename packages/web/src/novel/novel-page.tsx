@@ -198,7 +198,7 @@ export function NovelPage() {
           </aside>
         )}
         <div className="md:overflow-y-auto">
-          <ErrorBoundary what="this view">
+          <ErrorBoundary what="this view" remount>
             <Routes>
               <Route index element={book.chapters[0] ? <Navigate to={`/novels/${novelId}/chapter/${book.chapters[0].id}`} replace /> : <EmptyManuscript />} />
               <Route path="chapter/:chapterId" element={<ChapterRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />

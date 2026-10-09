@@ -78,6 +78,8 @@ test("a cell links its scene to the plotline, and edits or removes the link, cha
 test("the swimlanes and the scene details panel agree after an edit in either", async ({ page, app }) => {
   await open(page, app);
   await page.getByRole("tree", { name: "Manuscript" }).getByRole("treeitem", { name: /^The Station,/ }).click();
+  // The scene opens with its text focused: open the palette after that, or the focus moves out of it.
+  await expect(page.getByRole("textbox", { name: "Scene text" })).toBeFocused();
   await page.keyboard.press("ControlOrMeta+k");
   await page.keyboard.type("show scene details");
   await page.keyboard.press("Enter");

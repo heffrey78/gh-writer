@@ -89,6 +89,8 @@ export function createWorkspace({ api, novelId, interval, storage, onFrontMatter
   const live = new Map<string, () => string | undefined>();
   const editListeners = new Set<(path: string, before: string, after: string) => void>();
   const loading = new Map<string, Promise<void>>();
+  // Front-matter edits written straight to files that aren't open: opening one waits for them.
+  const writing = new Map<string, Promise<void>>();
 
   const file = (path: string) => store.getState().files[path];
   const setFile = (path: string, f: OpenFile | undefined) =>
@@ -157,8 +159,8 @@ export function createWorkspace({ api, novelId, interval, storage, onFrontMatter
           .map((path) => {
             let p = loading.get(path);
             if (!p) {
-              p = api
-                .readFile(novelId, path)
+              p = (writing.get(path) ?? Promise.resolve())
+                .then(() => api.readFile(novelId, path))
                 .then(({ content, hash }) => {
                   // Unsaved text from before a reload (sessionStorage) wins over the disk: autosave saves it.
                   if (!file(path)) load(path, content, hash);
@@ -187,6 +189,10 @@ export function createWorkspace({ api, novelId, interval, storage, onFrontMatter
     },
 
     async editFrontMatter(path, edits) {
+      // A file being opened is edited once it's open, or the open would load what was there before.
+      // Only then: awaiting nothing would let an open() start before this edit is under way.
+      const opening = loading.get(path);
+      if (opening) await opening;
       const f = file(path);
       if (f) {
         const next = splitSceneFile(editFrontMatter(joinSceneFile(f), edits));
@@ -194,12 +200,19 @@ export function createWorkspace({ api, novelId, interval, storage, onFrontMatter
         autosave.change(path, joinSceneFile({ ...f, frontMatter: next.frontMatter }));
         return;
       }
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const { content, hash } = await api.readFile(novelId, path);
-        const result = await api.writeFile(novelId, path, editFrontMatter(content, edits), hash);
-        if (result.ok) return;
-      }
-      throw new Error(`“${path}” keeps changing on disk; try again.`);
+      // After any earlier edit to the same file, so each reads what the last one wrote.
+      const write = (writing.get(path) ?? Promise.resolve()).then(async () => {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const { content, hash } = await api.readFile(novelId, path);
+          const result = await api.writeFile(novelId, path, editFrontMatter(content, edits), hash);
+          if (result.ok) return;
+        }
+        throw new Error(`“${path}” keeps changing on disk; try again.`);
+      });
+      const settled = write.catch(() => undefined);
+      writing.set(path, settled);
+      void settled.then(() => writing.get(path) === settled && writing.delete(path));
+      await write;
     },
 
     live(path, body) {

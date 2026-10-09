@@ -16,6 +16,8 @@ let n = 0;
 let root: string;
 let server: RunningServer;
 let ws: Workspace;
+let api: ReturnType<typeof createApi>;
+let novelId: string;
 
 const disk = () => readFileSync(join(root, SCENE), "utf8");
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -43,8 +45,9 @@ beforeEach(async () => {
   const library = await Library.open({ configDir: join(tmp, `config-${n}`) });
   const { id } = await library.add(root);
   server = await createServer({ library, token: "t", commit: false, sync: false });
-  const api = createApi({ baseUrl: server.url, headers: { cookie: `${sessionCookie(server.port)}=t`, origin: server.url } });
-  ws = createWorkspace({ api, novelId: id, interval: 30, storage: null });
+  novelId = id;
+  api = createApi({ baseUrl: server.url, headers: { cookie: `${sessionCookie(server.port)}=t`, origin: server.url } });
+  ws = createWorkspace({ api, novelId, interval: 30, storage: null });
   await ws.open([SCENE]);
 });
 
@@ -116,5 +119,46 @@ describe("workspace", () => {
 
   it("reports whether a change was to an open file", async () => {
     expect(await ws.fileChanged({ type: "change", path: "bible/characters/ada.md", hash: "x" })).toBe(false);
+  });
+});
+
+describe("editing the front matter of a scene that isn't open", () => {
+  const hold = () => {
+    let release!: () => void;
+    return { gate: new Promise<void>((r) => (release = r)), release: () => release() };
+  };
+  const status = (value: string) => [{ path: ["status"], value }];
+  let other: Workspace;
+  afterEach(() => other?.dispose());
+
+  it("writes the file, and a scene opened mid-write shows the edit", async () => {
+    const { gate, release } = hold();
+    other = createWorkspace({ api: { ...api, writeFile: async (...a) => (await gate, api.writeFile(...a)) }, novelId, interval: 30, storage: null });
+    const editing = other.editFrontMatter(SCENE, status("revised"));
+    const opening = other.open([SCENE]);
+    await sleep(50);
+    release();
+    await Promise.all([editing, opening]);
+    expect(disk()).toContain("status: revised");
+    expect(other.store.getState().files[SCENE]!.frontMatter).toContain("status: revised");
+  });
+
+  it("edits a scene being opened once it's open, through its autosave", async () => {
+    const { gate, release } = hold();
+    other = createWorkspace({ api: { ...api, readFile: async (...a) => (await gate, api.readFile(...a)) }, novelId, interval: 30, storage: null });
+    const opening = other.open([SCENE]);
+    const editing = other.editFrontMatter(SCENE, status("revised"));
+    release();
+    await Promise.all([opening, editing]);
+    expect(other.store.getState().files[SCENE]!.frontMatter).toContain("status: revised");
+    await other.autosave.flush();
+    expect(disk()).toContain("status: revised");
+  });
+
+  it("makes edits one after another, each on the last one's file", async () => {
+    other = createWorkspace({ api, novelId, interval: 30, storage: null });
+    await Promise.all([other.editFrontMatter(SCENE, status("revised")), other.editFrontMatter(SCENE, [{ path: ["synopsis"], value: "Both kept." }])]);
+    expect(disk()).toContain("status: revised");
+    expect(disk()).toContain("synopsis: Both kept.");
   });
 });

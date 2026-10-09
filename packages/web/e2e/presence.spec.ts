@@ -92,19 +92,27 @@ test("a cell puts someone in a scene, or takes them out, through the scene's met
 
 test("the matrix and the scene details panel agree after an edit in either", async ({ page, app }) => {
   await open(page, app);
+  // A slow disk: the scene opens while the cell's edit is still being saved, and shows it all the same.
+  await page.route(
+    (url) => decodeURIComponent(url.pathname).endsWith("/01-the-station.md"),
+    async (route) => {
+      if (route.request().method() === "PUT") await new Promise((r) => setTimeout(r, 1500));
+      await route.continue();
+    },
+  );
   const cell = grid(page, "Characters by scene").getByRole("gridcell", { name: /^The Station: Tomas Hale/ });
   await cell.click();
-  await expect(cell).toHaveAccessibleName("The Station: Tomas Hale present");
-  // The cell changes at once; the file a moment later. Opened before then, the scene would show what was
-  // there before (#101): wait for the save.
-  const station = join(app.home, "novels", "varn", "manuscript/01-return/01-arrival/01-the-station.md");
-  await expect.poll(() => readFileSync(station, "utf8").split("\n---")[0]).toContain("char_t0ma5h");
   await page.getByRole("tree", { name: "Manuscript" }).getByRole("treeitem", { name: /^The Station,/ }).click();
+  // The scene opens with its text focused: open the palette after that, or the focus moves out of it.
+  await expect(page.getByRole("textbox", { name: "Scene text" })).toBeFocused();
   await page.keyboard.press("ControlOrMeta+k");
   await page.keyboard.type("show scene details");
   await page.keyboard.press("Enter");
   const panel = page.getByRole("complementary", { name: "Details of “The Station”" });
   await expect(panel.getByRole("list").first()).toContainText("Tomas Hale");
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Presence" }).click();
+  await expect(cell).toHaveAccessibleName("The Station: Tomas Hale present");
+  await page.getByRole("tree", { name: "Manuscript" }).getByRole("treeitem", { name: /^The Station,/ }).click();
   await panel.getByRole("button", { name: "Remove “Tomas Hale”" }).click();
   await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Presence" }).click();
   await expect(grid(page, "Characters by scene").getByRole("gridcell", { name: "The Station: Tomas Hale not there" })).toBeVisible();
