@@ -2,7 +2,7 @@
 
 This guide is for the person writing the book. It assumes gh-writer is installed and running (see [Getting started](README.md#getting-started)). You don't need to know git or GitHub: gh-writer uses them for you, and this guide says what happens in plain terms.
 
-**Contents:** [Your library](#your-library) · [Writing](#writing) · [Structure](#structure-parts-chapters-and-scenes) · [The story bible](#the-story-bible) · [Diagrams](#diagrams) · [Saving, sync and checkpoints](#saving-sync-and-checkpoints) · [GitHub](#github) · [Issues](#issues) · [Compiling](#compiling) · [Keyboard](#keyboard) · [Your files](#your-files) · [The command line](#the-command-line)
+**Contents:** [Your library](#your-library) · [Writing](#writing) · [Structure](#structure-parts-chapters-and-scenes) · [The story bible](#the-story-bible) · [Diagrams](#diagrams) · [Saving, sync and checkpoints](#saving-sync-and-checkpoints) · [Versions and comparing](#versions-and-comparing) · [GitHub](#github) · [Issues](#issues) · [Compiling](#compiling) · [Keyboard](#keyboard) · [Your files](#your-files) · [The command line](#the-command-line)
 
 ## Your library
 
@@ -58,7 +58,24 @@ Each has an **Export** button for SVG; the graph and timeline also export Mermai
 
 **Sync**: with a novel on GitHub, gh-writer brings in changes and sends yours every few minutes, and when you choose *Sync now*. The header shows whether you're synced. If the same passage was changed in two places, *Resolve sync conflicts* walks you through each one.
 
-**Checkpoints** are named points in the book's history, like "Before the big cut". Make one from **Checkpoints** in the header. Later, restore the whole manuscript and story bible from it, or just one scene. A restore first takes a checkpoint of its own, so a restore can always be undone.
+**Checkpoints** are named drafts: points in the book's history, like "Before the big cut". Make one from **Checkpoints** in the header. Later, restore the whole manuscript and story bible from it, or just one scene, or **Compare with now** to see what has changed since. A restore first takes a checkpoint of its own, so a restore can always be undone.
+
+## Versions and comparing
+
+A **version** is another take on the book that lives alongside the main one: a darker ending, the book without a subplot. It has its own text and story bible; the main version stays exactly as it was. The header names the version you're in.
+
+- **Start one** from **Versions** in the header: name it and choose *Start version*. It begins as a copy of the version you're in, and opens. Everything you write now goes into it.
+- **Switch** between versions in the same panel, or with *Open version: …* in the command palette. What you've typed is saved first. If the chapter you're in doesn't exist in the other version, the book opens at its start.
+- **Compare** shows exactly what's different (see below).
+- **Adopt into main** when the version is the one you want: the main version opens and takes the version's changes. Anything you changed in the main version since the version began is kept too; where both changed the same passage, you choose, side by side, as with sync conflicts. The main version is kept in a checkpoint first, so *Undo* puts it back.
+- **Bring single scenes across** instead, from the compare view: *Use this scene from “…”* copies that scene's text and details into the version you're in.
+- **Discard** a version you don't want. It's kept in a checkpoint first; *Bring it back* in the notice (or a new version started from that checkpoint) restores it.
+
+With a novel on GitHub, versions sync like everything else, so your other computers have them too. Discarding one removes it there at the next sync.
+
+**Compare** (in the views, the command palette, and the Versions and Checkpoints panels) sets any two of *now*, a version and a checkpoint side by side. It lists every chapter and scene that changed, with word counts before and after; open a scene to read its text with deleted words struck through and new words underlined, so a reworded sentence shows just the words that changed. Changes to a scene's details (status, point of view, characters…), the story bible, relationships and off-page events are listed too. Untick *Only what changed* to see the whole book.
+
+![Comparing a version with the main one](docs/screenshots/compare.png)
 
 ## GitHub
 

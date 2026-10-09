@@ -26,16 +26,16 @@ browser ── web (React) ── client (API, autosave) ──HTTP──► ser
 cli ── serve / validate / snapshots / compile ───────────────┘
 ```
 
-The novel itself is the source of truth: plain Markdown and YAML files ([format spec](docs/format/v1.md), decision [D3](https://github.com/heffrey78/gh-writer/issues/23)). Story facts live in files and GitHub Issues hold work and discussion ([D1](https://github.com/heffrey78/gh-writer/issues/21)). The stack is TypeScript throughout, React, TipTap/ProseMirror, React Flow, Hono and the system git ([D4](https://github.com/heffrey78/gh-writer/issues/24)). Signing in to GitHub and using that for git is [D5](https://github.com/heffrey78/gh-writer/issues/91); compiling with our own TypeScript and pure-JavaScript libraries is [D6](https://github.com/heffrey78/gh-writer/issues/122).
+The novel itself is the source of truth: plain Markdown and YAML files ([format spec](docs/format/v1.md), decision [D3](https://github.com/heffrey78/gh-writer/issues/23)). Story facts live in files and GitHub Issues hold work and discussion ([D1](https://github.com/heffrey78/gh-writer/issues/21)). The stack is TypeScript throughout, React, TipTap/ProseMirror, React Flow, Hono and the system git ([D4](https://github.com/heffrey78/gh-writer/issues/24)). Signing in to GitHub and using that for git is [D5](https://github.com/heffrey78/gh-writer/issues/91); compiling with our own TypeScript and pure-JavaScript libraries is [D6](https://github.com/heffrey78/gh-writer/issues/122); versions as branches, adopted by merging, compared commit to commit, are [D7](https://github.com/heffrey78/gh-writer/issues/129).
 
 ## Packages
 
 | Package | What it is |
 |---|---|
-| [`core`](packages/core) | The novel format: JSON Schemas, types, the loader (`loadNovel`) and story model, the validator, word counts, IDs, edits to YAML that keep comments and layout, three-way merge, diagram data and SVG snapshots, issue anchors and labels, and the compiler's book model (`compileBook`). Runs in the browser and in Node. |
+| [`core`](packages/core) | The novel format: JSON Schemas, types, the loader (`loadNovel`) and story model, the validator, word counts, IDs, edits to YAML that keep comments and layout, three-way merge, diagram data and SVG snapshots, issue anchors and labels, the compiler's book model (`compileBook`), and comparing two states of a novel with a word-level diff (`compareNovels`). Runs in the browser and in Node. |
 | [`editor`](packages/editor/README.md) | The prose editor: TipTap schema, lossless Markdown round-trip, the scene and chapter editors, mentions, find and replace, spell check, word counts and the conflict resolver. |
 | [`client`](packages/client/README.md) | The browser side of the server: a typed API client and autosave. |
-| [`server`](packages/server/README.md) | The local server: Hono API, library, file writes, background commits, sync, checkpoints, GitHub connection, issue cache and outbox, compile route. Its README documents the API. |
+| [`server`](packages/server/README.md) | The local server: Hono API, library, file writes, background commits, sync, checkpoints, versions, comparisons, GitHub connection, issue cache and outbox, compile route. Its README documents the API. |
 | [`web`](packages/web) | The app: library, writing view, story bible, diagrams, issues, command palette. React, react-query, zustand, Radix, cmdk and Tailwind. |
 | [`export`](packages/export) | DOCX (hand-written WordprocessingML), EPUB 3 and PDF (pdfkit, with Liberation Serif) from a compiled book; zipped with fflate. |
 | [`cli`](packages/cli) | `gh-writer serve`, `validate`, `snapshots`, `compile` and `new-id`, and the entry points bundled into novel repositories. |
@@ -80,7 +80,7 @@ The compiled files must be the same bytes in the app, on the command line and in
 
 ## Project tracking
 
-Work is tracked as GitHub issues in this repository: requirements, decisions (D1–D6) and tasks, grouped into milestones. A requirement goes Draft → Approved → Implemented → Validated; approving and validating are the owner's decisions. Tasks link to their requirement, and a task is done when it's committed, pushed and CI is green. Commit messages say what changed and why, and refer to their task (`Refs #127`).
+Work is tracked as GitHub issues in this repository: requirements, decisions (D1–D7) and tasks, grouped into milestones. A requirement goes Draft → Approved → Implemented → Validated; approving and validating are the owner's decisions. Tasks link to their requirement, and a task is done when it's committed, pushed and CI is green. Commit messages say what changed and why, and refer to their task (`Refs #127`).
 
 ## License
 

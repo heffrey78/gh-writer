@@ -30,6 +30,15 @@ await server.close();
 | `GET /api/novels/:id/checkpoints` | yes | `{ checkpoints }`, newest first |
 | `POST /api/novels/:id/checkpoints` | yes | `{ name }` → `201 { checkpoint }` |
 | `POST /api/novels/:id/checkpoints/:checkpoint/restore` | yes | `{ sceneId? }` → `{ undo, commit, files }` |
+| `GET /api/novels/:id/versions` | yes | `{ versions }`: the main version first, each with `{ id, name, main, current, remoteOnly, words, date, commit }` |
+| `POST /api/novels/:id/versions` | yes | `{ name, from? }` → `201 { version }`: started from the open version (or checkpoint `from`) and opened |
+| `POST /api/novels/:id/versions/:version/switch` | yes | `{ version }`: opened, saved work committed first |
+| `DELETE /api/novels/:id/versions/:version` | yes | `{ checkpoint, current }`: kept as an automatic checkpoint, then deleted (on the remote at the next sync) |
+| `POST /api/novels/:id/versions/:version/adopt` | yes | `{ checkpoint, commit, conflicts? }`: merged into the main version, which opens |
+| `POST /api/novels/:id/versions/:version/adopt/resolve` | yes | `{ upstream, files }` → `{ commit }`, or `409 STALE { conflicts }` |
+| `POST /api/novels/:id/versions/:version/scenes/:sceneId/bring` | yes | `{ undo, commit, files }`: the scene from that version, into the open one |
+| `GET /api/novels/:id/compare?from=&to=` | yes | `{ comparison }`: each side `now`, `version:<id>` or `checkpoint:<id>` (core's `compareNovels`) |
+| `GET /api/novels/:id/compare/scene/:sceneId?from=&to=` | yes | `{ paragraphs }`: the scene's text, word by word where reworded |
 | `GET /api/novels/:id/conflicts` | yes | `{ conflicts }`: what a sync conflict leaves to settle, or `null` |
 | `POST /api/novels/:id/conflicts/resolve` | yes | `{ upstream, files }` → the sync status, or `409 STALE { conflicts }` |
 

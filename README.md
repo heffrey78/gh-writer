@@ -38,9 +38,17 @@
   </tr>
 </table>
 
+### Revise
+
+- **Checkpoints** are named drafts: points in the book's history ("Before the big cut") to restore the whole manuscript, or one scene, from. Every restore can be undone.
+- **Versions** let you try a different ending or a big cut alongside the main book, prose and story bible both. Switch between them whenever you like, then **adopt** one into the main version (what changed in the main version meanwhile is kept) or **bring single scenes across**, or discard it, kept in a checkpoint in case you want it back.
+- **Compare** any two of now, a version and a checkpoint, the way an editor marks up a manuscript: deleted words struck through, inserted words underlined, scene by scene, with what changed in each scene's details, the story bible and the relationships, and word counts before and after.
+
+![Comparing a version with the main one: changed words marked in the scene's text](docs/screenshots/compare.png)
+
 ### Work with GitHub
 
-- **Sync** with a GitHub repository in the background, and **checkpoints**: named points in the book's history to restore the whole manuscript, or a single scene, from.
+- **Sync** with a GitHub repository in the background: the manuscript, its checkpoints and its versions, so every computer you write on has them.
 - **Sign in once in the app**; the token stays in your OS keychain. Start a new novel, clone one, or put a local novel on GitHub, all from the app.
 - **Issues for the work around the book**: plot holes, continuity errors, research questions and revision notes, with kinds, labels for the characters, plotlines and themes involved, and milestones. Select a passage to raise an issue about it; a marker in the margin leads back to it. Changes made offline go to GitHub when it can be reached.
 - **Diagram snapshots on github.com**: a workflow redraws the diagrams into the repository on every push, so they show up when you browse it.
@@ -77,13 +85,12 @@ Your browser opens on your library, where you can start a new novel, open a fold
 
 ## Roadmap
 
-Built and validated so far: the repository format and template, local-first saving and sync, manuscript structure, the editor, the story bible, mentions, the app shell, GitHub sign-in, issues and passage notes, entity labels, quick entry, all four diagrams and their snapshots on github.com, and compiling to DOCX, EPUB and PDF.
+Built so far: the repository format and template, local-first saving and sync, manuscript structure, the editor, the story bible, mentions, the app shell, GitHub sign-in, issues and passage notes, entity labels, quick entry, all four diagrams and their snapshots on github.com, compiling to DOCX, EPUB and PDF, and versions with word-by-word comparison.
 
 Next, as tracked in [the project's issues](https://github.com/heffrey78/gh-writer/issues):
 
 | Feature | What it adds |
 |---|---|
-| [Named drafts and alternate versions](https://github.com/heffrey78/gh-writer/issues/17) | Try a different ending or cut a subplot as a version of the book, compare any two versions word by word, and adopt one wholesale or scene by scene. |
 | [Drafting pipeline on a GitHub Projects board](https://github.com/heffrey78/gh-writer/issues/11) | Each scene's status (outlined, drafted, revised, final), point of view and word count on a board, table and roadmap, kept in sync with the scene files. |
 | [Writing statistics and goals](https://github.com/heffrey78/gh-writer/issues/20) | Words written per day, progress toward a target length and deadline, and chapter and scene length charts, all from the repository's history. |
 | [Editorial review through pull requests](https://github.com/heffrey78/gh-writer/issues/18) | Open a revision pass for review; editors comment on lines on github.com, and the comments appear in the editor's margin beside the passage. |
