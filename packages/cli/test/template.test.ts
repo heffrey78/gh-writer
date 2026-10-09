@@ -12,7 +12,7 @@ const template = join(repo, "templates/novel");
 const tmp = mkdtempSync(join(tmpdir(), "gh-writer-template-"));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
-const node = (args: string[], cwd = repo) => spawnSync("node", args, { cwd, encoding: "utf8", env: { ...process.env, NO_COLOR: "1" } });
+const node = (args: string[], cwd = repo, env: Record<string, string> = {}) => spawnSync("node", args, { cwd, encoding: "utf8", env: { ...process.env, NO_COLOR: "1", ...env } });
 
 describe("novel template", () => {
   it("validates cleanly with its own vendored validator", () => {
@@ -53,7 +53,8 @@ describe("novel template", () => {
     const novel = join(tmp, "compile-sample");
     cpSync(join(repo, "examples/sample-novel"), novel, { recursive: true });
     for (const args of [["init", "-q"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "Draft"]]) spawnSync("git", ["-C", novel, ...args]);
-    const bundled = node([join(template, ".github/gh-writer/compile.mjs"), novel, "--out", join(tmp, "by-bundle")]);
+    // In another clock zone than this process's, as GitHub's (UTC) and the author's machine may be.
+    const bundled = node([join(template, ".github/gh-writer/compile.mjs"), novel, "--out", join(tmp, "by-bundle")], repo, { TZ: "Pacific/Kiritimati" });
     expect(bundled.status, bundled.stdout + bundled.stderr).toBe(0);
     expect(await runCompile(novel, { out: join(tmp, "by-app") }, () => {})).toBe(0);
     const files = readdirSync(join(tmp, "by-app")).sort();
