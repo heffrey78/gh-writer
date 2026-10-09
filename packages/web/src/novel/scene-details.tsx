@@ -3,7 +3,8 @@ import { joinSceneFile } from "@gh-writer/editor";
 import { X } from "lucide-react";
 import { useId, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { create, useStore } from "zustand";
-import { Picker, type PickerItem } from "../ui/picker.tsx";
+import { plural } from "../bible/types.ts";
+import { Picker, type PickerItem, type PickerProps } from "../ui/picker.tsx";
 import { useNotice } from "./notice.tsx";
 import { STATUSES } from "./outline.tsx";
 import type { Workspace } from "./workspace.ts";
@@ -42,7 +43,20 @@ const refId = (r: Ref) => (typeof r === "string" ? r : r.id);
  * plotlines and themes in it, when it happens, how long it takes, and tags. Each change rewrites only
  * the front-matter lines it touches, through the workspace (so it autosaves and merges like typing).
  */
-export function SceneDetails({ novel, workspace, path, title }: { novel: Novel; workspace: Workspace; path: string; title: string }) {
+export function SceneDetails({
+  novel,
+  workspace,
+  path,
+  title,
+  newEntry,
+}: {
+  novel: Novel;
+  workspace: Workspace;
+  path: string;
+  title: string;
+  /** Make an entry of a type from a picker's search (see useQuickEntry): returns its ID at once. */
+  newEntry?: (type: string, name: string) => string | undefined;
+}) {
   const file = useStore(workspace.store, (s) => s.files[path]);
   const show = useNotice((s) => s.show);
   const toggle = useSceneDetails((s) => s.toggle);
@@ -62,6 +76,17 @@ export function SceneDetails({ novel, workspace, path, title }: { novel: Novel; 
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((e) => ({ value: e.id, label: e.name, keywords: e.aliases }));
   const name = (id: string) => novel.entities.find((e) => e.id === id)?.name ?? id;
+  /** A picker's "New <type>" option, for a type key. */
+  const making = (type: string): Pick<PickerProps, "create"> => {
+    const noun = novel.entityTypes.find((t) => t.key === type)?.label.toLowerCase();
+    return newEntry && noun ? { create: { noun, create: (n) => newEntry(type, n) } } : {};
+  };
+  const customTypes = novel.entityTypes.filter((t) => !t.builtin);
+  /** The scene's `entities` of a custom type, with each one's place in the whole list. */
+  const ofCustom = (type: string) =>
+    list("entities")
+      .map((r, i) => ({ id: refId(r), i }))
+      .filter(({ id }) => (novel.entities.find((e) => e.id === id)?.type ?? novel.entityTypes.find((t) => id.startsWith(`${t.prefix}_`))?.key) === type);
 
   const list = (key: string): Ref[] => (Array.isArray(fm[key]) ? (fm[key] as Ref[]) : []);
   /** Add an item to a list: appended in its place, or the list made. */
@@ -104,6 +129,7 @@ export function SceneDetails({ novel, workspace, path, title }: { novel: Novel; 
         onChange={(v) => set("pov", v)}
         placeholder="No point of view"
         allowNone
+        {...making("character")}
       />
 
       {(
@@ -128,6 +154,25 @@ export function SceneDetails({ novel, workspace, path, title }: { novel: Novel; 
               value={undefined}
               onChange={(v) => v && append(key, v)}
               placeholder={placeholder}
+              {...making(type)}
+            />
+          </Group>
+        );
+      })}
+
+      {customTypes.map((t) => {
+        const chosen = ofCustom(t.key);
+        const label = plural(t.label);
+        return (
+          <Group key={t.key} label={label}>
+            <Chips items={chosen.map(({ id, i }) => ({ id, label: name(id), remove: () => removeAt("entities", i) }))} />
+            <Picker
+              label={`Add to ${label.toLowerCase()}`}
+              items={ofType(t.key).filter((i) => !chosen.some((c) => c.id === i.value))}
+              value={undefined}
+              onChange={(v) => v && append("entities", v)}
+              placeholder={`Add ${t.label.toLowerCase().match(/^[aeiou]/) ? "an" : "a"} ${t.label.toLowerCase()}…`}
+              {...making(t.key)}
             />
           </Group>
         );
@@ -164,6 +209,7 @@ export function SceneDetails({ novel, workspace, path, title }: { novel: Novel; 
           value={undefined}
           onChange={(v) => v && append("plotlines", v)}
           placeholder="Add a plotline…"
+          {...making("plotline")}
         />
       </Group>
 
@@ -197,6 +243,7 @@ export function SceneDetails({ novel, workspace, path, title }: { novel: Novel; 
           value={undefined}
           onChange={(v) => v && append("themes", v)}
           placeholder="Add a theme…"
+          {...making("theme")}
         />
       </Group>
 

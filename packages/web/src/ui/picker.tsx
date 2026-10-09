@@ -24,24 +24,39 @@ export interface PickerProps {
   placeholder?: string;
   allowNone?: boolean;
   className?: string;
+  /**
+   * Offer "New <noun> “<search>”" for what's typed: `create` makes it and returns its value at once
+   * (then chosen as if picked), or undefined if it can't be made.
+   */
+  create?: { noun: string; create: (name: string) => string | undefined };
 }
 
 /** Choose one item from a long list by typing: a button that opens a searchable, grouped list. */
-export function Picker({ label, items, value, onChange, placeholder = "Choose…", allowNone, className }: PickerProps) {
+export function Picker({ label, items, value, onChange, placeholder = "Choose…", allowNone, className, create }: PickerProps) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const typed = search.trim();
+  const offerNew = create && typed && !items.some((i) => [i.label, ...(i.keywords ?? [])].some((k) => k.toLowerCase() === typed.toLowerCase()));
   const id = useId();
   const chosen = items.find((i) => i.value === value);
   const groups = [...new Set(items.map((i) => i.group ?? ""))];
   const pick = (v: string | undefined) => {
     onChange(v);
     setOpen(false);
+    setSearch("");
   };
   return (
     <div className={cn("grid gap-1.5", className)}>
       <span id={`${id}-label`} className="text-sm font-medium">
         {label}
       </span>
-      <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Root
+        open={open}
+        onOpenChange={(o) => {
+          setOpen(o);
+          if (!o) setSearch("");
+        }}
+      >
         <Popover.Trigger asChild>
           <button
             type="button"
@@ -57,9 +72,9 @@ export function Picker({ label, items, value, onChange, placeholder = "Choose…
         <Popover.Portal>
           <Popover.Content align="start" sideOffset={4} className="z-[80] w-[var(--radix-popover-trigger-width)] min-w-64 rounded-md border border-rule bg-raised text-ink shadow-lg">
             <Cmdk label={label} filter={rank} loop>
-              <Cmdk.Input placeholder="Type to search…" aria-label={`Search ${label.toLowerCase()}`} className="h-9 w-full border-b border-rule bg-transparent px-3 text-sm outline-none" />
+              <Cmdk.Input value={search} onValueChange={setSearch} placeholder="Type to search…" aria-label={`Search ${label.toLowerCase()}`} className="h-9 w-full border-b border-rule bg-transparent px-3 text-sm outline-none" />
               <Cmdk.List className="max-h-72 overflow-y-auto p-1">
-                <Cmdk.Empty className="px-3 py-4 text-center text-sm text-muted">Nothing matches</Cmdk.Empty>
+                {!offerNew && <Cmdk.Empty className="px-3 py-4 text-center text-sm text-muted">Nothing matches</Cmdk.Empty>}
                 {allowNone && (
                   <Cmdk.Item value="(none)" keywords={[placeholder]} onSelect={() => pick(undefined)} className="cursor-pointer rounded px-2 py-1.5 text-sm text-muted data-[selected=true]:bg-accent-soft">
                     {placeholder}
@@ -83,6 +98,19 @@ export function Picker({ label, items, value, onChange, placeholder = "Choose…
                       ))}
                   </Cmdk.Group>
                 ))}
+                {offerNew && (
+                  <Cmdk.Item
+                    forceMount
+                    value={`(new) ${typed}`}
+                    onSelect={() => {
+                      const made = create.create(typed);
+                      if (made) pick(made);
+                    }}
+                    className="cursor-pointer rounded px-2 py-1.5 text-sm data-[selected=true]:bg-accent-soft"
+                  >
+                    New {create.noun} “{typed}”
+                  </Cmdk.Item>
+                )}
               </Cmdk.List>
             </Cmdk>
           </Popover.Content>

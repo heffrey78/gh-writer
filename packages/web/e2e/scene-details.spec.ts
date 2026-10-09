@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import { axe, expect, test, type App } from "./fixtures.ts";
@@ -10,7 +10,7 @@ async function open(page: Page, app: App) {
   await app.restart(dir);
   await page.goto(app.launchUrl);
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
-  return { read: (path: string) => readFileSync(join(dir, path), "utf8") };
+  return { dir, read: (path: string) => readFileSync(join(dir, path), "utf8") };
 }
 
 async function palette(page: Page, query: string) {
@@ -116,4 +116,41 @@ test("in a chapter, follows the scene the caret is in", async ({ page, app }) =>
   // Remembered across a reload.
   await page.reload();
   await expect(page.getByRole("complementary", { name: /^Details of/ })).toBeVisible();
+});
+
+test("makes a new entry from a picker, and lists custom types in groups of their own", async ({ page, app }) => {
+  const novel = await open(page, app);
+  await page.getByRole("tree", { name: "Manuscript" }).getByRole("treeitem", { name: /^The Betrayal,/ }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "The Betrayal" })).toBeVisible();
+  await palette(page, "show scene details");
+  const panel = page.getByRole("complementary", { name: "Details of “The Betrayal”" });
+  const url = page.url();
+
+  // Someone new, from the characters picker: made, and in the scene at once.
+  await panel.getByRole("button", { name: /^Add to characters/ }).click();
+  await page.keyboard.type("Lena Dray");
+  await expect(page.getByRole("option", { name: "New character “Lena Dray”" })).toBeVisible();
+  await expect(page.getByText("Nothing matches")).toHaveCount(0);
+  await page.keyboard.press("Enter");
+  await expect(panel.getByRole("group", { name: "Characters" })).toContainText("Lena Dray");
+  await expect.poll(() => existsSync(join(novel.dir, "bible/characters/lena-dray.md")), { timeout: 10_000 }).toBe(true);
+  const lena = /^id: (char_\w{6})$/m.exec(novel.read("bible/characters/lena-dray.md"))![1]!;
+  await expect.poll(() => frontMatter(novel.read(BETRAYAL))).toContain(`characters: [char_7f3k2q, char_b3n0vs, ${lena}]`);
+  expect(page.url()).toBe(url);
+
+  // Artifacts: a group of their own, kept in the scene's entities.
+  const artifacts = panel.getByRole("group", { name: "Artifacts" });
+  await expect(artifacts).toContainText("The Original Plans");
+  await artifacts.getByRole("button", { name: "Remove “The Original Plans”" }).click();
+  await expect.poll(() => frontMatter(novel.read(BETRAYAL))).toContain("entities: []");
+  await pick(page, /^Add to artifacts/, "the plans");
+  await expect.poll(() => frontMatter(novel.read(BETRAYAL))).toContain("entities:\n  - art_p1an5x\n");
+  await pick(page, /^Add to artifacts/, "The Ledger");
+  await expect.poll(() => existsSync(join(novel.dir, "bible/artifacts/the-ledger.md")), { timeout: 10_000 }).toBe(true);
+  const ledger = /^id: (art_\w{6})$/m.exec(novel.read("bible/artifacts/the-ledger.md"))![1]!;
+  await expect.poll(() => frontMatter(novel.read(BETRAYAL))).toContain(`entities:\n  - art_p1an5x\n  - ${ledger}\n`);
+  await expect(artifacts).toContainText("The Ledger");
+  // No "New type" here: types are made in the story bible.
+  await expect(panel.getByRole("button", { name: /new type/i })).toHaveCount(0);
+  await axe(page);
 });
