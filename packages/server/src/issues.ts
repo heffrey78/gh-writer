@@ -149,6 +149,7 @@ export class IssueStore {
   #refreshing: Promise<boolean> | undefined;
   #listeners = new Set<() => void>();
   #used = new Set<string>();
+  #saving: Promise<void> = Promise.resolve();
 
   constructor(root: string, github: GitHub, repo: () => Promise<GitHubRepo | null>) {
     this.root = root;
@@ -530,7 +531,7 @@ export class IssueStore {
     const merged = { ...issue, comments };
     cache.issues = [...cache.issues.filter((i) => i.number !== issue.number), merged];
     if (!quiet) {
-      void this.#save();
+      void this.#save().catch(() => {});
       this.#changed();
     }
     return merged;
@@ -563,12 +564,17 @@ export class IssueStore {
     return this.#cache;
   }
 
-  async #save(): Promise<void> {
-    if (!this.#cache || !this.#file) return;
-    await mkdir(dirname(this.#file), { recursive: true });
-    const tmp = `${this.#file}.${process.pid}.tmp`;
-    await writeFile(tmp, JSON.stringify(this.#cache));
-    await rename(tmp, this.#file);
+  /** Write the cache, one write at a time (each with its own temporary file), the last one winning. */
+  #save(): Promise<void> {
+    // A write that failed doesn't stop the next one.
+    this.#saving = this.#saving.catch(() => {}).then(async () => {
+      if (!this.#cache || !this.#file) return;
+      await mkdir(dirname(this.#file), { recursive: true });
+      const tmp = `${this.#file}.${process.pid}.${randomUUID()}.tmp`;
+      await writeFile(tmp, JSON.stringify(this.#cache));
+      await rename(tmp, this.#file);
+    });
+    return this.#saving;
   }
 }
 
