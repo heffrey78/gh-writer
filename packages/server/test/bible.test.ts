@@ -49,6 +49,23 @@ describe("entities", () => {
     expect((await valid()).entities.find((e) => e.id === id)?.name).toBe("Ilse Varn");
   });
 
+  it("takes an ID the app picked, if it's new and of the type; a retry returns what was made", async () => {
+    const { id, file, commit } = await bible.createEntity("character", { name: "Mira Kostova" }, "", "char_m1rak0");
+    expect([id, file]).toEqual(["char_m1rak0", "bible/characters/mira-kostova.md"]);
+    expect(read(file)).toBe("---\nid: char_m1rak0\nname: Mira Kostova\n---\n");
+    expect(commit).not.toBeNull();
+    // The same again (a response lost on the way): nothing new, the same entry.
+    const head = gitIn(dir, "rev-parse", "HEAD").trim();
+    expect(await bible.createEntity("character", { name: "Mira Kostova" }, "", "char_m1rak0")).toEqual({ commit: null, files: [], id, file });
+    expect(gitIn(dir, "rev-parse", "HEAD").trim()).toBe(head);
+    // Taken by something else, the wrong type's prefix, or not an ID at all.
+    for (const [type, name, wanted] of [["character", "Someone Else", "char_m1rak0"], ["character", "Ada Again", ADA], ["location", "Mira's House", "char_zzzzzz"], ["character", "Odd", "nonsense"]] as const) {
+      await expect(bible.createEntity(type, { name }, "", wanted)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    }
+    clean();
+    await valid();
+  });
+
   it("renames by changing one file and no references", async () => {
     const before = read(ADA_FILE);
     const { file } = await bible.updateEntity(ADA, hash(ADA_FILE), { name: "Ada Kost" });
@@ -199,6 +216,11 @@ describe("through the server", () => {
       const created = await call("POST", "/entities", { type: "location", name: "The Toll House" });
       expect(created.status).toBe(201);
       const { id, file } = JSON.parse(created.body) as { id: string; file: string };
+      // An ID in the body is the one asked for, never a field written unchecked.
+      const picked = await call("POST", "/entities", { type: "location", name: "The Weir", id: "loc_we1r00" });
+      expect(JSON.parse(picked.body)).toMatchObject({ id: "loc_we1r00", file: "bible/locations/the-weir.md" });
+      expect(read("bible/locations/the-weir.md")).toBe("---\nid: loc_we1r00\nname: The Weir\n---\n");
+      expect((await call("POST", "/entities", { type: "location", name: "Bad", id: ADA })).status).toBe(400);
       expect((await call("PATCH", `/entities/${id}`, { base: hash(file), changes: { summary: "By the bridge." } })).status).toBe(200);
       expect(JSON.parse((await call("PATCH", `/entities/${id}`, { base: "0".repeat(64), changes: { summary: "x" } })).body)).toMatchObject({ code: "STALE", path: file });
       const refused = await call("POST", `/entities/${ADA}/delete`, { base: hash(ADA_FILE) });

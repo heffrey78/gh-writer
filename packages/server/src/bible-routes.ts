@@ -23,7 +23,7 @@ export async function body(c: Context): Promise<Record<string, unknown>> {
 }
 
 /**
- * POST  /:id/bible/entities                    { type, name, …fields, notes? } → 201 { id, file, commit }
+ * POST  /:id/bible/entities                    { type, name, …fields, notes?, id? } → 201 { id, file, commit }
  * PATCH /:id/bible/entities/:entity            { base, changes } → { file, commit }
  * POST  /:id/bible/entities/:entity/delete     { base, confirm? } → { commit }, or 409 REFERENCED { references }
  * POST  /:id/bible/relationships               { from, to, type, since?, until?, note? } → 201 { id, commit }
@@ -43,8 +43,8 @@ export async function body(c: Context): Promise<Record<string, unknown>> {
 export function bibleRoutes(routes: Hono<Env>): void {
   const bible = (c: Context<Env>) => c.var.ws.bible;
   routes.post("/:id/bible/entities", async (c) => {
-    const { type, notes, ...fields } = await body(c);
-    return operation(c, () => bible(c).createEntity(String(type ?? ""), fields as never, typeof notes === "string" ? notes : ""), 201);
+    const { type, notes, id, ...fields } = await body(c);
+    return operation(c, () => bible(c).createEntity(String(type ?? ""), fields as never, typeof notes === "string" ? notes : "", id === undefined ? undefined : String(id)), 201);
   });
   routes.patch("/:id/bible/entities/:entity", async (c) => {
     const { base, changes } = await body(c);
