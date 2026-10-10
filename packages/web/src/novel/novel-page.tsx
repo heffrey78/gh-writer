@@ -23,8 +23,7 @@ import { useNovelEvents } from "./events.ts";
 import { ManuscriptSidebar } from "./manuscript-tree.tsx";
 import { chapterTitle } from "./navigation.tsx";
 import { NoticeBar } from "./notice.tsx";
-import { CorkboardPage } from "./corkboard.tsx";
-import { OutlinePage } from "./outline.tsx";
+import { OutlinePage } from "./outline-page.tsx";
 import { SaveStatus } from "./save-status.tsx";
 import { useSpell } from "./spell.ts";
 import { usePublish } from "../github/publish.tsx";
@@ -153,8 +152,8 @@ export function NovelPage() {
         .map((v) => ({ id: `novel.version.${v.id}`, title: `Open version: ${v.name}`, group: "Versions", run: () => switchVersion.mutate(v) })),
       { id: "novel.compile", title: "Compile the manuscript…", group: "Novel", keywords: ["export", "docx", "word", "epub", "pdf", "e-book", "manuscript"], run: () => setCompiling(true) },
       { id: "novel.bible", title: "Story bible", group: "Go to", run: () => void navigate(`/novels/${novelId}/bible`) },
-      { id: "novel.outline", title: "Outline", group: "Go to", run: () => void navigate(`/novels/${novelId}/outline`) },
-      { id: "novel.corkboard", title: "Corkboard", group: "Go to", run: () => void navigate(`/novels/${novelId}/corkboard`) },
+      { id: "novel.outline", title: "Outline", group: "Go to", keywords: ["table"], run: () => void navigate(`/novels/${novelId}/outline/table`) },
+      { id: "novel.outlineCards", title: "Outline: cards", group: "Go to", keywords: ["corkboard", "index cards"], run: () => void navigate(`/novels/${novelId}/outline/cards`) },
       { id: "novel.timeline", title: "Story map: Timeline", group: "Go to", keywords: ["chronology", "story time", "flashback", "diagram"], run: () => void navigate(`/novels/${novelId}/story-map/timeline`) },
       { id: "novel.presence", title: "Story map: Presence", group: "Go to", keywords: ["diagram", "characters", "themes", "locations", "matrix"], run: () => void navigate(`/novels/${novelId}/story-map/presence`) },
       { id: "novel.swimlanes", title: "Story map: Plotlines", group: "Go to", keywords: ["diagram", "plotlines", "swimlanes"], run: () => void navigate(`/novels/${novelId}/story-map/plotlines`) },
@@ -240,7 +239,6 @@ export function NovelPage() {
             <nav aria-label="Views" className="mb-3 flex flex-wrap gap-1 text-sm">
               {[
                 ["outline", "Outline"],
-                ["corkboard", "Corkboard"],
                 ["story-map", "Story map"],
                 ["relationships", "Relationships"],
                 ["compare", "Compare"],
@@ -283,8 +281,8 @@ export function NovelPage() {
               />
               <Route path="story-map" element={<Navigate to={`/novels/${novelId}/story-map/plotlines`} replace />} />
               <Route path="story-map/:tab" element={<StoryMapPage novelId={novelId} novel={book} workspace={workspace} />} />
-              <Route path="corkboard" element={<CorkboardPage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="outline" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
+              <Route path="outline/:view" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="bible" element={<BiblePage novelId={novelId} novel={book} />} />
               <Route path="compare" element={<ComparePage novelId={novelId} workspace={workspace} />} />
               <Route path="issues" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssuesPage novelId={novelId} novel={book} workspace={workspace} />}</GitHubOnly>} />

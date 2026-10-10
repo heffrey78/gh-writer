@@ -23,7 +23,8 @@ const STATUS_TONE: Record<string, string> = {
  * dropped before another lands immediately before it in the whole book, filtered or not; Alt+Left and
  * Alt+Right on a card's handle step it past its visible neighbour the same way.
  */
-export function CorkboardPage({ novelId, novel, workspace }: { novelId: string; novel: Novel; workspace: Workspace }) {
+/** Outline as cards (the corkboard): scenes as cards by chapter, filtered, dragged to reorder. */
+export function OutlineCards({ novelId, novel, workspace }: { novelId: string; novel: Novel; workspace: Workspace }) {
   const structure = useStructure(novelId, novel, workspace);
   const [params, setParams] = useSearchParams();
   const filter: CorkboardFilter = Object.fromEntries(["pov", "plotline", "status", "character"].flatMap((k) => (params.get(k) ? [[k, params.get(k)!]] : [])));
@@ -88,8 +89,7 @@ export function CorkboardPage({ novelId, novel, workspace }: { novelId: string; 
   const plotlines = novel.entities.filter((e) => e.type === "plotline").sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <div className="grid gap-4 px-6 py-6">
-      <h1 className="text-xl font-semibold">Corkboard</h1>
+    <div className="grid gap-4">
       <div role="group" aria-label="Filters" className="flex flex-wrap items-end gap-3">
         <FilterSelect label="Point of view" value={filter.pov} onChange={(v) => setFilter("pov", v)} options={characters.map((c) => [c.id, c.name])} />
         <FilterSelect label="Character" value={filter.character} onChange={(v) => setFilter("character", v)} options={characters.map((c) => [c.id, c.name])} />

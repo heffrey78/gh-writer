@@ -18,7 +18,8 @@ const number = new Intl.NumberFormat();
  * status, point of view, people, plotlines and words. Synopsis and status are edited in place; rows
  * move with Alt+Up/Down on their handle, or by dragging it.
  */
-export function OutlinePage({ novelId, novel, workspace }: { novelId: string; novel: Novel; workspace: Workspace }) {
+/** Outline as a table: every scene in reading order, with its synopsis and status edited in place. */
+export function OutlineTable({ novelId, novel, workspace }: { novelId: string; novel: Novel; workspace: Workspace }) {
   const structure = useStructure(novelId, novel, workspace);
   const queryClient = useQueryClient();
   const show = useNotice((s) => s.show);
@@ -77,8 +78,7 @@ export function OutlinePage({ novelId, novel, workspace }: { novelId: string; no
   }));
 
   return (
-    <div className="grid gap-4 px-6 py-6">
-      <h1 className="text-xl font-semibold">Outline</h1>
+    <div className="grid gap-4">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[56rem] border-collapse text-sm">
           <caption className="sr-only">Every scene in reading order, by chapter</caption>

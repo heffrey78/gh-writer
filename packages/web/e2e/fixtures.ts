@@ -183,12 +183,16 @@ export async function selectionSettled(page: Page): Promise<void> {
 }
 
 /** A view of the open novel, as the sidebar reaches it. */
-export type View = "Outline" | "Plotlines" | "Presence" | "Timeline" | "Relationships" | "Compare";
+export type View = "Outline" | "Cards" | "Plotlines" | "Presence" | "Timeline" | "Relationships" | "Compare";
 
 /** Open a view from the sidebar: the story map's views through its tabs. */
 export async function openView(page: Page, view: View) {
   const views = page.getByRole("navigation", { name: "Views" });
-  if (view === "Plotlines" || view === "Presence" || view === "Timeline") {
+  if (view === "Cards") {
+    await views.getByRole("link", { name: "Outline" }).click();
+    // The switch's radios are drawn as their labels: click the one that shows.
+    await page.getByRole("radiogroup", { name: "Show the outline as" }).getByText("Cards", { exact: true }).click();
+  } else if (view === "Plotlines" || view === "Presence" || view === "Timeline") {
     await views.getByRole("link", { name: "Story map" }).click();
     await page.getByRole("tab", { name: view }).click();
     await expect(page.getByRole("tab", { name: view, selected: true })).toBeVisible();

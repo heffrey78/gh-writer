@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { axe, expect, test, type App } from "./fixtures.ts";
+import { axe, expect, openView, test, type App } from "./fixtures.ts";
 
 const NIGHT = "manuscript/02-the-sale/01-night-crossing/_chapter.yaml";
 const HOLDS = "manuscript/02-the-sale/02-varn-holds/_chapter.yaml";
@@ -11,8 +11,8 @@ async function open(page: Page, app: App) {
   await app.restart(dir);
   await page.goto(app.launchUrl);
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
-  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Corkboard" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Corkboard" })).toBeVisible();
+  await openView(page, "Cards");
+  await expect(page.getByRole("radio", { name: "Cards" })).toBeChecked();
   return { read: (path: string) => readFileSync(join(dir, path), "utf8") };
 }
 
@@ -62,4 +62,22 @@ test("a card dropped on a filtered board lands next to the card it was dropped o
   await expect(page.getByRole("region", { name: "Night Crossing" }).getByRole("listitem", { name: "Mirela's Offer" })).toBeVisible();
   await page.getByRole("button", { name: "Move “Mirela's Offer”" }).dragTo(card(page, "The Station"), { targetPosition: { x: 8, y: 8 } });
   await expect.poll(() => novel.read("manuscript/01-return/01-arrival/_chapter.yaml")).toContain("scenes: [sc_0ffer5, sc_5tat1n, sc_br1dg3]");
+});
+
+test("the outline switches between table and cards in place, and remembers the choice", async ({ page, app }) => {
+  await open(page, app);
+  const choice = page.getByRole("radiogroup", { name: "Show the outline as" });
+  await expect(page).toHaveURL(/\/outline\/cards$/);
+  await choice.getByRole("radio", { name: "Cards" }).focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(choice.getByRole("radio", { name: "Table" })).toBeChecked();
+  await expect(page).toHaveURL(/\/outline\/table$/);
+  await expect(page.getByRole("table")).toBeVisible();
+  await axe(page);
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("region", { name: "Night Crossing" })).toBeVisible();
+  // Outline opens as it was left.
+  await page.goto(page.url().replace(/\/outline\/cards$/, "/chapter/ch_arr1va"));
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Outline" }).click();
+  await expect(page).toHaveURL(/\/outline\/cards$/);
 });
