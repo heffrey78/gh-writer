@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { axe, expect, test, type App } from "./fixtures.ts";
+import { axe, expect, test, type App, openView } from "./fixtures.ts";
 
 const STATION = "manuscript/01-return/01-arrival/01-the-station.md";
 
@@ -14,8 +14,8 @@ async function open(page: Page, app: App, before?: (dir: string) => void) {
   await app.restart(dir);
   await page.goto(app.launchUrl);
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
-  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Timeline" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Timeline" })).toBeVisible();
+  await openView(page, "Timeline");
+  await expect(page.getByRole("tab", { name: "Timeline", selected: true })).toBeVisible();
 }
 
 const table = (page: Page) => page.getByRole("table", { name: "Every scene and event in story-time order" });
@@ -66,7 +66,7 @@ test("off-page events are added, edited and deleted from the timeline, and its w
   const events = () => readFileSync(join(dir, "bible/events.yaml"), "utf8");
   await page.goto(app.launchUrl);
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
-  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Timeline" }).click();
+  await openView(page, "Timeline");
 
   await page.getByRole("button", { name: "New off-page event" }).click();
   const dialog = page.getByRole("dialog", { name: "New off-page event" });

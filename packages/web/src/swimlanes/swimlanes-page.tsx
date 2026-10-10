@@ -92,17 +92,17 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
 
   if (!rows || !cols) {
     return (
-      <div className="grid gap-3 px-6 py-6">
-        <h1 className="text-xl font-semibold">Plotlines</h1>
+      <div className="grid gap-3 px-6 py-4">
+        <h2 className="sr-only">Plotlines</h2>
         <p className="text-muted">{!rows ? "No plotlines yet. Add some in the story bible, then mark the scenes that advance them." : "The manuscript has no scenes yet."}</p>
       </div>
     );
   }
 
   return (
-    <div className="grid content-start gap-3 px-6 py-6">
+    <div className="grid content-start gap-3 px-6 py-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="text-xl font-semibold">Plotlines</h1>
+        <h2 className="sr-only">Plotlines</h2>
         <ExportMenu name="plotlines" svg={() => plotlinesSvg(novel)} />
       </div>
       <div className="flex flex-wrap items-end gap-4 text-sm">

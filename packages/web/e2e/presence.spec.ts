@@ -1,7 +1,7 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { axe, expect, test, type App } from "./fixtures.ts";
+import { axe, expect, test, type App, openView } from "./fixtures.ts";
 
 const BETRAYAL = "manuscript/02-the-sale/01-night-crossing/01-the-betrayal.md";
 
@@ -13,8 +13,8 @@ async function open(page: Page, app: App) {
   await app.restart(dir);
   await page.goto(app.launchUrl);
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
-  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Presence" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Presence" })).toBeVisible();
+  await openView(page, "Presence");
+  await expect(page.getByRole("tab", { name: "Presence", selected: true })).toBeVisible();
   return { read: (path: string) => readFileSync(join(dir, path), "utf8") };
 }
 
@@ -116,11 +116,11 @@ test("the matrix and the scene details panel agree after an edit in either", asy
   await page.keyboard.press("Enter");
   const panel = page.getByRole("complementary", { name: "Details of “The Station”" });
   await expect(panel.getByRole("list").first()).toContainText("Tomas Hale");
-  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Presence" }).click();
+  await openView(page, "Presence");
   await expect(cell).toHaveAccessibleName("The Station: Tomas Hale present");
   await page.getByRole("tree", { name: "Manuscript" }).getByRole("treeitem", { name: /^The Station,/ }).click();
   await panel.getByRole("button", { name: "Remove “Tomas Hale”" }).click();
-  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Presence" }).click();
+  await openView(page, "Presence");
   await expect(grid(page, "Characters by scene").getByRole("gridcell", { name: "The Station: Tomas Hale not there" })).toBeVisible();
 });
 

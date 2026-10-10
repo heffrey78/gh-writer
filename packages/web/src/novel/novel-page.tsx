@@ -16,6 +16,7 @@ import { plural } from "../bible/types.ts";
 import { CheckpointsButton } from "./checkpoints.tsx";
 import { CompileButton, CompileDialog } from "./compile.tsx";
 import { ComparePage } from "./compare-page.tsx";
+import { StoryMapPage } from "./story-map.tsx";
 import { AdoptConflicts, useSwitchVersion, useVersions, useVersionsPanel, VersionsButton } from "./versions.tsx";
 import { SaveConflicts, SyncConflicts } from "./conflicts.tsx";
 import { useNovelEvents } from "./events.ts";
@@ -24,9 +25,6 @@ import { chapterTitle } from "./navigation.tsx";
 import { NoticeBar } from "./notice.tsx";
 import { CorkboardPage } from "./corkboard.tsx";
 import { OutlinePage } from "./outline.tsx";
-import { SwimlanesPage } from "../swimlanes/swimlanes-page.tsx";
-import { PresencePage } from "../presence/presence-page.tsx";
-import { TimelinePage } from "../timeline/timeline-page.tsx";
 import { SaveStatus } from "./save-status.tsx";
 import { useSpell } from "./spell.ts";
 import { usePublish } from "../github/publish.tsx";
@@ -157,11 +155,11 @@ export function NovelPage() {
       { id: "novel.bible", title: "Story bible", group: "Go to", run: () => void navigate(`/novels/${novelId}/bible`) },
       { id: "novel.outline", title: "Outline", group: "Go to", run: () => void navigate(`/novels/${novelId}/outline`) },
       { id: "novel.corkboard", title: "Corkboard", group: "Go to", run: () => void navigate(`/novels/${novelId}/corkboard`) },
-      { id: "novel.timeline", title: "Timeline", group: "Go to", keywords: ["chronology", "story time", "flashback", "diagram"], run: () => void navigate(`/novels/${novelId}/timeline`) },
-      { id: "novel.presence", title: "Presence matrix", group: "Go to", keywords: ["diagram", "characters", "themes", "locations"], run: () => void navigate(`/novels/${novelId}/presence`) },
-      { id: "novel.swimlanes", title: "Plotline swimlanes", group: "Go to", keywords: ["diagram", "plotlines"], run: () => void navigate(`/novels/${novelId}/swimlanes`) },
+      { id: "novel.timeline", title: "Story map: Timeline", group: "Go to", keywords: ["chronology", "story time", "flashback", "diagram"], run: () => void navigate(`/novels/${novelId}/story-map/timeline`) },
+      { id: "novel.presence", title: "Story map: Presence", group: "Go to", keywords: ["diagram", "characters", "themes", "locations", "matrix"], run: () => void navigate(`/novels/${novelId}/story-map/presence`) },
+      { id: "novel.swimlanes", title: "Story map: Plotlines", group: "Go to", keywords: ["diagram", "plotlines", "swimlanes"], run: () => void navigate(`/novels/${novelId}/story-map/plotlines`) },
       { id: "novel.compare", title: "Compare: what changed between drafts", group: "Go to", keywords: ["diff", "changes"], run: () => void navigate(`/novels/${novelId}/compare`) },
-      { id: "novel.graph", title: "Relationship graph", group: "Go to", keywords: ["diagram", "characters"], run: () => void navigate(`/novels/${novelId}/graph`) },
+      { id: "novel.graph", title: "Relationships", group: "Go to", keywords: ["diagram", "characters", "graph"], run: () => void navigate(`/novels/${novelId}/relationships`) },
       ...(repo
         ? [
             { id: "novel.issues", title: "Issues", group: "Go to", keywords: ["github", "notes", "to do", "plot holes"], run: () => void navigate(`/novels/${novelId}/issues`) },
@@ -243,10 +241,8 @@ export function NovelPage() {
               {[
                 ["outline", "Outline"],
                 ["corkboard", "Corkboard"],
-                ["swimlanes", "Plotlines"],
-                ["presence", "Presence"],
-                ["timeline", "Timeline"],
-                ["graph", "Graph"],
+                ["story-map", "Story map"],
+                ["relationships", "Relationships"],
                 ["compare", "Compare"],
                 ...(repo ? [["issues", "Issues"]] : []),
               ].map(([path, label]) => (
@@ -278,16 +274,15 @@ export function NovelPage() {
               <Route path="chapter/:chapterId" element={<ChapterRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} entries={entries} />} />
               <Route path="scene/:sceneId" element={<SceneRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} entries={entries} />} />
               <Route
-                path="graph"
+                path="relationships"
                 element={
                   <Suspense fallback={<p className="px-6 py-6 text-muted">Opening the graph…</p>}>
                     <GraphPage novelId={novelId} novel={book} />
                   </Suspense>
                 }
               />
-              <Route path="timeline" element={<TimelinePage novelId={novelId} novel={book} />} />
-              <Route path="presence" element={<PresencePage novelId={novelId} novel={book} workspace={workspace} />} />
-              <Route path="swimlanes" element={<SwimlanesPage novelId={novelId} novel={book} workspace={workspace} />} />
+              <Route path="story-map" element={<Navigate to={`/novels/${novelId}/story-map/plotlines`} replace />} />
+              <Route path="story-map/:tab" element={<StoryMapPage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="corkboard" element={<CorkboardPage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="outline" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="bible" element={<BiblePage novelId={novelId} novel={book} />} />

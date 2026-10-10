@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { axe, expect, test, type App } from "./fixtures.ts";
+import { axe, expect, test, type App, openView } from "./fixtures.ts";
 
 const LAYOUTS = "diagrams/layouts.yaml";
 
@@ -10,7 +10,7 @@ async function open(page: Page, app: App) {
   await app.restart(dir);
   await page.goto(app.launchUrl);
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
-  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Graph" }).click();
+  await openView(page, "Relationships");
   await expect(page.getByRole("heading", { level: 1, name: "Relationships" })).toBeVisible();
   await expect(page.locator(".react-flow__node")).toHaveCount(4);
   return { read: (path: string) => readFileSync(join(dir, path), "utf8") };

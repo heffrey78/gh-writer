@@ -1,15 +1,15 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { axe, expect, test, type App } from "./fixtures.ts";
+import { axe, expect, test, type App, openView } from "./fixtures.ts";
 
 async function open(page: Page, app: App) {
   const dir = app.novelRepo("varn");
   await app.restart(dir);
   await page.goto(app.launchUrl);
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
-  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Plotlines" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Plotlines" })).toBeVisible();
+  await openView(page, "Plotlines");
+  await expect(page.getByRole("tab", { name: "Plotlines", selected: true })).toBeVisible();
   return { read: (path: string) => readFileSync(join(dir, path), "utf8") };
 }
 
@@ -85,7 +85,7 @@ test("the swimlanes and the scene details panel agree after an edit in either", 
   await page.keyboard.press("Enter");
   const panel = page.getByRole("complementary", { name: "Details of “The Station”" });
   await panel.getByRole("combobox", { name: "Weight of “The Sale”" }).selectOption("major");
-  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Plotlines" }).click();
+  await openView(page, "Plotlines");
   await expect(grid(page).getByRole("gridcell", { name: /^The Station: major beat in The Sale/ })).toBeVisible();
 });
 

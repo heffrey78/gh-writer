@@ -100,9 +100,9 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
   const editingScene = editing && m.scenes.find((s) => s.id === editing.scene);
 
   return (
-    <div className="grid content-start gap-3 px-6 py-6">
+    <div className="grid content-start gap-3 px-6 py-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="text-xl font-semibold">Presence</h1>
+        <h2 className="sr-only">Presence</h2>
         <ExportMenu name={`presence-${plural(label).toLowerCase()}`} svg={() => presenceSvg(novel, type, `${plural(label)} by scene`)} />
       </div>
       <div className="flex flex-wrap items-end gap-4 text-sm">

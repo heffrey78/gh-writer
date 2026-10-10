@@ -20,14 +20,14 @@ test("swimlanes for 120 scenes and 12 plotlines render and update without lag", 
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeVisible({ timeout: 15_000 });
   const views = page.getByRole("navigation", { name: "Views" });
   // Warm: the route's code, then back to the writing view.
-  await views.getByRole("link", { name: "Plotlines" }).click();
+  await views.getByRole("link", { name: "Story map" }).click();
   await expect(page.locator("tbody tr")).toHaveCount(12);
   await page.goBack();
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeVisible();
 
   // First render: from the click to every cell in the DOM, timed in the page, frame by frame.
   const render = await page.evaluate(async () => {
-    const link = [...document.querySelectorAll<HTMLAnchorElement>('nav[aria-label="Views"] a')].find((a) => a.textContent === "Plotlines")!;
+    const link = [...document.querySelectorAll<HTMLAnchorElement>('nav[aria-label="Views"] a')].find((a) => a.textContent === "Story map")!;
     const start = performance.now();
     link.click();
     await new Promise<void>((done) => {
