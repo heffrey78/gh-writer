@@ -44,7 +44,7 @@ test("planning views", async ({ page, app }) => {
 
 test("the story bible", async ({ page, app }) => {
   await open(page, app);
-  await page.getByRole("navigation", { name: "Story bible" }).getByRole("link", { name: "Story bible" }).click();
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Story bible" }).click();
   await page.getByRole("main").getByRole("link", { name: "Ada Varn" }).first().click();
   await page.waitForTimeout(800);
   await shoot(page, "bible");

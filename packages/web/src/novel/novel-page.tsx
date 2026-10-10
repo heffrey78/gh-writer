@@ -3,7 +3,7 @@ import type { Novel } from "@gh-writer/core";
 import { useWritingModes } from "@gh-writer/editor/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router";
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router";
 import { api, keys } from "../api.ts";
 import { useCommands, type Command } from "../commands.ts";
 import { Shell } from "../layout.tsx";
@@ -12,7 +12,7 @@ import { ErrorBoundary } from "../ui/error-boundary.tsx";
 import { BiblePage } from "../bible/bible-page.tsx";
 import { EntryPage } from "../bible/entry-page.tsx";
 import { NewEntryDialog } from "../bible/new-entry.tsx";
-import { plural } from "../bible/types.ts";
+import { cn } from "../ui/cn.ts";
 import { CheckpointsButton } from "./checkpoints.tsx";
 import { CompileButton, CompileDialog } from "./compile.tsx";
 import { ComparePage } from "./compare-page.tsx";
@@ -20,7 +20,7 @@ import { StoryMapPage } from "./story-map.tsx";
 import { AdoptConflicts, useSwitchVersion, useVersions, useVersionsPanel, VersionsButton } from "./versions.tsx";
 import { SaveConflicts, SyncConflicts } from "./conflicts.tsx";
 import { useNovelEvents } from "./events.ts";
-import { ManuscriptSidebar } from "./manuscript-tree.tsx";
+import { Sidebar, useSidebar } from "./sidebar.tsx";
 import { chapterTitle } from "./navigation.tsx";
 import { NoticeBar } from "./notice.tsx";
 import { OutlinePage } from "./outline-page.tsx";
@@ -60,6 +60,7 @@ export function NovelPage() {
   const [compiling, setCompiling] = useState(false);
   const [newEntry, setNewEntry] = useState<string | null>(null);
   const focus = useWritingModes((m) => m.focus);
+  const collapsed = useSidebar((s) => s.collapsed);
   const spell = useSpell(api, novelId, novel.data?.novel);
 
   // What the entries made in place report with: the latest model and navigation.
@@ -232,38 +233,9 @@ export function NovelPage() {
           gh-writer isn't answering. Your unsaved text is kept in this tab; start gh-writer again and it will be saved.
         </p>
       )}
-      <div className={focus ? "h-full" : "grid h-full md:grid-cols-[16rem_minmax(0,1fr)]"}>
+      <div className={focus ? "h-full" : cn("grid h-full", collapsed ? "grid-cols-[3.25rem_minmax(0,1fr)]" : "md:grid-cols-[16rem_minmax(0,1fr)]")}>
         {!focus && (
-          <aside className="border-rule bg-panel p-3 md:overflow-y-auto md:border-r">
-            <p className="mb-3 px-2 font-semibold">{book.config?.title ?? "Untitled"}</p>
-            <nav aria-label="Views" className="mb-3 flex flex-wrap gap-1 text-sm">
-              {[
-                ["outline", "Outline"],
-                ["story-map", "Story map"],
-                ["relationships", "Relationships"],
-                ["compare", "Compare"],
-                ...(repo ? [["issues", "Issues"]] : []),
-              ].map(([path, label]) => (
-                <NavLink key={path} to={`/novels/${novelId}/${path}`} className={({ isActive }) => `rounded-md px-2 py-1 hover:bg-paper ${isActive ? "bg-accent-soft font-medium" : ""}`}>
-                  {label}
-                </NavLink>
-              ))}
-            </nav>
-            <ManuscriptSidebar novelId={novelId} novel={book} workspace={workspace} current={current} />
-            <nav aria-label="Story bible" className="mt-2 border-t border-rule pt-3 text-sm">
-              <NavLink to={`/novels/${novelId}/bible`} end className={({ isActive }) => `block rounded-md px-2 py-1 font-semibold hover:bg-paper ${isActive ? "bg-accent-soft" : ""}`}>
-                Story bible
-              </NavLink>
-              <ul className="mt-1 grid gap-0.5">
-                {book.entityTypes.map((t) => (
-                  <li key={t.key} className="flex justify-between px-2 py-0.5 text-muted">
-                    <span>{plural(t.label)}</span>
-                    <span className="tabular-nums">{book.entities.filter((e) => e.type === t.key).length}</span>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          </aside>
+          <Sidebar novelId={novelId} novel={book} workspace={workspace} current={current} onGitHub={!!repo} />
         )}
         <div className="md:overflow-y-auto">
           <ErrorBoundary what="this view" remount>

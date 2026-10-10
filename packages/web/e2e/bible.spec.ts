@@ -27,7 +27,7 @@ const details = (page: Page) => page.getByRole("form", { name: "Details" });
 
 test("adds a character, fills in the details and notes, all saved to its file", async ({ page, app }) => {
   const novel = await open(page, app);
-  await page.getByRole("navigation", { name: "Story bible" }).getByRole("link", { name: "Story bible" }).click();
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Story bible" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Story bible" })).toBeVisible();
   await page.getByRole("button", { name: "New character" }).click();
   await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("Ilse Varn");
