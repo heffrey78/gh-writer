@@ -435,6 +435,9 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
     /** Kept as an automatic checkpoint first: `checkpoint` in the result brings it back. */
     discardVersion: async (id: string, versionId: string) =>
       (await request<DiscardResult>("DELETE", `/api/novels/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}`)).data,
+    /** Set novel.yaml's targets (null removes one): one commit. */
+    setTarget: async (id: string, target: { words?: number | null; date?: string | null; daily?: number | null }) =>
+      (await request<OperationResult>("PUT", `/api/novels/${encodeURIComponent(id)}/target`, target)).data,
     /** The writing history: days with words added and removed and the book's length, the words now, and the target. */
     stats: async (id: string) => (await request<WritingStats>("GET", `/api/novels/${encodeURIComponent(id)}/stats`)).data,
     /** What changed between two states of the novel: each "now", "version:<id>" or "checkpoint:<id>". */

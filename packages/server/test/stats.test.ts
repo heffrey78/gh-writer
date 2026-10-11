@@ -94,3 +94,38 @@ describe("writingHistory", { timeout: 30_000 }, () => {
     expect(await writingHistory(dir)).toEqual([]);
   });
 });
+
+describe("PUT /target and GET /stats", { timeout: 30_000 }, () => {
+  it("sets the targets in novel.yaml, one commit each, and answers them with the history", async () => {
+    const { createServer, Library, sessionCookie } = await import("../src/index.ts");
+    const dir = novelRepo(fresh("novel"));
+    const library = await Library.open({ configDir: fresh("config") });
+    const novel = await library.add(dir);
+    const server = await createServer({ library, token: "t", sync: false, commit: false });
+    const call = async (method: string, path: string, body?: unknown) => {
+      const res = await fetch(`http://127.0.0.1:${server.port}/api/novels/${novel.id}${path}`, {
+        method,
+        headers: { cookie: `${sessionCookie(server.port)}=t`, origin: `http://127.0.0.1:${server.port}`, "content-type": "application/json" },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      });
+      return { status: res.status, json: (await res.json()) as Record<string, unknown> };
+    };
+    try {
+      expect((await call("PUT", "/target", { words: 90000, date: "2027-06-30", daily: 500 })).status).toBe(200);
+      expect(read(dir, "novel.yaml")).toMatch(/target:\n {2}words: 90000\n {2}date: 2027-06-30\n {2}daily: 500\n/);
+      expect(gitIn(dir, "log", "-1", "--format=%s").trim()).toBe("Set the book's targets");
+      const stats = await call("GET", "/stats");
+      expect(stats.json).toMatchObject({ target: { words: 90000, date: "2027-06-30", daily: 500 }, words: await wordsNow(dir), days: [{ added: await wordsNow(dir) }] });
+
+      await call("PUT", "/target", { daily: null });
+      expect(read(dir, "novel.yaml")).not.toContain("daily:");
+      expect(await call("PUT", "/target", { words: 0 })).toMatchObject({ status: 400, json: { code: "BAD_REQUEST" } });
+      expect(await call("PUT", "/target", { date: "June" })).toMatchObject({ status: 400 });
+      await call("PUT", "/target", { words: null, date: null });
+      expect(read(dir, "novel.yaml")).not.toContain("target");
+      expect((await call("GET", "/stats")).json.target).toBeNull();
+    } finally {
+      await server.close();
+    }
+  });
+});

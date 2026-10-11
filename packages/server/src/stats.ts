@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { countWords, parseMarkdown, wordChange, writingDays, type CommitWords } from "@gh-writer/core";
 import type { Hono } from "hono";
-import type { Env } from "./bible-routes.ts";
+import { body, operation, type Env } from "./bible-routes.ts";
 import { gitPlumbing } from "./git.ts";
 
 /*
@@ -140,6 +140,13 @@ async function writeCache(file: string, cache: Cache): Promise<void> {
  * and the book's length at each day's end), the manuscript's words now (as saved), and novel.yaml's target.
  */
 export function statsRoutes(routes: Hono<Env>): void {
+  /** PUT /:id/target  { words?, date?, daily? } (null removes one) → { commit, files }: novel.yaml's targets, one commit. */
+  routes.put("/:id/target", async (c) => {
+    const raw = await body(c);
+    const pick = (k: string) => (k in raw ? (raw[k] as never) : undefined);
+    return operation(c, () => c.var.ws.bible.updateTarget({ words: pick("words"), date: pick("date"), daily: pick("daily") }));
+  });
+
   routes.get("/:id/stats", async (c) => {
     const { novel } = await c.var.ws.loadModel();
     const words = novel.allScenes.reduce((n, s) => n + countWords(s.body), 0);

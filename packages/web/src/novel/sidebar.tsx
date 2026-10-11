@@ -1,5 +1,5 @@
 import type { Novel } from "@gh-writer/core";
-import { BookOpen, CircleDot, Columns2, ListTree, Map as MapIcon, Network, PanelLeftClose, PanelLeftOpen, PenLine, type LucideIcon } from "lucide-react";
+import { BookOpen, CircleDot, Columns2, Goal, ListTree, Map as MapIcon, Network, PanelLeftClose, PanelLeftOpen, PenLine, type LucideIcon } from "lucide-react";
 import { useEffect, useId, type ReactNode } from "react";
 import { NavLink } from "react-router";
 import { create } from "zustand";
@@ -51,6 +51,7 @@ function groups(onGitHub: boolean): { label: string; places: Place[] }[] {
       places: [
         { path: "outline", label: "Outline", icon: ListTree },
         { path: "story-map", label: "Story map", icon: MapIcon },
+        { path: "progress", label: "Progress", icon: Goal },
       ],
     },
     {

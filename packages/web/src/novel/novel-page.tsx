@@ -19,6 +19,7 @@ import { DraftsButton, useDrafts } from "./drafts.tsx";
 import { CompileDialog } from "./compile.tsx";
 import { ComparePage } from "./compare-page.tsx";
 import { StoryMapPage } from "./story-map.tsx";
+import { ProgressPage } from "./progress-page.tsx";
 import { AdoptConflicts, useSwitchVersion, useVersions } from "./versions.tsx";
 import { SaveConflicts, SyncConflicts } from "./conflicts.tsx";
 import { useNovelEvents } from "./events.ts";
@@ -159,6 +160,7 @@ export function NovelPage() {
       { id: "novel.timeline", title: "Story map: Timeline", group: "Go to", keywords: ["chronology", "story time", "flashback", "diagram"], run: () => void navigate(`/novels/${novelId}/story-map/timeline`) },
       { id: "novel.presence", title: "Story map: Presence", group: "Go to", keywords: ["diagram", "characters", "themes", "locations", "matrix"], run: () => void navigate(`/novels/${novelId}/story-map/presence`) },
       { id: "novel.swimlanes", title: "Story map: Plotlines", group: "Go to", keywords: ["diagram", "plotlines", "swimlanes"], run: () => void navigate(`/novels/${novelId}/story-map/plotlines`) },
+      { id: "novel.progress", title: "Progress", group: "Go to", keywords: ["stats", "statistics", "goal", "target", "deadline", "streak", "words a day"], run: () => void navigate(`/novels/${novelId}/progress`) },
       { id: "novel.compare", title: "Compare: what changed between drafts", group: "Go to", keywords: ["diff", "changes"], run: () => void navigate(`/novels/${novelId}/compare`) },
       { id: "novel.graph", title: "Relationships", group: "Go to", keywords: ["diagram", "characters", "graph"], run: () => void navigate(`/novels/${novelId}/relationships`) },
       ...(repo
@@ -270,6 +272,7 @@ export function NovelPage() {
               <Route path="outline" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="outline/:view" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="bible" element={<BiblePage novelId={novelId} novel={book} />} />
+              <Route path="progress" element={<ProgressPage novelId={novelId} />} />
               <Route path="compare" element={<ComparePage novelId={novelId} workspace={workspace} />} />
               <Route path="issues" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssuesPage novelId={novelId} novel={book} workspace={workspace} />}</GitHubOnly>} />
               <Route path="issues/:number" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssueRoute novelId={novelId} novel={book} workspace={workspace} />}</GitHubOnly>} />

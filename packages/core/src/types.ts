@@ -12,7 +12,8 @@ export interface NovelFile {
   author?: string;
   /** BCP 47; default "en". */
   language?: string;
-  target?: { words?: number; date?: string };
+  /** The length to reach, by when, and the words a day aimed for. */
+  target?: { words?: number; date?: string; daily?: number };
   entity_types?: CustomEntityTypeFile[];
   relationship_types?: RelationshipTypeFile[];
   calendar?: { start?: string };

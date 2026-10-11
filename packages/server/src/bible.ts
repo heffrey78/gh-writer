@@ -263,6 +263,26 @@ export class BibleOperations {
     });
   }
 
+  /**
+   * Set the book's targets in novel.yaml: the length to reach, by when, and the words a day aimed for
+   * (null removes one). One commit.
+   */
+  updateTarget(changes: { words?: number | null; date?: string | null; daily?: number | null }): Promise<OperationResult> {
+    return this.#run(async (novel) => {
+      for (const key of ["words", "daily"] as const) {
+        const v = changes[key];
+        if (v !== undefined && v !== null && !(Number.isInteger(v) && v > 0)) throw new OperationError("BAD_REQUEST", `${key === "words" ? "The target length" : "The daily goal"} is a whole number of words, more than none.`);
+      }
+      if (changes.date !== undefined && changes.date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(changes.date)) throw new OperationError("BAD_REQUEST", "The date is YYYY-MM-DD.");
+      const current = { ...(novel.config?.target ?? {}) } as Record<string, unknown>;
+      for (const [k, v] of Object.entries(changes)) if (v !== undefined) (v === null ? delete current[k] : (current[k] = v));
+      // An empty target goes altogether, rather than leaving `target: {}`.
+      const edits = Object.keys(current).length ? editsAt(["target"], changes as Record<string, unknown>) : [{ path: ["target"], remove: true as const }];
+      const content = editYaml(await this.#read(NOVEL), edits.filter((e) => !("value" in e) || e.value !== undefined));
+      return transaction(this.root, [{ path: NOVEL, content }], "Set the book's targets");
+    });
+  }
+
   /** Add a custom entity type to novel.yaml. Its folder is bible/<folder> (default: the key, plural). */
   createEntityType(fields: EntityTypeFields): Promise<OperationResult> {
     return this.#run(async (novel) => {

@@ -10,7 +10,7 @@ test("the sidebar groups the views, collapses to a strip of icons with Ctrl+\\, 
   await expect(sidebar.getByRole("heading", { name: "Write" })).toBeVisible();
   await expect(sidebar.getByRole("tree", { name: "Manuscript" })).toBeVisible();
   for (const [group, places] of [
-    ["Plan", ["Outline", "Story map"]],
+    ["Plan", ["Outline", "Story map", "Progress"]],
     ["World", ["Story bible", "Relationships"]],
     ["Revise", ["Compare"]],
   ] as const) {
@@ -22,7 +22,7 @@ test("the sidebar groups the views, collapses to a strip of icons with Ctrl+\\, 
   await page.keyboard.press("ControlOrMeta+\\");
   await expect(sidebar.getByRole("tree")).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
-  await expect(views.getByRole("link")).toHaveText(["", "", "", "", "", ""]);
+  await expect(views.getByRole("link")).toHaveText(["", "", "", "", "", "", ""]);
   await expect(views.getByRole("link", { name: "Relationships" })).toHaveAttribute("title", "Relationships");
   await axe(page);
   await page.emulateMedia({ colorScheme: "dark" });

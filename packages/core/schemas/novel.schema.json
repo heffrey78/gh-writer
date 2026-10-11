@@ -31,6 +31,11 @@
         },
         "date": {
           "$ref": "common.schema.json#/$defs/date"
+        },
+        "daily": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Words a day the writer aims for (words added, not net)."
         }
       },
       "additionalProperties": false

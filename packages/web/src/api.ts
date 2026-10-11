@@ -19,4 +19,5 @@ export const keys = {
   issues: (id: string) => ["issues", id] as const,
   checkpoints: (id: string) => ["checkpoints", id] as const,
   versions: (id: string) => ["versions", id] as const,
+  stats: (id: string) => ["stats", id] as const,
 };
