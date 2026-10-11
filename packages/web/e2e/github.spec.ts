@@ -122,6 +122,8 @@ test("when GitHub stops accepting the sign-in, sync says so and reconnecting res
   // Once: the account control now offers to reconnect, rather than failing again and again.
   await page.reload();
   await expect(page.getByRole("banner").getByRole("button", { name: "Reconnect GitHub" })).toBeVisible();
+  // The text takes the focus once loaded, which would close a popover opened before it.
+  await expect(page.getByRole("textbox", { name: /^(Chapter|Scene) text$/ })).toBeFocused();
 
   await badge(page).click();
   await page.getByRole("dialog").getByRole("button", { name: "Connect GitHub…" }).click();
