@@ -272,7 +272,7 @@ export function NovelPage() {
               <Route path="outline" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="outline/:view" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="bible" element={<BiblePage novelId={novelId} novel={book} />} />
-              <Route path="progress" element={<ProgressPage novelId={novelId} />} />
+              <Route path="progress" element={<ProgressPage novelId={novelId} novel={book} />} />
               <Route path="compare" element={<ComparePage novelId={novelId} workspace={workspace} />} />
               <Route path="issues" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssuesPage novelId={novelId} novel={book} workspace={workspace} />}</GitHubOnly>} />
               <Route path="issues/:number" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssueRoute novelId={novelId} novel={book} workspace={workspace} />}</GitHubOnly>} />

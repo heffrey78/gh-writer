@@ -136,3 +136,37 @@ test("comparing a version with the main one", async ({ page, app }) => {
   await expect(page.locator("ins").first()).toBeVisible();
   await shoot(page, "compare");
 });
+
+test("progress, with three weeks of writing", async ({ page, app }) => {
+  const { execFileSync } = await import("node:child_process");
+  const { readFileSync, writeFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const dir = app.novelRepo("varn");
+  const scenes = ["manuscript/02-the-sale/02-varn-holds/02-the-last-rivet.md", "manuscript/02-the-sale/01-night-crossing/02-the-flood.md", "manuscript/01-return/02-old-debts/02-bens-ledger.md"];
+  const sentence = "The river kept its own counsel below the bridge, and the rivets held, one by one, through the long grey afternoon while the surveyors argued over their maps.";
+  const day = (back: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - back);
+    return `${d.toISOString().slice(0, 10)}T20:00:00`;
+  };
+  // The sample, started three weeks ago.
+  execFileSync("git", ["-C", dir, "commit", "-q", "--amend", "--no-edit", "--date", day(21)], { env: { ...process.env, GIT_COMMITTER_DATE: day(21) } });
+  for (let back = 20; back >= 1; back--) {
+    if (back % 6 === 0) continue;
+    const file = join(dir, scenes[back % scenes.length]!);
+    const text = readFileSync(file, "utf8");
+    const paragraphs = 1 + ((back * 7) % 5);
+    writeFileSync(file, back % 5 === 0 ? text.replace(/\n\n[^\n]+\n$/, "\n") : text + `\n${Array.from({ length: paragraphs }, () => sentence).join("\n\n")}\n`);
+    execFileSync("git", ["-C", dir, "commit", "-qam", `Draft ${back}`], { env: { ...process.env, GIT_AUTHOR_DATE: day(back), GIT_COMMITTER_DATE: day(back) } });
+  }
+  await app.restart(dir);
+  await page.goto(app.launchUrl);
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Progress" }).click();
+  await page.getByRole("spinbutton", { name: "Words a day" }).fill("250");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("region", { name: "At a glance" })).toContainText("of 250 a day");
+  await page.getByRole("heading", { level: 1, name: "Progress" }).scrollIntoViewIfNeeded();
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: out("progress") });
+});

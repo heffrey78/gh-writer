@@ -7,7 +7,7 @@ export { checkSchema, SCHEMAS, type SchemaKind } from "./schemas.ts";
 export { joinPath, memorySource, type DirEntry, type FileSource } from "./source.ts";
 export { hardWrappedLines, RULES, sortDiagnostics, validate, validateNovel, type ValidationResult } from "./validate.ts";
 export { countText, countWords, markdownWords, proseText, wordList } from "./words.ts";
-export { addDays, daysBetween, PACE_DAYS, projection, sceneWords, streak, wordChange, writingDays, type CommitWords, type Projection, type Streak, type WritingDay } from "./stats.ts";
+export { addDays, daysBetween, LONG, median, PACE_DAYS, projection, sceneWords, SHORT, streak, unbalanced, wordChange, writingDays, type CommitWords, type Projection, type Streak, type WritingDay } from "./stats.ts";
 export { merge2, merge3, resolveMerge, type MergeChunk, type MergeResult, type Resolution } from "./merge.ts";
 export { editFrontMatter, editYaml, numberedName, readFrontMatter, slugify, uniqueFileName, uniqueId, type YamlEdit, type YamlPath } from "./edit.ts";
 export { backlinks, relationshipHistory, type Backlinks, type RelationshipSpan, type SceneLink } from "./queries.ts";

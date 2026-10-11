@@ -1,10 +1,11 @@
-import { projection, streak, type WritingDay } from "@gh-writer/core";
+import { projection, streak, type Novel } from "@gh-writer/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { api, keys } from "../api.ts";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
+import { ProgressCharts } from "./progress-charts.tsx";
 
 /*
  * Progress (#20): how long the book is against its target, where it's heading at the recent pace,
@@ -26,7 +27,7 @@ export function useStats(novelId: string) {
   return useQuery({ queryKey: keys.stats(novelId), queryFn: () => api.stats(novelId) });
 }
 
-export function ProgressPage({ novelId, children }: { novelId: string; children?: (days: WritingDay[], target: { words?: number; date?: string } | null, words: number) => ReactNode }) {
+export function ProgressPage({ novelId, novel }: { novelId: string; novel: Novel }) {
   const stats = useStats(novelId);
   if (stats.isError) return <Page><ErrorAlert title="Couldn't read the novel's history">{stats.error.message}</ErrorAlert></Page>;
   if (!stats.data) return <Page><p className="text-sm text-muted">Reading the novel's history…</p></Page>;
@@ -57,8 +58,8 @@ export function ProgressPage({ novelId, children }: { novelId: string; children?
         <Tile label="Finish" value={p.finish ? dateOf(p.finish, shortDate) : "—"} note={finishNote(p, target)} />
       </section>
 
+      <ProgressCharts days={days} words={words} target={target} novel={novel} today={today} />
       <TargetForm novelId={novelId} target={target} />
-      {children?.(days, target, words)}
     </Page>
   );
 }

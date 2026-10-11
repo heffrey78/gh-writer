@@ -159,3 +159,23 @@ export function projection(days: WritingDay[], words: number, today: string, tar
   }
   return out;
 }
+
+/** The middle value (the mean of the middle two for an even count); 0 for none. */
+export function median(values: number[]): number {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+}
+
+/** How far from the median a length has to be to stand out: half of it, or half again. */
+export const SHORT = 0.5;
+export const LONG = 1.5;
+
+/** Parts (chapters, or scenes) unusually long or short against their median: under half of it, or over one and a half times. */
+export function unbalanced<T extends { words: number }>(items: T[]): { median: number; long: T[]; short: T[] } {
+  const m = median(items.map((i) => i.words));
+  // With fewer than three there's no telling what's usual.
+  if (items.length < 3 || m === 0) return { median: m, long: [], short: [] };
+  return { median: m, long: items.filter((i) => i.words > m * LONG), short: items.filter((i) => i.words < m * SHORT) };
+}

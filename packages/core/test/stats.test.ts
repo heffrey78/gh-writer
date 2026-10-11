@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { addDays, countWords, markdownWords, projection, sceneWords, streak, wordChange, writingDays, type WritingDay } from "../src/index.ts";
+import { addDays, countWords, markdownWords, median, unbalanced, projection, sceneWords, streak, wordChange, writingDays, type WritingDay } from "../src/index.ts";
 
 describe("wordChange", () => {
   it("counts a reworded sentence as words removed and added, and a mention as its name", () => {
@@ -83,5 +83,17 @@ describe("projection", () => {
   });
   it("is done once the target is reached", () => {
     expect(projection(steady, 72_000, today, { words: 70_000, date: "2026-11-01" })).toMatchObject({ remaining: 0, finish: today, spare: 4 });
+  });
+});
+
+describe("unbalanced", () => {
+  it("names parts under half or over one and a half times the median", () => {
+    const parts = [100, 220, 230, 240, 400].map((words, i) => ({ id: `c${i}`, words }));
+    expect(median(parts.map((p) => p.words))).toBe(230);
+    const u = unbalanced(parts);
+    expect([u.median, u.long.map((p) => p.id), u.short.map((p) => p.id)]).toEqual([230, ["c4"], ["c0"]]);
+  });
+  it("says nothing with too few to tell what's usual", () => {
+    expect(unbalanced([{ words: 10 }, { words: 1000 }])).toEqual({ median: 505, long: [], short: [] });
   });
 });

@@ -11,7 +11,7 @@ test("Progress shows the length against the target, today's words and streak, an
   await expect(page.getByRole("heading", { level: 1, name: "Progress" })).toBeVisible();
 
   // The sample was committed today, so its words were all written today; it aims for 80,000 by mid-2027.
-  const length = page.getByRole("region", { name: "Length" });
+  const length = page.getByRole("region", { name: "Length", exact: true });
   await expect(length).toContainText("744of 80,000 words");
   await expect(length).toContainText("79,256 words to go. At your pace of 27 words a day over the last four weeks, you'd finish on");
   await expect(length).toContainText("after your deadline. To finish on June 30, 2027, write");
@@ -40,4 +40,42 @@ test("Progress shows the length against the target, today's words and streak, an
   await page.getByRole("spinbutton", { name: "Length" }).fill("");
   await page.getByRole("button", { name: "Save targets" }).click();
   await expect(length).toContainText("Set a target length below");
+});
+
+test("the charts read by keyboard and as tables, and name the chapters and scenes that stand out", async ({ page, app }) => {
+  await app.restart(app.novelRepo("varn"));
+  await page.goto(app.launchUrl);
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Progress" }).click();
+
+  const perDay = page.getByRole("region", { name: "Words per day" });
+  await expect(perDay).toContainText("744 added and 0 cut over these 30 days");
+  const chart = perDay.getByRole("img", { name: /Words added and cut each day/ });
+  await chart.focus();
+  await page.keyboard.press("End");
+  await expect(perDay.getByText(/: 744 added, 0 cut\./)).toBeAttached();
+  await perDay.getByText("As a table").click();
+  await expect(perDay.getByRole("table").getByRole("row")).toHaveCount(2);
+  await expect(perDay.getByRole("table")).toContainText("744");
+
+  // A range of 90 days, from the row above the charts.
+  await page.getByRole("radiogroup", { name: "Show" }).getByText("90 days", { exact: true }).click();
+  await expect(perDay).toContainText("over these 90 days");
+
+  const length = page.getByRole("region", { name: "Length of the book" });
+  await expect(length).toContainText("744 words of 80,000");
+  await expect(length).toContainText("the target is far above this scale");
+
+  const chapters = page.getByRole("region", { name: "Chapters and their scenes" });
+  // The sample's chapters are even (231, 145, 218 and 150 words): nothing stands out.
+  await expect(chapters.getByRole("note")).toContainText("No chapter or scene stands out");
+  await chapters.getByRole("img").focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(chapters.getByText("The Station, in Arrival: 113 words.")).toBeAttached();
+  await chapters.getByText("As a table").click();
+  await expect(chapters.getByRole("table").getByRole("row")).toHaveCount(9);
+
+  await axe(page);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await axe(page);
 });

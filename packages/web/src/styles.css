@@ -15,6 +15,9 @@
   --ghw-warn-soft: rgb(138 83 0 / 0.1);
   --ghw-shelf: #dccfb8;
   --ghw-shelf-edge: #c2b294;
+  /* Chart series: the data-viz reference palette's first two slots, validated (CVD, contrast) on these surfaces. */
+  --ghw-series-1: #2a78d6;
+  --ghw-series-2: #eb6834;
   color-scheme: light;
 }
 
@@ -29,6 +32,8 @@
     --ghw-warn-soft: rgb(240 191 108 / 0.12);
     --ghw-shelf: #3a342c;
     --ghw-shelf-edge: #4a4238;
+    --ghw-series-1: #3987e5;
+    --ghw-series-2: #d95926;
     color-scheme: dark;
   }
 }
@@ -43,6 +48,8 @@
   --ghw-warn-soft: rgb(240 191 108 / 0.12);
   --ghw-shelf: #3a342c;
   --ghw-shelf-edge: #4a4238;
+  --ghw-series-1: #3987e5;
+  --ghw-series-2: #d95926;
   color-scheme: dark;
 }
 
