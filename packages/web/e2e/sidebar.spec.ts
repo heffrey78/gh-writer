@@ -31,6 +31,8 @@ test("the sidebar groups the views, collapses to a strip of icons with Ctrl+\\, 
 
   await page.reload();
   await expect(sidebar.getByRole("button", { name: "Expand the sidebar" })).toBeVisible();
+  // The text takes the focus once loaded: wait for it, or it would take it back from the strip.
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
   // Every place by keyboard from the strip.
   await sidebar.getByRole("button", { name: "Expand the sidebar" }).focus();
   await page.keyboard.press("Tab");
