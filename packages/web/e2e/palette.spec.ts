@@ -45,7 +45,7 @@ test("opens a scene by its title, and lists recent commands first", async ({ pag
 test("reaches sync, checkpoints, the library and the theme", async ({ page, app }) => {
   await open(page, app);
   await run(page, "checkpoints");
-  await expect(page.getByRole("dialog", { name: "Checkpoints" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Drafts" })).toBeVisible();
   await page.keyboard.press("Escape");
   await run(page, "theme dark");
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe("dark");

@@ -194,6 +194,37 @@ describe("adopting a version, and bringing scenes across", { timeout: 30_000 }, 
   });
 });
 
+describe("which version a checkpoint belongs to", { timeout: 30_000 }, () => {
+  it("the main version's, a version's, the main version's again once adopted, and none once discarded", async () => {
+    const dir = novelRepo(fresh("novel"));
+    const { versions: v, checkpoints } = open(dir);
+    const before = await checkpoints.create("Before anything");
+    await v.start("Ending");
+    append(dir, "In the version.\n");
+    const inVersion = await checkpoints.create("Version draft");
+    await v.start("Other");
+    append(dir, "In the other.\n");
+    const inOther = await checkpoints.create("Other draft");
+    await v.switch("main");
+    const owners = await v.owners([before, inVersion, inOther]);
+    // "Other" began in "Ending": "Ending"'s draft is in both histories, but was made in "Ending".
+    expect([...owners.values()]).toEqual(["main", "ending", "other"]);
+    // A checkpoint made before versions existed (no Version trailer) goes by history, the main version first.
+    expect((await v.owners([{ id: "old", commit: before.commit }])).get("old")).toBe("main");
+    // Adopted: still the version's while it's here; the main version's once it's discarded.
+    await v.adopt("ending");
+    expect((await v.owners([inVersion])).get(inVersion.id)).toBe("ending");
+    await v.discard("ending");
+    expect((await v.owners([inVersion])).get(inVersion.id)).toBe("main");
+    // Discarded without being adopted: nobody's (listed as discarded).
+    const kept = await v.discard("other");
+    const all = await checkpoints.list();
+    const owners2 = await v.owners(all);
+    expect(owners2.get(inOther.id)).toBeNull();
+    expect(owners2.get(kept.checkpoint.id)).toBeNull();
+  });
+});
+
 describe("versions across computers", () => {
   let remote: string;
   beforeEach(() => {

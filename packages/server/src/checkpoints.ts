@@ -13,6 +13,8 @@ const RESTORED_PATHS = ["manuscript", "bible"];
 
 const WORDS_TRAILER = "Words";
 const AUTO_TRAILER = "Checkpoint";
+/** The branch (version) it was made in: main, or version/<slug>. */
+const VERSION_TRAILER = "Version";
 
 export interface Checkpoint {
   /** The tag without its "checkpoint/" prefix, e.g. "2026-10-05-183012-before-the-big-cut": the id in URLs. */
@@ -24,6 +26,8 @@ export interface Checkpoint {
   words: number;
   /** Taken by gh-writer itself (before a restore), not named by the author. */
   auto: boolean;
+  /** The branch it was made in, when it says (checkpoints made before versions don't). */
+  branch?: string;
   commit: string;
 }
 
@@ -101,6 +105,7 @@ export class Checkpoints {
           date: date!,
           words: Number(trailer(WORDS_TRAILER) ?? 0),
           auto: trailer(AUTO_TRAILER) === "auto",
+          ...(trailer(VERSION_TRAILER) ? { branch: trailer(VERSION_TRAILER)! } : {}),
           // A lightweight tag (made by hand) points at the commit itself.
           commit: peeled || object!,
         };
@@ -165,11 +170,11 @@ export class Checkpoints {
    * An automatic checkpoint of `commit` (not necessarily the one checked out): what a discarded version
    * is kept as, so it can be brought back. Run inside the caller's exclusive section.
    */
-  keep(name: string, commit: string): Promise<Checkpoint> {
-    return this.#create(name, true, commit);
+  keep(name: string, commit: string, branch?: string): Promise<Checkpoint> {
+    return this.#create(name, true, commit, branch);
   }
 
-  async #create(name: string, auto: boolean, commit?: string): Promise<Checkpoint> {
+  async #create(name: string, auto: boolean, commit?: string, branch?: string): Promise<Checkpoint> {
     if (commit === undefined) {
       const result = await this.#committer.commit();
       if ("skipped" in result && result.skipped !== "NOTHING") {
@@ -186,7 +191,8 @@ export class Checkpoints {
     let at = this.#now();
     if (newest && stamp(at) <= newest) at = new Date(parseStamp(newest).getTime() + 1000);
     const tag = `checkpoint/${stamp(at)}-${slug(name)}`;
-    const trailers = [`${WORDS_TRAILER}: ${words}`, ...(auto ? [`${AUTO_TRAILER}: auto`] : [])];
+    const made = branch ?? (await g.raw(["symbolic-ref", "--quiet", "--short", "HEAD"]).catch(() => "")).trim();
+    const trailers = [`${WORDS_TRAILER}: ${words}`, ...(auto ? [`${AUTO_TRAILER}: auto`] : []), ...(made ? [`${VERSION_TRAILER}: ${made}`] : [])];
     await g.raw(["tag", "--annotate", "-m", name, "-m", trailers.join("\n"), tag, commit ?? "HEAD"]);
     this.#onCreate();
     return this.get(tag.slice("checkpoint/".length));

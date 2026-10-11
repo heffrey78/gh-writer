@@ -13,11 +13,11 @@ import { BiblePage } from "../bible/bible-page.tsx";
 import { EntryPage } from "../bible/entry-page.tsx";
 import { NewEntryDialog } from "../bible/new-entry.tsx";
 import { cn } from "../ui/cn.ts";
-import { CheckpointsButton } from "./checkpoints.tsx";
+import { DraftsButton, useDrafts } from "./drafts.tsx";
 import { CompileButton, CompileDialog } from "./compile.tsx";
 import { ComparePage } from "./compare-page.tsx";
 import { StoryMapPage } from "./story-map.tsx";
-import { AdoptConflicts, useSwitchVersion, useVersions, useVersionsPanel, VersionsButton } from "./versions.tsx";
+import { AdoptConflicts, useSwitchVersion, useVersions } from "./versions.tsx";
 import { SaveConflicts, SyncConflicts } from "./conflicts.tsx";
 import { useNovelEvents } from "./events.ts";
 import { Sidebar, useSidebar } from "./sidebar.tsx";
@@ -56,7 +56,6 @@ export function NovelPage() {
   const [workspace, setWorkspace] = useState<Workspace>();
   const [entries, setEntries] = useState<QuickEntries>();
   const [resolving, setResolving] = useState(false);
-  const [checkpointsOpen, setCheckpointsOpen] = useState(false);
   const [compiling, setCompiling] = useState(false);
   const [newEntry, setNewEntry] = useState<string | null>(null);
   const focus = useWritingModes((m) => m.focus);
@@ -146,11 +145,11 @@ export function NovelPage() {
     (): Command[] => [
       { id: "novel.syncNow", title: "Sync now", group: "Sync", run: () => syncNow.mutate() },
       ...(conflict ? [{ id: "novel.resolve", title: "Resolve sync conflicts", group: "Sync", run: () => setResolving(true) }] : []),
-      { id: "novel.checkpoints", title: "Checkpoints: make or restore one", group: "Checkpoints", run: () => setCheckpointsOpen(true) },
-      { id: "novel.versions", title: "Versions: start, open or discard one", group: "Versions", keywords: ["alternate", "draft", "ending", "try"], run: () => useVersionsPanel.getState().set(true) },
+      { id: "novel.drafts", title: "Drafts: versions and checkpoints", group: "Drafts", keywords: ["alternate", "ending", "try", "history", "restore"], run: () => useDrafts.getState().set(true) },
+      { id: "novel.checkpoints", title: "Checkpoints: make or restore one", group: "Drafts", run: () => useDrafts.getState().set(true) },
       ...(versions.data ?? [])
         .filter((v) => !v.current)
-        .map((v) => ({ id: `novel.version.${v.id}`, title: `Open version: ${v.name}`, group: "Versions", run: () => switchVersion.mutate(v) })),
+        .map((v) => ({ id: `novel.version.${v.id}`, title: `Open version: ${v.name}`, group: "Drafts", run: () => switchVersion.mutate(v) })),
       { id: "novel.compile", title: "Compile the manuscript…", group: "Novel", keywords: ["export", "docx", "word", "epub", "pdf", "e-book", "manuscript"], run: () => setCompiling(true) },
       { id: "novel.bible", title: "Story bible", group: "Go to", run: () => void navigate(`/novels/${novelId}/bible`) },
       { id: "novel.outline", title: "Outline", group: "Go to", keywords: ["table"], run: () => void navigate(`/novels/${novelId}/outline/table`) },
@@ -190,8 +189,7 @@ export function NovelPage() {
   const actions = workspace && (
     <>
       <SaveStatus autosave={workspace.autosave} entries={entries?.store} />
-      <VersionsButton novelId={novelId} workspace={workspace} />
-      <CheckpointsButton novelId={novelId} workspace={workspace} open={checkpointsOpen} onOpenChange={setCheckpointsOpen} />
+      <DraftsButton novelId={novelId} workspace={workspace} />
       <CompileButton onOpen={() => setCompiling(true)} />
       <SyncBadge
         status={sync.data}

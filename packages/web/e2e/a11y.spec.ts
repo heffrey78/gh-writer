@@ -119,7 +119,7 @@ for (const [name, viewport] of [
     // A checkpoint, a restore and its undo, all by keyboard.
     await text.focus();
     await palette(page, "checkpoints");
-    const panel = page.getByRole("dialog", { name: "Checkpoints" });
+    const panel = page.getByRole("dialog", { name: "Drafts" });
     await expect(panel.getByRole("textbox", { name: "New checkpoint" })).toBeFocused();
     await page.keyboard.type("Merged");
     await page.keyboard.press("Enter");

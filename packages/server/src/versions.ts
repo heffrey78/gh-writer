@@ -128,6 +128,42 @@ export class Versions {
     return versions.sort((a, b) => Number(b.main) - Number(a.main) || a.name.localeCompare(b.name));
   }
 
+  /**
+   * The version each checkpoint belongs to: the one it was made in, while that version is here.
+   * Otherwise (made before versions, or in one since discarded) the first whose history holds it,
+   * the main version first; null when none does (a discarded version's own checkpoint).
+   */
+  async owners(checkpoints: Pick<Checkpoint, "id" | "commit" | "branch">[]): Promise<Map<string, string | null>> {
+    const versions = await this.list();
+    const main = await this.mainBranch();
+    const byBranch = new Map(versions.map((v) => [v.main ? main : `${VERSION_PREFIX}${v.id}`, v.id]));
+    const out = new Map<string, string | null>();
+    const histories = new Map<string, Set<string>>();
+    const history = async (commit: string) => {
+      let set = histories.get(commit);
+      if (!set) histories.set(commit, (set = new Set((await gitPlumbing(this.root, ["rev-list", commit])).toString().split("\n"))));
+      return set;
+    };
+    for (const checkpoint of checkpoints) {
+      const made = checkpoint.branch && byBranch.get(checkpoint.branch);
+      if (made) {
+        out.set(checkpoint.id, made);
+        continue;
+      }
+      let owner: string | null = null;
+      for (const v of versions) {
+        if ((await history(v.commit)).has(checkpoint.commit)) {
+          owner = v.id;
+          break;
+        }
+      }
+      // A discarded version's own checkpoint (made in it, or keeping it) stays with it, out of the others.
+      if (checkpoint.branch?.startsWith(VERSION_PREFIX) && owner !== "main") owner = null;
+      out.set(checkpoint.id, owner);
+    }
+    return out;
+  }
+
   /** The open version's ID, or null when the novel is on some other branch (or none). */
   async current(): Promise<string | null> {
     const { current, main } = await this.#state();
@@ -184,7 +220,7 @@ export class Versions {
       if (version.main) throw new VersionError("MAIN", "The main version can't be discarded.");
       const g = git(this.root);
       const branch = await this.#branch(version);
-      const checkpoint = await this.#checkpoints.keep(`Discarded version “${version.name}”`, version.commit);
+      const checkpoint = await this.#checkpoints.keep(`Discarded version “${version.name}”`, version.commit, await this.#branch(version));
       if (version.current) await g.raw(["switch", "--quiet", await this.mainBranch()]);
       if (!version.remoteOnly) await g.raw(["branch", "--quiet", "-D", branch]);
       const remote = await this.#remote();
@@ -207,7 +243,7 @@ export class Versions {
       if (version.main) throw new VersionError("MAIN", "The main version is the one other versions are adopted into.");
       const g = git(this.root);
       const main = await this.mainBranch();
-      const checkpoint = await this.#checkpoints.keep(`Before adopting “${version.name}”`, (await g.raw(["rev-parse", main])).trim());
+      const checkpoint = await this.#checkpoints.keep(`Before adopting “${version.name}”`, (await g.raw(["rev-parse", main])).trim(), main);
       if (!(await this.#get("main")).current) await g.raw(["switch", "--quiet", main]);
       // Answered by the exit code alone, which simple-git doesn't report: plumbing rejects on a non-zero exit.
       const isAncestor = (a: string, b: string) => gitPlumbing(this.root, ["merge-base", "--is-ancestor", a, b]).then(() => true, () => false);

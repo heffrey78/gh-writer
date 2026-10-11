@@ -30,7 +30,7 @@ type NovelEnv = { Variables: { ws: NovelWorkspace } };
  * GET /api/novels/:id/sync          sync status: { state, remote, branch, ahead, behind, lastSync, conflict?, error?, commit }
  * POST /api/novels/:id/sync         sync now; the status once it's done
  * POST /api/novels/:id/publish      { name, description?, private? } → { remote, status }: a new GitHub repository, pushed to
- * GET /api/novels/:id/checkpoints   { checkpoints }, newest first
+ * GET /api/novels/:id/checkpoints   { checkpoints }, newest first, each with the version it belongs to (or null)
  * POST /api/novels/:id/checkpoints  { name } → 201 { checkpoint }
  * POST /api/novels/:id/checkpoints/:checkpoint/restore  { sceneId? } → { undo, commit, files }
  * GET /api/novels/:id/conflicts     { conflicts }: what a sync conflict leaves to settle, or null
@@ -119,7 +119,12 @@ export function novelRoutes(library: Library, workspaces: Workspaces, github?: G
     }
   });
 
-  routes.get("/:id/checkpoints", async (c) => c.json({ checkpoints: await c.var.ws.checkpoints.list() }));
+  // Each with the version it belongs to (null: a discarded version's).
+  routes.get("/:id/checkpoints", async (c) => {
+    const checkpoints = await c.var.ws.checkpoints.list();
+    const owners = await c.var.ws.versions.owners(checkpoints);
+    return c.json({ checkpoints: checkpoints.map(({ branch: _branch, ...k }) => ({ ...k, version: owners.get(k.id) ?? null })) });
+  });
 
   routes.post("/:id/checkpoints", async (c) => {
     const { name } = ((await c.req.json().catch(() => undefined)) ?? {}) as { name?: unknown };

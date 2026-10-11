@@ -112,6 +112,8 @@ export interface Checkpoint {
   /** Taken automatically before a restore. */
   auto: boolean;
   commit: string;
+  /** The version it belongs to, or null for a discarded version's (absent where it isn't known: a new checkpoint). */
+  version?: string | null;
 }
 
 /** An alternate version of the novel (or the main one). */

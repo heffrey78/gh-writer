@@ -14,13 +14,13 @@ test("compares a version with the main one, word by word, and a checkpoint with 
   const text = page.getByRole("textbox", { name: "Chapter text" });
   await expect(text).toBeFocused();
 
-  await page.getByRole("button", { name: "Checkpoints" }).click();
+  await page.getByRole("button", { name: /^Drafts: / }).click();
   await page.getByRole("textbox", { name: "New checkpoint" }).fill("First draft");
   await page.getByRole("button", { name: "Make checkpoint" }).click();
-  await expect(page.getByRole("dialog", { name: "Checkpoints" }).getByRole("listitem").filter({ hasText: "First draft" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Drafts" }).getByRole("listitem").filter({ hasText: "First draft" })).toBeVisible();
   await page.keyboard.press("Escape");
 
-  await page.getByRole("button", { name: "Versions: Main version is open" }).click();
+  await page.getByRole("button", { name: "Drafts: Main version is open" }).click();
   await page.getByRole("textbox", { name: "New version" }).fill("A darker ending");
   await page.keyboard.press("Enter");
   await expect(notice(page)).toContainText("Started the version");
@@ -34,7 +34,7 @@ test("compares a version with the main one, word by word, and a checkpoint with 
   writeFileSync(station, readFileSync(station, "utf8").replace("counted them twice", "counted them three times"));
   await expect(text).toContainText("counted them three times");
 
-  await page.getByRole("button", { name: "Versions: A darker ending is open" }).click();
+  await page.getByRole("button", { name: "Drafts: A darker ending is open" }).click();
   await page.getByRole("button", { name: "Compare “A darker ending” with the main version" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Compare" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "From" })).toHaveValue("version:main");
@@ -62,7 +62,9 @@ test("compares a version with the main one, word by word, and a checkpoint with 
   await page.emulateMedia({ colorScheme: "light" });
 
   // A checkpoint against now, from the checkpoints panel.
-  await page.getByRole("button", { name: "Checkpoints" }).click();
+  await page.getByRole("button", { name: /^Drafts: / }).click();
+  // Made in the main version: listed under it, among the other versions.
+  await page.getByRole("button", { name: /Checkpoints in “Main version”/ }).click();
   await page.getByRole("button", { name: "Compare “First draft” with now" }).click();
   await expect(page.getByRole("combobox", { name: "From" })).toHaveValue(/^checkpoint:.*first-draft$/);
   await expect(summary).toContainText("2 scenes changed");

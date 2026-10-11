@@ -56,12 +56,13 @@ describe("creating and listing", () => {
       date: expect.any(String),
       words: await manuscriptWords(),
       auto: false,
+      branch: "main",
       commit: gitIn(dir, "rev-parse", "HEAD").trim(),
     });
     expect(gitIn(dir, "status", "--porcelain")).toBe("");
     expect(gitIn(dir, "log", "-1", "--format=%s")).toMatch(/^Draft: The Station \(\+3 words\)/);
     expect(gitIn(dir, "cat-file", "-t", "checkpoint/2026-10-05-180000-before-the-big-cut").trim()).toBe("tag");
-    expect(gitIn(dir, "tag", "-l", "--format=%(contents)", "checkpoint/*")).toBe(`Before the big cut\n\nWords: ${checkpoint.words}\n\n`);
+    expect(gitIn(dir, "tag", "-l", "--format=%(contents)", "checkpoint/*")).toBe(`Before the big cut\n\nWords: ${checkpoint.words}\nVersion: main\n\n`);
   });
 
   it("lists checkpoints newest first, with their word counts", async () => {
