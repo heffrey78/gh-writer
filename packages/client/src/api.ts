@@ -4,6 +4,14 @@
  */
 
 import type { Comparison, ParagraphDiff } from "@gh-writer/core/compare";
+import type { WritingDay } from "@gh-writer/core";
+
+/** GET /stats: the open version's writing days, the manuscript's words now, and novel.yaml's target. */
+export interface WritingStats {
+  days: WritingDay[];
+  words: number;
+  target: { words?: number; date?: string; daily?: number } | null;
+}
 
 export type { ChapterComparison, ChangeStatus, Comparison, DiffPart, EntryComparison, EventComparison, FieldChange, ParagraphDiff, RelationshipComparison, SceneComparison } from "@gh-writer/core/compare";
 
@@ -427,6 +435,8 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
     /** Kept as an automatic checkpoint first: `checkpoint` in the result brings it back. */
     discardVersion: async (id: string, versionId: string) =>
       (await request<DiscardResult>("DELETE", `/api/novels/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionId)}`)).data,
+    /** The writing history: days with words added and removed and the book's length, the words now, and the target. */
+    stats: async (id: string) => (await request<WritingStats>("GET", `/api/novels/${encodeURIComponent(id)}/stats`)).data,
     /** What changed between two states of the novel: each "now", "version:<id>" or "checkpoint:<id>". */
     compare: async (id: string, from: string, to: string) =>
       (await request<{ comparison: Comparison }>("GET", `/api/novels/${encodeURIComponent(id)}/compare?${new URLSearchParams({ from, to })}`)).data.comparison,

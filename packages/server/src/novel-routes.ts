@@ -6,6 +6,7 @@ import { issueRoutes } from "./issues-routes.ts";
 import { compileRoutes } from "./compile-routes.ts";
 import { versionRoutes } from "./version-routes.ts";
 import { compareRoutes } from "./compare-routes.ts";
+import { statsRoutes } from "./stats.ts";
 import { diagramRoutes } from "./diagrams.ts";
 import { manuscriptRoutes } from "./manuscript-routes.ts";
 import { CheckpointError } from "./checkpoints.ts";
@@ -178,6 +179,7 @@ export function novelRoutes(library: Library, workspaces: Workspaces, github?: G
   compileRoutes(routes);
   versionRoutes(routes);
   compareRoutes(routes);
+  statsRoutes(routes);
   diagramRoutes(routes);
   manuscriptRoutes(routes);
 

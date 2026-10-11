@@ -15,21 +15,27 @@ const HYPHEN = /^[-‐‑]$/;
 
 /** Words in plain text. */
 export function countText(text: string): number {
-  let count = 0;
+  return wordList(text).length;
+}
+
+/** The words of plain text, in order, as counted: a hyphenated word is one ("well-known"). */
+export function wordList(text: string): string[] {
+  const words: string[] = [];
   let afterWord = false;
-  let joined = false;
+  let hyphen: string | undefined;
   segmenter ??= new Intl.Segmenter(undefined, { granularity: "word" });
   for (const { segment, isWordLike } of segmenter.segment(text)) {
     if (isWordLike) {
-      if (!joined) count++;
+      if (hyphen !== undefined && words.length) words[words.length - 1] += hyphen + segment;
+      else words.push(segment);
       afterWord = true;
-      joined = false;
+      hyphen = undefined;
     } else {
-      joined = afterWord && HYPHEN.test(segment);
+      hyphen = afterWord && HYPHEN.test(segment) ? segment : undefined;
       afterWord = false;
     }
   }
-  return count;
+  return words;
 }
 
 const ENTITIES: Record<string, string> = { amp: "&", nbsp: " ", mdash: "—", ndash: "–", hellip: "…", quot: '"', apos: "'", lt: "<", gt: ">", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“" };
@@ -56,4 +62,9 @@ export function proseText(markdown: string): string {
 /** Words in a Markdown body (a scene or note after its front matter). */
 export function countWords(markdown: string): number {
   return countText(proseText(markdown));
+}
+
+/** The words of a Markdown body, as countWords counts them. */
+export function markdownWords(markdown: string): string[] {
+  return wordList(proseText(markdown));
 }
