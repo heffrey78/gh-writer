@@ -3,7 +3,21 @@ import { delimiter, join } from "node:path";
 import type { Page } from "@playwright/test";
 import { axe, expect, launch, test, type App } from "./fixtures.ts";
 
-const connectButton = (page: Page) => page.getByRole("banner").getByRole("button", { name: /Connect GitHub/ });
+/** The top bar's ⋯ menu, where the account is. */
+const more = (page: Page) => page.getByRole("banner").getByRole("button", { name: /^More/ });
+
+/** Connect GitHub…, from the ⋯ menu. */
+async function connect(page: Page) {
+  await more(page).click();
+  await page.getByRole("menuitem", { name: /Connect GitHub/ }).click();
+}
+
+/** The ⋯ menu says who's signed in. */
+async function expectSignedIn(page: Page, login: string) {
+  await more(page).click();
+  await expect(page.getByRole("menu")).toContainText(`Signed in to GitHub as ${login}`);
+  await page.keyboard.press("Escape");
+}
 const dialog = (page: Page) => page.getByRole("dialog", { name: "Connect to GitHub" });
 const badge = (page: Page) => page.getByRole("button", { name: /^Sync: / });
 
@@ -35,7 +49,7 @@ test("connects with a code entered on GitHub, shows the account, and signs out",
     if (r.url().includes("/api/")) bodies.push(await r.text().catch(() => ""));
   });
   await launch(page, app);
-  await connectButton(page).click();
+  await connect(page);
   await expect(dialog(page)).toContainText("kept in this computer's keychain");
   await axe(page);
 
@@ -47,13 +61,13 @@ test("connects with a code entered on GitHub, shows the account, and signs out",
   app.github.approve();
   await expect(dialog(page)).toHaveCount(0);
 
-  const account = page.getByRole("button", { name: "GitHub account: ada" });
-  await expect(account).toBeVisible();
-  await account.click();
+  await more(page).click();
   await expect(page.getByRole("menu")).toContainText("Signed in to GitHub as ada");
   await axe(page);
   await page.getByRole("menuitem", { name: "Sign out of GitHub" }).click();
-  await expect(connectButton(page)).toBeVisible();
+  await more(page).click();
+  await expect(page.getByRole("menuitem", { name: "Connect GitHub…" })).toBeVisible();
+  await page.keyboard.press("Escape");
 
   // The token never reached the browser.
   expect(bodies.filter((b) => b.includes(app.github.deviceToken))).toEqual([]);
@@ -69,10 +83,10 @@ test("offers gh's account when the gh CLI is signed in", async ({ page, app }) =
   await app.restart();
 
   await launch(page, app);
-  await connectButton(page).click();
+  await connect(page);
   await dialog(page).getByRole("button", { name: "Use gh's account (ada-cli)" }).click();
   await expect(dialog(page)).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "GitHub account: ada-cli" })).toBeVisible();
+  await expectSignedIn(page, "ada-cli");
 });
 
 test("a clone GitHub refuses offers to connect, then clones and syncs with the connection", async ({ page, app }) => {
@@ -107,7 +121,7 @@ test("a clone GitHub refuses offers to connect, then clones and syncs with the c
 test("when GitHub stops accepting the sign-in, sync says so and reconnecting resumes it", async ({ page, app }) => {
   const url = githubRepo(app);
   await launch(page, app);
-  await connectButton(page).click();
+  await connect(page);
   await signInWithCode(page, app);
   await page.getByRole("button", { name: "Clone from GitHub" }).click();
   await page.getByRole("dialog", { name: "Clone from GitHub" }).getByRole("textbox", { name: "Repository" }).fill(url);
@@ -121,7 +135,7 @@ test("when GitHub stops accepting the sign-in, sync says so and reconnecting res
   await expect(page.getByRole("dialog")).toContainText("Connect to GitHub again");
   // Once: the account control now offers to reconnect, rather than failing again and again.
   await page.reload();
-  await expect(page.getByRole("banner").getByRole("button", { name: "Reconnect GitHub" })).toBeVisible();
+  await expect(more(page)).toHaveAccessibleName("More (GitHub needs reconnecting)");
   // The text takes the focus once loaded, which would close a popover opened before it.
   await expect(page.getByRole("textbox", { name: /^(Chapter|Scene) text$/ })).toBeFocused();
 
@@ -129,7 +143,8 @@ test("when GitHub stops accepting the sign-in, sync says so and reconnecting res
   await page.getByRole("dialog").getByRole("button", { name: "Connect GitHub…" }).click();
   await signInWithCode(page, app);
   await expect(badge(page)).toHaveAccessibleName("Sync: Synced");
-  await expect(page.getByRole("button", { name: "GitHub account: ada" })).toBeVisible();
+  await expect(more(page)).toHaveAccessibleName("More");
+  await expectSignedIn(page, "ada");
   await axe(page);
 });
 
@@ -172,7 +187,7 @@ test("signed out, puts a new novel on GitHub from the shelf: connects, creates a
 
 test("puts a novel on GitHub from its sync badge, then syncs with it", async ({ page, app }) => {
   await launch(page, app);
-  await connectButton(page).click();
+  await connect(page);
   await signInWithCode(page, app);
   const novel = await newNovel(page, app, "Night Ferry");
   await openNovel(page, app, novel.id);
@@ -231,9 +246,9 @@ test("a sign-in without the workflow permission: publishing says so, and reconne
   app.env.PATH = `${bin}${delimiter}${app.env.PATH}`;
   await app.restart();
   await launch(page, app);
-  await connectButton(page).click();
+  await connect(page);
   await dialog(page).getByRole("button", { name: "Use gh's account (ada)" }).click();
-  await expect(page.getByRole("button", { name: "GitHub account: ada (needs reconnecting)" })).toBeVisible();
+  await expect(more(page)).toHaveAccessibleName("More (GitHub needs reconnecting)");
 
   const novel = await newNovel(page, app, "Bingo Parlor");
   await openNovel(page, app, novel.id);
@@ -255,7 +270,7 @@ test("a sign-in without the workflow permission: publishing says so, and reconne
   await expect(publish).not.toContainText("doesn't allow workflow");
   await publish.getByRole("button", { name: "Create and push" }).click();
   await expect(publish).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "GitHub account: ada", exact: true })).toBeVisible();
+  await expect(more(page)).toHaveAccessibleName("More");
   await expect(badge(page)).toHaveAccessibleName("Sync: Synced");
   expect(app.github.repos.filter((r) => r.name === "bingo-parlor")).toHaveLength(1);
   expect(app.git(app.github.repoPath("ada", "bingo-parlor"), "log", "--format=%s", "main").trim()).toBe("Start Bingo Parlor");

@@ -158,10 +158,15 @@ test("follows the OS theme, and remembers a chosen one", async ({ page, app }) =
   await launch(page, app);
   const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   expect(await background()).toBe("rgb(27, 26, 24)");
-  await page.getByRole("combobox", { name: "Theme" }).selectOption("light");
+  // In the top bar's ⋯ menu, by keyboard.
+  await page.getByRole("banner").getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitemradio", { name: "Light" }).click();
   expect(await background()).toBe("rgb(250, 248, 244)");
+  await expect(page.getByRole("menuitemradio", { name: "Light" })).toBeChecked();
+  await page.keyboard.press("Escape");
   await page.reload();
-  await expect(page.getByRole("combobox", { name: "Theme" })).toHaveValue("light");
+  await page.getByRole("banner").getByRole("button", { name: "More" }).click();
+  await expect(page.getByRole("menuitemradio", { name: "Light" })).toBeChecked();
   expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe("light");
 });
 

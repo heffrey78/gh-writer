@@ -34,86 +34,73 @@ export function GitHubMark({ className }: { className?: string }) {
   );
 }
 
+/** GitHub stopped accepting the sign-in: said once by the server, kept until the author connects again. */
+const useExpired = create<{ expired: boolean; set: (expired: boolean) => void }>((set) => ({ expired: false, set: (expired) => set({ expired }) }));
+
+/** Whether the GitHub connection wants the author's attention: reconnecting after it expired, or for missing permissions. */
+export function useGitHubAttention(): { expired: boolean; missingScopes: boolean } {
+  const github = useGitHub();
+  const { expired, set } = useExpired();
+  useEffect(() => {
+    if (github.data?.expired) set(true);
+    if (github.data?.signedIn) set(false);
+  }, [github.data, set]);
+  return { expired, missingScopes: !!github.data?.signedIn && !!github.data.missingScopes };
+}
+
 /**
- * The account control in the top bar: Connect GitHub while signed out (Reconnect after GitHub stopped
- * accepting the sign-in), and once signed in the login, with Sign out in its menu.
+ * The account, as items of the top bar's menu: Connect GitHub while signed out (Reconnect after GitHub
+ * stopped accepting the sign-in), and once signed in the login, with Sign out.
  */
-export function AccountMenu() {
+export function AccountItems({ item }: { item: string }) {
   const github = useGitHub();
   const show = useConnect((s) => s.show);
   const queryClient = useQueryClient();
-  // The server says "expired" once; keep showing it until the author connects again.
-  const [expired, setExpired] = useState(false);
-  useEffect(() => {
-    if (github.data?.expired) setExpired(true);
-    if (github.data?.signedIn) setExpired(false);
-  }, [github.data]);
+  const { expired } = useGitHubAttention();
   const signOut = useMutation({ mutationFn: api.github.signOut, onSuccess: (status) => queryClient.setQueryData(githubKey, status) });
-  // The menu opens inside the top bar's landmark, not at the end of the page.
-  const [anchor, setAnchor] = useState<HTMLSpanElement | null>(null);
-  const item = "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent-soft";
-
   if (!github.data) return null;
   const { signedIn, account, offline, missingScopes } = github.data;
   if (!signedIn) {
     return (
-      <Button
-        size="sm"
-        variant="ghost"
-        className={cn(expired && "text-warn")}
-        title={expired ? "GitHub stopped accepting gh-writer's sign-in (it was revoked or has expired)." : undefined}
-        onClick={() => show()}
-      >
-        <GitHubMark className="size-4" />
-        {expired ? "Reconnect GitHub" : "Connect GitHub"}
-      </Button>
+      <>
+        {expired && <p className="max-w-64 px-2 py-1.5 text-xs text-warn">GitHub stopped accepting gh-writer's sign-in (it was revoked or has expired).</p>}
+        <DropdownMenu.Item className={item} onSelect={() => show()}>
+          <GitHubMark className="size-4" />
+          {expired ? "Reconnect GitHub…" : "Connect GitHub…"}
+        </DropdownMenu.Item>
+      </>
     );
   }
   const login = account?.login;
   return (
-    <span ref={setAnchor}>
-      <DropdownMenu.Root modal={false}>
-        <DropdownMenu.Trigger asChild>
-          <Button
-            size="sm"
-            variant="ghost"
-            className={cn(missingScopes && "text-warn")}
-            aria-label={`${login ? `GitHub account: ${login}` : "GitHub account"}${missingScopes ? " (needs reconnecting)" : ""}`}
-          >
-            <GitHubMark className="size-4" />
-            <span className="max-w-32 truncate">{login ?? "GitHub"}</span>
-          </Button>
-        </DropdownMenu.Trigger>
-        <DropdownMenu.Portal container={anchor}>
-          <DropdownMenu.Content align="end" sideOffset={4} className="z-50 grid min-w-56 rounded-md border border-rule bg-raised p-1 text-ink shadow-lg">
-            <DropdownMenu.Label className="px-2 py-1.5 text-sm">
-              {login ? (
-                <>
-                  Signed in to GitHub as <span className="font-semibold">{login}</span>
-                </>
-              ) : (
-                "Signed in to GitHub"
-              )}
-              {offline && <span className="block text-xs text-muted">GitHub can't be reached right now.</span>}
-            </DropdownMenu.Label>
-            {missingScopes && (
-              <>
-                <p className="max-w-64 px-2 pb-1.5 text-xs text-warn">
-                  This sign-in doesn't allow {missingScopes.join(" and ")}, which gh-writer needs to put novels on GitHub. Reconnect to grant it.
-                </p>
-                <DropdownMenu.Item className={item} onSelect={() => show()}>
-                  Reconnect GitHub…
-                </DropdownMenu.Item>
-              </>
-            )}
-            <DropdownMenu.Separator className="my-1 h-px bg-rule" />
-            <DropdownMenu.Item className={item} onSelect={() => signOut.mutate()}>
-              Sign out of GitHub
-            </DropdownMenu.Item>
-          </DropdownMenu.Content>
-        </DropdownMenu.Portal>
-      </DropdownMenu.Root>
-    </span>
+    <>
+      <DropdownMenu.Label className="flex items-center gap-2 px-2 py-1.5 text-sm">
+        <GitHubMark className="size-4 shrink-0" />
+        <span>
+          {login ? (
+            <>
+              Signed in to GitHub as <span className="font-semibold">{login}</span>
+            </>
+          ) : (
+            "Signed in to GitHub"
+          )}
+          {offline && <span className="block text-xs text-muted">GitHub can't be reached right now.</span>}
+        </span>
+      </DropdownMenu.Label>
+      {missingScopes && (
+        <>
+          <p className="max-w-64 px-2 pb-1.5 text-xs text-warn">
+            This sign-in doesn't allow {missingScopes.join(" and ")}, which gh-writer needs to put novels on GitHub. Reconnect to grant it.
+          </p>
+          <DropdownMenu.Item className={item} onSelect={() => show()}>
+            Reconnect GitHub…
+          </DropdownMenu.Item>
+        </>
+      )}
+      <DropdownMenu.Item className={item} onSelect={() => signOut.mutate()}>
+        Sign out of GitHub
+      </DropdownMenu.Item>
+    </>
   );
 }
 

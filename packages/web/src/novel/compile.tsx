@@ -1,5 +1,4 @@
 import type { Novel } from "@gh-writer/core";
-import { FileDown } from "lucide-react";
 import { useId, useState } from "react";
 import { api } from "../api.ts";
 import { Button } from "../ui/button.tsx";
@@ -23,15 +22,6 @@ function save(blob: Blob, filename: string) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
-
-export function CompileButton({ onOpen }: { onOpen: () => void }) {
-  return (
-    <Button variant="ghost" size="sm" onClick={onOpen}>
-      <FileDown className="size-4" aria-hidden />
-      Compile
-    </Button>
-  );
 }
 
 /** Compile the manuscript (or some of its chapters) with a preset, to Word, EPUB and PDF: the files download. */

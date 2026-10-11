@@ -6,7 +6,9 @@ import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "rea
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router";
 import { api, keys } from "../api.ts";
 import { useCommands, type Command } from "../commands.ts";
-import { Shell } from "../layout.tsx";
+import { FileDown, History } from "lucide-react";
+import { DropdownMenu } from "radix-ui";
+import { MENU_ITEM, Shell } from "../layout.tsx";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { ErrorBoundary } from "../ui/error-boundary.tsx";
 import { BiblePage } from "../bible/bible-page.tsx";
@@ -14,7 +16,7 @@ import { EntryPage } from "../bible/entry-page.tsx";
 import { NewEntryDialog } from "../bible/new-entry.tsx";
 import { cn } from "../ui/cn.ts";
 import { DraftsButton, useDrafts } from "./drafts.tsx";
-import { CompileButton, CompileDialog } from "./compile.tsx";
+import { CompileDialog } from "./compile.tsx";
 import { ComparePage } from "./compare-page.tsx";
 import { StoryMapPage } from "./story-map.tsx";
 import { AdoptConflicts, useSwitchVersion, useVersions } from "./versions.tsx";
@@ -186,11 +188,25 @@ export function NovelPage() {
     [model, conflict, novelId, navigate, repo, versions.data, switchVersion.mutate],
   );
 
+  const heading = workspace && novel.data && (
+    <>
+      <span className="truncate px-1 font-semibold">{novel.data.novel.config?.title ?? "Untitled"}</span>
+      <DraftsButton novelId={novelId} workspace={workspace} />
+    </>
+  );
+  const menu = workspace && (
+    <>
+      <DropdownMenu.Item className={MENU_ITEM} onSelect={() => useDrafts.getState().set(true)}>
+        <History className="size-4" aria-hidden /> Checkpoints…
+      </DropdownMenu.Item>
+      <DropdownMenu.Item className={MENU_ITEM} onSelect={() => setCompiling(true)}>
+        <FileDown className="size-4" aria-hidden /> Compile…
+      </DropdownMenu.Item>
+    </>
+  );
   const actions = workspace && (
     <>
       <SaveStatus autosave={workspace.autosave} entries={entries?.store} />
-      <DraftsButton novelId={novelId} workspace={workspace} />
-      <CompileButton onOpen={() => setCompiling(true)} />
       <SyncBadge
         status={sync.data}
         onSyncNow={() => syncNow.mutate()}
@@ -225,7 +241,7 @@ export function NovelPage() {
 
   const book = novel.data.novel;
   return (
-    <Shell wide actions={actions} chrome={!focus} title={book.config?.title ?? "Untitled"}>
+    <Shell wide heading={heading} actions={actions} menu={menu} chrome={!focus} title={book.config?.title ?? "Untitled"}>
       {!connected && (
         <p role="alert" className="border-b border-warn/40 bg-warn-soft px-4 py-2 text-sm">
           gh-writer isn't answering. Your unsaved text is kept in this tab; start gh-writer again and it will be saved.

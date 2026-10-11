@@ -57,7 +57,8 @@ test("the command palette and compiling", async ({ page, app }) => {
   await page.waitForTimeout(300);
   await shoot(page, "palette");
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Compile" }).click();
+  await page.getByRole("banner").getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name: "Compile…" }).click();
   await page.getByRole("radio", { name: "Some chapters" }).check();
   await page.getByRole("combobox", { name: "to" }).selectOption({ label: "Old Debts" });
   await shoot(page, "compile");

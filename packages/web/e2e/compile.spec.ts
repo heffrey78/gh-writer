@@ -51,11 +51,12 @@ test("compiles the first two chapters to Word, EPUB and PDF, keyboard only, with
   expect(strFromU8((await bytes(downloads[2]!)).subarray(0, 5))).toBe("%PDF-");
 });
 
-test("the header's Compile button opens the dialog; Escape closes it", async ({ page, app }) => {
+test("Compile… in the top bar's menu opens the dialog; Escape closes it", async ({ page, app }) => {
   await app.restart(app.novelRepo("varn"));
   await page.goto(app.launchUrl);
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
-  await page.getByRole("button", { name: "Compile" }).click();
+  await page.getByRole("banner").getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name: "Compile…" }).click();
   await expect(dialog(page).getByRole("radio", { name: "The whole book" })).toBeChecked();
   await expect(dialog(page).getByRole("checkbox")).toHaveCount(3);
   await page.keyboard.press("Escape");
