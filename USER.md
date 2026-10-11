@@ -2,7 +2,7 @@
 
 This guide is for the person writing the book. It assumes gh-writer is installed and running (see [Getting started](README.md#getting-started)). You don't need to know git or GitHub: gh-writer uses them for you, and this guide says what happens in plain terms.
 
-**Contents:** [Your library](#your-library) · [Writing](#writing) · [Structure](#structure-parts-chapters-and-scenes) · [The story bible](#the-story-bible) · [Diagrams](#diagrams) · [Saving, sync and checkpoints](#saving-sync-and-checkpoints) · [Versions and comparing](#versions-and-comparing) · [GitHub](#github) · [Issues](#issues) · [Compiling](#compiling) · [Keyboard](#keyboard) · [Your files](#your-files) · [The command line](#the-command-line)
+**Contents:** [Your library](#your-library) · [Finding your way](#finding-your-way) · [Writing](#writing) · [Structure](#structure-parts-chapters-and-scenes) · [The story bible](#the-story-bible) · [Story map and relationships](#story-map-and-relationships) · [Saving and sync](#saving-and-sync) · [Drafts: versions and checkpoints](#drafts-versions-and-checkpoints) · [GitHub](#github) · [Issues](#issues) · [Compiling](#compiling) · [Keyboard](#keyboard) · [Your files](#your-files) · [The command line](#the-command-line)
 
 ## Your library
 
@@ -13,6 +13,19 @@ This guide is for the person writing the book. It assumes gh-writer is installed
 - **Clone from GitHub** copies a novel from GitHub, after you've connected (see [GitHub](#github)), listing your repositories to choose from.
 
 `npx gh-writer serve path/to/novel` opens one novel directly. Taking a novel out of the library leaves its folder alone.
+
+## Finding your way
+
+**The top bar** names the book and the version open (choose it to open [Drafts](#drafts-versions-and-checkpoints)), says whether your work is saved and synced, and keeps everything else in its **⋯** menu: Checkpoints, Compile, the theme (light, dark, or like your system), your GitHub account, and the keyboard shortcuts.
+
+**The sidebar** groups everything by what you're doing:
+
+- **Write**: the manuscript, as a tree of parts, chapters and scenes.
+- **Plan**: the **Outline**, as a table or as cards, and the **Story map** (plotlines, presence and the timeline).
+- **World**: the **Story bible** and the **Relationships** between its entries.
+- **Revise**: **Compare** two drafts, and **Issues** for a novel on GitHub.
+
+Collapse it to a strip of icons with the button at its top, or Ctrl+\\ (⌘\\ on a Mac); it stays that way until you open it again. **Focus mode** hides it, and the top bar, altogether.
 
 ## Writing
 
@@ -30,58 +43,74 @@ Choose a chapter or scene in the tree on the left. A chapter opens as one contin
 
 The tree on the left holds the book. **Scene**, **Chapter** and **Part** add one after the selection; F2 renames, Alt+↑ / Alt+↓ move, Delete deletes (deleted things wait in **Recently deleted**). You can drag in the tree, too. In the command palette, *Split the scene at the caret*, *Merge scene with the next* and *Move scene to chapter…* reshape scenes.
 
-- **Outline** lists every scene with its synopsis, status, point of view, characters, plotlines and word count; edit the synopsis and status in place, and drag to reorder.
-- **Corkboard** shows scenes as cards by chapter. Filter by point of view, character, plotline or status; drag cards to reorder.
+**Outline** shows every scene in reading order, two ways; switch with **Table** and **Cards** at its top, and it remembers which you like:
+
+- **Table**: each scene's synopsis, status, point of view, characters, plotlines and word count; edit the synopsis and status in place, and drag to reorder.
+- **Cards**: scenes as index cards by chapter, filtered by point of view, character, plotline or status; drag cards to reorder.
+
+![The outline as cards](docs/screenshots/outline-cards.png)
 
 ## The story bible
 
 **Story bible** in the left panel lists characters, locations, plotlines, themes and any types of your own (an "Artifacts" type in the sample novel, say). Each entry has a name, other names (recognised when you type `@`), a summary, fields of your choice, tags and notes.
 
-Relationships (sibling of, mentor of, allied with…) live on the entries' pages, each from a scene and, if it ends, until a scene. The kinds of relationship are yours to define in `novel.yaml`. Off-page events, like a flood years before the story starts, live on the **Timeline**.
+Relationships (sibling of, mentor of, allied with…) live on the entries' pages, each from a scene and, if it ends, until a scene. The kinds of relationship are yours to define in `novel.yaml`. Off-page events, like a flood years before the story starts, live on the story map's **Timeline**.
 
 ![A character's page in the story bible](docs/screenshots/bible.png)
 
-## Diagrams
+## Story map and relationships
 
-Each has an **Export** button for SVG; the graph and timeline also export Mermaid.
+The **Story map** sets the story's elements against its scenes, in three tabs (←/→ move between them):
 
-- **Graph**: the relationship graph. Drag the *Story position* slider, or press **Play**, to see relationships begin and end as the story goes. Arrange nodes by dragging; the layout is saved.
 - **Plotlines**: a row per plotline, a column per scene, with major and minor beats; stretches where a plotline goes quiet too long are shaded and listed.
 - **Presence**: which characters (or themes) are in which scenes.
 - **Timeline**: the book in story time, joined by lines to reading order, so flashbacks stand out; and anyone who is in two places at once is listed.
 
+**Relationships**, under World, draws the story bible's relationships as a graph. Drag the *Story position* slider, or press **Play**, to see relationships begin and end as the story goes. Arrange entries by dragging; the layout is saved.
+
+Each has an **Export** button for SVG; the relationships and the timeline also export Mermaid.
+
 ![Who is in which scene](docs/screenshots/presence.png)
 
-## Saving, sync and checkpoints
+## Saving and sync
 
-**Saving is automatic.** The header says *Saved*, *Saving…* or *Unsaved*; typed words are kept even if the app or the browser closes unexpectedly. If a file you're editing changes somewhere else (another computer, or a text editor), gh-writer shows both versions side by side so you choose what to keep.
+**Saving is automatic.** The top bar says *Saved*, *Saving…* or *Unsaved*; typed words are kept even if the app or the browser closes unexpectedly. If a file you're editing changes somewhere else (another computer, or a text editor), gh-writer shows both versions side by side so you choose what to keep.
 
-**Sync**: with a novel on GitHub, gh-writer brings in changes and sends yours every few minutes, and when you choose *Sync now*. The header shows whether you're synced. If the same passage was changed in two places, *Resolve sync conflicts* walks you through each one.
+**Sync**: with a novel on GitHub, gh-writer brings in changes and sends yours every few minutes, and when you choose *Sync now*. The top bar shows whether you're synced. If the same passage was changed in two places, *Resolve sync conflicts* walks you through each one.
 
-**Checkpoints** are named drafts: points in the book's history, like "Before the big cut". Make one from **Checkpoints** in the header. Later, restore the whole manuscript and story bible from it, or just one scene, or **Compare with now** to see what has changed since. A restore first takes a checkpoint of its own, so a restore can always be undone.
+## Drafts: versions and checkpoints
 
-## Versions and comparing
+**Drafts** (the version's name in the top bar, or *Checkpoints* in the ⋯ menu) holds the book's history:
 
-A **version** is another take on the book that lives alongside the main one: a darker ending, the book without a subplot. It has its own text and story bible; the main version stays exactly as it was. The header names the version you're in.
+- A **version** is a separate take on the book that lives alongside the main one: a darker ending, the book without a subplot. It has its own text and story bible; the main version stays exactly as it was.
+- A **checkpoint** is a named moment in a version, like "Before the big cut", to come back to.
 
-- **Start one** from **Versions** in the header: name it and choose *Start version*. It begins as a copy of the version you're in, and opens. Everything you write now goes into it.
-- **Switch** between versions in the same panel, or with *Open version: …* in the command palette. What you've typed is saved first. If the chapter you're in doesn't exist in the other version, the book opens at its start.
+Drafts lists the version open now first, with *New checkpoint* and its checkpoints; then the other versions, each with its own checkpoints; then any you've discarded.
+
+![Drafts: the open version with its checkpoint, and the main version with its own](docs/screenshots/drafts.png)
+
+**Checkpoints.** Make one in the version you're in. Later, **Restore manuscript** brings the whole manuscript and story bible back as they were then, or **Restore “scene”** just the scene you're in; **Compare with now** shows what has changed since. A restore first takes a checkpoint of its own, so it can always be undone. Restoring a checkpoint from another version brings that version's text into the one open, and Drafts asks first. gh-writer also takes checkpoints by itself before anything it changes for you (a restore, adopting a version); tick *Show the checkpoints gh-writer made* to see them.
+
+**Versions.**
+
+- **Start one** under *Start a new version*: name it and choose *Start version*. It begins as a copy of the version you're in, and opens. Everything you write now goes into it.
+- **Open** another version from Drafts, or with *Open version: …* in the command palette. What you've typed is saved first. If the chapter you're in doesn't exist in the other version, the book opens at its start.
 - **Compare** shows exactly what's different (see below).
 - **Adopt into main** when the version is the one you want: the main version opens and takes the version's changes. Anything you changed in the main version since the version began is kept too; where both changed the same passage, you choose, side by side, as with sync conflicts. The main version is kept in a checkpoint first, so *Undo* puts it back.
 - **Bring single scenes across** instead, from the compare view: *Use this scene from “…”* copies that scene's text and details into the version you're in.
-- **Discard** a version you don't want. It's kept in a checkpoint first; *Bring it back* in the notice (or a new version started from that checkpoint) restores it.
+- **Discard** a version you don't want. It's kept first, under *Discarded versions* in Drafts; *Bring it back* there (or in the notice) restores it.
 
 With a novel on GitHub, versions sync like everything else, so your other computers have them too. Discarding one removes it there at the next sync.
 
-**Compare** (in the views, the command palette, and the Versions and Checkpoints panels) sets any two of *now*, a version and a checkpoint side by side. It lists every chapter and scene that changed, with word counts before and after; open a scene to read its text with deleted words struck through and new words underlined, so a reworded sentence shows just the words that changed. Changes to a scene's details (status, point of view, characters…), the story bible, relationships and off-page events are listed too. Untick *Only what changed* to see the whole book.
+**Compare** (under Revise, in the command palette, and in Drafts) sets any two of *now*, a version and a checkpoint side by side. It lists every chapter and scene that changed, with word counts before and after; open a scene to read its text with deleted words struck through and new words underlined, so a reworded sentence shows just the words that changed. Changes to a scene's details (status, point of view, characters…), the story bible, relationships and off-page events are listed too. Untick *Only what changed* to see the whole book.
 
 ![Comparing a version with the main one](docs/screenshots/compare.png)
 
 ## GitHub
 
-**Connect GitHub** in the header signs you in: gh-writer shows a code to enter on github.com. If you already use GitHub's `gh` command, you can sign in with that instead. Your sign-in stays in your computer's keychain.
+**Connect GitHub…** in the ⋯ menu signs you in: gh-writer shows a code to enter on github.com. If you already use GitHub's `gh` command, you can sign in with that instead. Your sign-in stays in your computer's keychain.
 
-A novel that's only on this computer says **Local only** in the header; choose it to **put it on GitHub** as a new private or public repository. From then on it syncs, and the GitHub features below appear; for a local-only novel they stay out of the way.
+A novel that's only on this computer says **Local only** in the top bar; choose it to **put it on GitHub** as a new private or public repository. From then on it syncs, and the GitHub features below appear; for a local-only novel they stay out of the way.
 
 On github.com, the novel's repository shows the book as files, keeps every version, and runs a few automatic workflows: **Validate** checks the files on every push, **Diagrams** redraws the diagram snapshots into `diagrams/`, and **Compile** makes a Release for each named checkpoint (see [Compiling](#compiling)).
 
@@ -97,7 +126,7 @@ Issues are for the work around the book: plot holes, continuity errors, research
 
 ## Compiling
 
-**Compile** in the header (or *Compile the manuscript…*) makes the book into files to share:
+**Compile…** in the ⋯ menu (or *Compile the manuscript…* in the command palette) makes the book into files to share:
 
 - **Word (DOCX)** in standard manuscript format, for agents and editors: a title page with your contact details and word count, Times New Roman 12 pt double-spaced, a running header, chapters on new pages, "THE END".
 - **E-book (EPUB)** for readers and e-readers.
@@ -113,7 +142,7 @@ Compile the whole book or a range of chapters. Anything you've just typed is sav
 
 ## Keyboard
 
-Everything is reachable from the keyboard. **Ctrl+K** opens the command palette, which can do anything in the app: go to a chapter or scene, open a view, make a checkpoint, sync, change the theme. **Ctrl+/** lists the keyboard shortcuts.
+Everything is reachable from the keyboard. **Ctrl+K** opens the command palette, which can do anything in the app: go to a chapter or scene, open a view, make a checkpoint, sync, change the theme. **Ctrl+/** lists the keyboard shortcuts, and **Ctrl+\\** collapses or expands the sidebar.
 
 ![The command palette](docs/screenshots/palette.png)
 

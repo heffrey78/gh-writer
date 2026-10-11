@@ -101,7 +101,7 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
 
   return (
     <div className="grid content-start gap-3 px-6 py-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
+      <div className="flex flex-wrap items-baseline justify-end gap-3">
         <h2 className="sr-only">Presence</h2>
         <ExportMenu name={`presence-${plural(label).toLowerCase()}`} svg={() => presenceSvg(novel, type, `${plural(label)} by scene`)} />
       </div>

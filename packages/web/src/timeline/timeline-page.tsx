@@ -55,7 +55,7 @@ export function TimelinePage({ novelId, novel }: { novelId: string; novel: Novel
 
   return (
     <div className="grid content-start gap-4 px-6 py-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
+      <div className="flex flex-wrap items-baseline justify-end gap-3">
         <h2 className="sr-only">Timeline</h2>
         <div className="flex gap-2">
           <Button size="sm" onClick={() => setEditing("new")}>

@@ -19,32 +19,37 @@
 
 ### Plan
 
-- **Manuscript structure**: parts, chapters and scenes in a tree you can rearrange with the keyboard or by dragging; an **outline** and a **corkboard** of scene cards, filtered by point of view, character, plotline or status.
-- **A story bible** of characters, locations, plotlines, themes and types you invent, with relationships that start and end at particular scenes.
-- **Diagrams**, all exportable as SVG (and some as Mermaid):
-  - a **relationship graph** with a slider to step through the story and watch alliances change;
-  - **plotline swimlanes** showing each plotline's beats scene by scene, and where one goes quiet;
-  - **presence matrices** of which characters and themes appear in which scenes;
+- **Manuscript structure**: parts, chapters and scenes in a tree you can rearrange with the keyboard or by dragging, and an **outline** of every scene as a table or as index cards, filtered by point of view, character, plotline or status.
+- **A story bible** of characters, locations, plotlines, themes and types you invent, with relationships that start and end at particular scenes, drawn as a **relationship graph** with a slider to step through the story and watch alliances change.
+- **A story map** of the story's elements against its scenes, all exportable as SVG (and some as Mermaid):
+  - **plotlines** showing each one's beats scene by scene, and where one goes quiet;
+  - **presence** of characters and themes in each scene;
   - a **timeline** setting story time against reading order, flashbacks and off-page events included.
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/corkboard.png" alt="The corkboard: scene cards grouped by chapter"></td>
-    <td><img src="docs/screenshots/graph.png" alt="The relationship graph at the first scene"></td>
+    <td><img src="docs/screenshots/outline-cards.png" alt="The outline as cards: scenes grouped by chapter"></td>
+    <td><img src="docs/screenshots/relationships.png" alt="The relationship graph at the first scene"></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/plotlines.png" alt="Plotline swimlanes: beats by scene"></td>
+    <td><img src="docs/screenshots/plotlines.png" alt="The story map's plotlines: beats by scene"></td>
     <td><img src="docs/screenshots/timeline.png" alt="The timeline: story time against reading order"></td>
   </tr>
 </table>
 
 ### Revise
 
-- **Checkpoints** are named drafts: points in the book's history ("Before the big cut") to restore the whole manuscript, or one scene, from. Every restore can be undone.
+- **Drafts** hold the book's history in one place: its versions, each with its checkpoints.
+- **Checkpoints** are named moments in a version ("Before the big cut") to restore the whole manuscript, or one scene, from. Every restore can be undone.
 - **Versions** let you try a different ending or a big cut alongside the main book, prose and story bible both. Switch between them whenever you like, then **adopt** one into the main version (what changed in the main version meanwhile is kept) or **bring single scenes across**, or discard it, kept in a checkpoint in case you want it back.
 - **Compare** any two of now, a version and a checkpoint, the way an editor marks up a manuscript: deleted words struck through, inserted words underlined, scene by scene, with what changed in each scene's details, the story bible and the relationships, and word counts before and after.
 
-![Comparing a version with the main one: changed words marked in the scene's text](docs/screenshots/compare.png)
+<table>
+  <tr>
+    <td><img src="docs/screenshots/drafts.png" alt="Drafts: the open version with its checkpoint, and the main version with its own"></td>
+    <td><img src="docs/screenshots/compare.png" alt="Comparing a version with the main one: changed words marked in the scene's text"></td>
+  </tr>
+</table>
 
 ### Work with GitHub
 
@@ -64,7 +69,7 @@
 
 Everything is in plain files: one Markdown file per scene, one per bible entry, YAML for structure and relationships. You can edit them on github.com or in any text editor, and a validator (run on every push) catches broken references. The format is specified in [docs/format/v1.md](docs/format/v1.md).
 
-The app is keyboard-first and accessible: a command palette (Ctrl+K / ⌘K) reaches everything, every view works without a mouse, it follows your light or dark setting, and its screens are checked with axe in the test suite.
+The app stays calm as it grows: a sidebar grouped by what you're doing (write, plan, world, revise) that folds away to icons, and a top bar with just the book, its version, save and sync status, and a ⋯ menu for the rest. It's keyboard-first and accessible: a command palette (Ctrl+K / ⌘K) reaches everything, every view works without a mouse, it follows your light or dark setting, and its screens are checked with axe in the test suite.
 
 ## Getting started
 

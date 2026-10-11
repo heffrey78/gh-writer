@@ -3,7 +3,6 @@ import type { Page } from "@playwright/test";
 import { expect, test, type App } from "./fixtures.ts";
 
 const out = (name: string) => fileURLToPath(new URL(`../../../docs/screenshots/${name}.png`, import.meta.url));
-const views = (page: Page) => page.getByRole("navigation", { name: "Views" });
 
 /** Let transitions and fonts settle, then shoot. */
 async function shoot(page: Page, name: string) {
@@ -34,12 +33,39 @@ test("the writing view, light and dark, with a mention card", async ({ page, app
 });
 
 test("planning views", async ({ page, app }) => {
-  await open(page, app);
-  for (const [link, name] of [["Outline", "outline"], ["Corkboard", "corkboard"], ["Plotlines", "plotlines"], ["Presence", "presence"], ["Timeline", "timeline"], ["Graph", "graph"]] as const) {
-    await views(page).getByRole("link", { name: link }).click();
+  const id = await open(page, app);
+  for (const [path, name] of [
+    ["outline/table", "outline"],
+    ["outline/cards", "outline-cards"],
+    ["story-map/plotlines", "plotlines"],
+    ["story-map/presence", "presence"],
+    ["story-map/timeline", "timeline"],
+    ["relationships", "relationships"],
+  ] as const) {
+    await page.goto(new URL(`/novels/${id}/${path}`, app.url).href);
     await page.waitForTimeout(1200);
     await shoot(page, name);
   }
+});
+
+test("drafts: versions with their checkpoints", async ({ page, app }) => {
+  await open(page, app);
+  const drafts = page.getByRole("dialog", { name: "Drafts" });
+  await page.getByRole("button", { name: "Drafts: Main version is open" }).click();
+  await drafts.getByRole("textbox", { name: "New checkpoint" }).fill("First draft");
+  await drafts.getByRole("button", { name: "Make checkpoint" }).click();
+  await expect(drafts.getByRole("listitem")).toHaveCount(1);
+  await drafts.getByRole("textbox", { name: "New version" }).fill("A darker ending");
+  await drafts.getByRole("button", { name: "Start version" }).click();
+  await expect(page.getByRole("button", { name: "Drafts: A darker ending is open" })).toBeVisible();
+  await page.getByRole("button", { name: "Dismiss" }).click();
+  await page.getByRole("button", { name: "Drafts: A darker ending is open" }).click();
+  await drafts.getByRole("textbox", { name: "New checkpoint" }).fill("Bridge falls");
+  await drafts.getByRole("button", { name: "Make checkpoint" }).click();
+  await expect(drafts.getByRole("group", { name: "A darker ending" }).getByRole("listitem")).toHaveCount(1);
+  await drafts.getByRole("button", { name: /Checkpoints in “Main version”/ }).click();
+  await drafts.getByRole("textbox", { name: "New checkpoint" }).blur();
+  await shoot(page, "drafts");
 });
 
 test("the story bible", async ({ page, app }) => {
@@ -79,7 +105,7 @@ test("issues on GitHub", async ({ page, app }) => {
   app.github.addIssue("ada", "varn", { title: "Why does Mirela trust Ada so quickly?", labels: ["kind/plot-hole", "character/mirela-kost"] });
   app.github.addIssue("ada", "varn", { title: "Tighten the ledger scene", labels: ["kind/revision"] });
   await page.reload();
-  await views(page).getByRole("link", { name: "Issues" }).click();
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Issues" }).click();
   await page.waitForTimeout(1200);
   await shoot(page, "issues");
 });

@@ -101,7 +101,7 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
 
   return (
     <div className="grid content-start gap-3 px-6 py-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
+      <div className="flex flex-wrap items-baseline justify-end gap-3">
         <h2 className="sr-only">Plotlines</h2>
         <ExportMenu name="plotlines" svg={() => plotlinesSvg(novel)} />
       </div>
