@@ -2,7 +2,7 @@
 
 This guide is for the person writing the book. It assumes gh-writer is installed and running (see [Getting started](README.md#getting-started)). You don't need to know git or GitHub: gh-writer uses them for you, and this guide says what happens in plain terms.
 
-**Contents:** [Your library](#your-library) · [Finding your way](#finding-your-way) · [Writing](#writing) · [Structure](#structure-parts-chapters-and-scenes) · [The story bible](#the-story-bible) · [Story map and relationships](#story-map-and-relationships) · [Saving and sync](#saving-and-sync) · [Drafts: versions and checkpoints](#drafts-versions-and-checkpoints) · [GitHub](#github) · [Issues](#issues) · [Compiling](#compiling) · [Keyboard](#keyboard) · [Your files](#your-files) · [The command line](#the-command-line)
+**Contents:** [Your library](#your-library) · [Finding your way](#finding-your-way) · [Writing](#writing) · [Structure](#structure-parts-chapters-and-scenes) · [The story bible](#the-story-bible) · [Story map and relationships](#story-map-and-relationships) · [Progress](#progress) · [Saving and sync](#saving-and-sync) · [Drafts: versions and checkpoints](#drafts-versions-and-checkpoints) · [GitHub](#github) · [Issues](#issues) · [Compiling](#compiling) · [Keyboard](#keyboard) · [Your files](#your-files) · [The command line](#the-command-line)
 
 ## Your library
 
@@ -21,7 +21,7 @@ This guide is for the person writing the book. It assumes gh-writer is installed
 **The sidebar** groups everything by what you're doing:
 
 - **Write**: the manuscript, as a tree of parts, chapters and scenes.
-- **Plan**: the **Outline**, as a table or as cards, and the **Story map** (plotlines, presence and the timeline).
+- **Plan**: the **Outline**, as a table or as cards, the **Story map** (plotlines, presence and the timeline), and your **Progress**.
 - **World**: the **Story bible** and the **Relationships** between its entries.
 - **Revise**: **Compare** two drafts, and **Issues** for a novel on GitHub.
 
@@ -29,7 +29,7 @@ Collapse it to a strip of icons with the button at its top, or Ctrl+\\ (⌘\\ on
 
 ## Writing
 
-Choose a chapter or scene in the tree on the left. A chapter opens as one continuous text with each scene's title at its boundary; you can move between scenes freely, though typing can't merge or delete them by accident. Word counts for the scene, the chapter and this session are at the top, with **Set goal** for a session goal.
+Choose a chapter or scene in the tree on the left. A chapter opens as one continuous text with each scene's title at its boundary; you can move between scenes freely, though typing can't merge or delete them by accident. Word counts for the scene, the chapter and this session are at the top, with **Set goal** for a session goal, and **Today**: the words you've added today, against your daily goal if you've set one (it opens [Progress](#progress)).
 
 - **Formatting:** Ctrl+I italic, Ctrl+B bold, Ctrl+Shift+B block quote, Ctrl+Enter section break, Shift+Enter line break. Typing Markdown works too: `*word*` for italic, `> ` for a quote, `***` for a break. (On a Mac, ⌘ for Ctrl throughout.)
 - **Focus mode** (Ctrl+Shift+F) hides everything but the text. **Typewriter scrolling** (Ctrl+Shift+L) keeps the line you're on steady on the screen.
@@ -71,6 +71,20 @@ The **Story map** sets the story's elements against its scenes, in three tabs (�
 Each has an **Export** button for SVG; the relationships and the timeline also export Mermaid.
 
 ![Who is in which scene](docs/screenshots/presence.png)
+
+## Progress
+
+**Progress** (under Plan) shows how the book is coming along, worked out from its history, so it's the same on every computer and nothing has to be logged:
+
+- **The book's length** against your target, and where you're heading: the words to go, the day you'd finish at your pace over the last four weeks, and how that stands against your deadline (with the words a day that would meet it).
+- **Written today**, against your daily goal; your **streak** of days meeting it, and your best; your **pace**; the projected **finish**.
+- **Words per day**: what you added and what you cut, over the last 30 or 90 days or all of it. Revising shows here as cuts; it doesn't count against your daily goal, which is about words added.
+- **Length of the book** over time, toward the target.
+- **Chapters and their scenes**: each chapter's length divided into its scenes, with the ones unusually long or short named (over half again the median, or under half of it), to spot an unbalanced stretch.
+
+Set the **target length**, the **date** to reach it by and your **words a day** at the bottom of the page; they're kept with the book in `novel.yaml`. Each chart has *As a table* for the same numbers, and the arrow keys read it day by day (or scene by scene).
+
+![Progress: the book against its target, today's words and streak, and the words per day](docs/screenshots/progress.png)
 
 ## Saving and sync
 

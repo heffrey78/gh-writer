@@ -31,12 +31,14 @@ export function ProgressPage({ novelId, novel }: { novelId: string; novel: Novel
   const stats = useStats(novelId);
   if (stats.isError) return <Page><ErrorAlert title="Couldn't read the novel's history">{stats.error.message}</ErrorAlert></Page>;
   if (!stats.data) return <Page><p className="text-sm text-muted">Reading the novel's history…</p></Page>;
-  const { days, words, target } = stats.data;
+  const { days, words, target, pending } = stats.data;
   const today = localToday();
   const p = projection(days, words, today, target ?? undefined);
   const daily = target?.daily;
-  const s = daily ? streak(days, daily, today) : undefined;
-  const writtenToday = days.find((d) => d.day === today);
+  // Saved work not committed yet counts toward today, as it will once the background commit is made.
+  const s = daily ? streak(days, daily, today, pending.added) : undefined;
+  const committed = days.find((d) => d.day === today);
+  const writtenToday = { added: (committed?.added ?? 0) + pending.added, removed: (committed?.removed ?? 0) + pending.removed };
 
   return (
     <Page>

@@ -28,7 +28,7 @@ export { createServer, newToken, type RunningServer, type ServerOptions } from "
 export { hasSession, security, sessionCookie, TOKEN_PARAM, type SecurityOptions } from "./security.ts";
 export { commitSource, type CommitSource } from "./git-source.ts";
 export { discardedVersions, VERSION_PREFIX, VersionError, Versions, type AdoptResult, type BringResult, type DiscardResult, type Version, type VersionErrorCode, type VersionsDeps } from "./versions.ts";
-export { statsRoutes, writingHistory } from "./stats.ts";
+export { statsRoutes, uncommittedChange, writingHistory } from "./stats.ts";
 export { Syncer, type SyncerDeps, type SyncErrorCode, type SyncerOptions, type SyncState, type SyncStatus } from "./sync.ts";
 export { CONTENT_SECURITY_POLICY, webRoutes } from "./web.ts";
 export { NovelWorkspace, Workspaces, type FileEvent, type NovelSyncStatus, type WorkspaceOptions, type WriteResult } from "./workspace.ts";

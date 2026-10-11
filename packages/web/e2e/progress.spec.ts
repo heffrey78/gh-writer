@@ -79,3 +79,19 @@ test("the charts read by keyboard and as tables, and name the chapters and scene
   await page.emulateMedia({ colorScheme: "dark" });
   await axe(page);
 });
+
+test("Today beside the counts rises as the writing is saved, before it's committed, and opens Progress", async ({ page, app }) => {
+  await app.restart(app.novelRepo("varn"));
+  await page.goto(app.launchUrl);
+  const text = page.getByRole("textbox", { name: "Chapter text" });
+  await expect(text).toBeFocused();
+  const todayLink = page.getByRole("link", { name: /^Today: / });
+  await expect(todayLink).toHaveAccessibleName("Today: 744 words added. Open Progress.");
+
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type(" Five more words were written.");
+  await expect(todayLink).toHaveAccessibleName("Today: 749 words added. Open Progress.", { timeout: 15_000 });
+  await todayLink.click();
+  await expect(page.getByRole("heading", { level: 1, name: "Progress" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "At a glance" })).toContainText("Written today749");
+});

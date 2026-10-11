@@ -12,10 +12,13 @@
 - **Mentions.** Type `@` and a few letters to mention a character, place or anything else in the story bible. Hover over a mention (or press Alt+Enter) for a card showing who they are and how they relate to everyone else *at that point in the story*.
 - **Quick entry.** Create a new character, location or entry of your own type straight from the `@` menu or the scene details, without leaving the scene.
 - **Spell check** that knows your characters' names, with a per-novel dictionary.
+- **Progress** from the book's own history: words added and cut each day, the length against a target and deadline with a projected finish, a daily goal with a streak, and which chapters and scenes run long or short.
 - **Find and replace** across the scene, the chapter or the whole manuscript, with one Undo for everything.
 - **Autosave that doesn't lose words**, even if the app or the browser crashes, and conflicts shown side by side if a file changes elsewhere.
 
 ![A mention card: Ada Varn, her details, and her relationships at "The Station"](docs/screenshots/mention-card.png)
+
+![Progress: the book against its target, today's words and streak, and the words per day](docs/screenshots/progress.png)
 
 ### Plan
 
@@ -90,14 +93,13 @@ Your browser opens on your library, where you can start a new novel, open a fold
 
 ## Roadmap
 
-Built so far: the repository format and template, local-first saving and sync, manuscript structure, the editor, the story bible, mentions, the app shell, GitHub sign-in, issues and passage notes, entity labels, quick entry, all four diagrams and their snapshots on github.com, compiling to DOCX, EPUB and PDF, and versions with word-by-word comparison.
+Built so far: the repository format and template, local-first saving and sync, manuscript structure, the editor, the story bible, mentions, the app shell, GitHub sign-in, issues and passage notes, entity labels, quick entry, all four diagrams and their snapshots on github.com, compiling to DOCX, EPUB and PDF, versions with word-by-word comparison, and writing progress and goals.
 
 Next, as tracked in [the project's issues](https://github.com/heffrey78/gh-writer/issues):
 
 | Feature | What it adds |
 |---|---|
 | [Drafting pipeline on a GitHub Projects board](https://github.com/heffrey78/gh-writer/issues/11) | Each scene's status (outlined, drafted, revised, final), point of view and word count on a board, table and roadmap, kept in sync with the scene files. |
-| [Writing statistics and goals](https://github.com/heffrey78/gh-writer/issues/20) | Words written per day, progress toward a target length and deadline, and chapter and scene length charts, all from the repository's history. |
 | [Editorial review through pull requests](https://github.com/heffrey78/gh-writer/issues/18) | Open a revision pass for review; editors comment on lines on github.com, and the comments appear in the editor's margin beside the passage. |
 
 gh-writer isn't packaged yet: for now it runs from a clone of this repository, as above.

@@ -40,6 +40,7 @@ import { EntryPanel, leaveMention, MentionCard, useEntryPanel, useMentionCard } 
 import { mentionEdits } from "./mention-sync.ts";
 import { useNotice } from "./notice.tsx";
 import { SceneDetails, useSceneDetails } from "./scene-details.tsx";
+import { TodayCount } from "./today-count.tsx";
 import { useStructure } from "./structure.ts";
 import { TitleDialog } from "./structure-dialogs.tsx";
 import { chapterTitle } from "./navigation.tsx";
@@ -317,7 +318,10 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
       >
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-xl font-semibold">{heading}</h1>
-          <WordCount chapterWords={chapterWords} />
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <WordCount chapterWords={chapterWords} />
+            <TodayCount novelId={novelId} workspace={workspace} />
+          </div>
         </div>
         {splitting && (
           <TitleDialog

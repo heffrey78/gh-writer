@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { countWords, loadNovel, writingDays } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { writingHistory } from "../src/index.ts";
+import { uncommittedChange, writingHistory } from "../src/index.ts";
 import { gitIn, novelRepo, scratch } from "./fixtures.ts";
 
 const STATION = "manuscript/01-return/01-arrival/01-the-station.md";
@@ -86,6 +86,16 @@ describe("writingHistory", { timeout: 30_000 }, () => {
     const again = await writingHistory(dir);
     expect(again.at(-1)).toMatchObject({ added: 1, removed: 0 });
     expect(Object.keys((JSON.parse(read(dir, ".git/gh-writer/stats.json")) as { commits: object }).commits)).toHaveLength(8);
+  });
+
+  it("counts saved work not yet committed: edits and new scenes, against the last commit", async () => {
+    const dir = novelRepo(fresh("novel"));
+    expect(await uncommittedChange(dir)).toEqual({ added: 0, removed: 0 });
+    edit(dir, STATION, "counted them twice", "counted them three times");
+    writeFileSync(join(dir, "manuscript/01-return/01-arrival/03 a new scene.md"), "---\nid: sc_new001\ntitle: New\n---\n\nFour brand new words.\n");
+    expect(await uncommittedChange(dir)).toEqual({ added: 6, removed: 1 });
+    commitAt(dir, "commit it", "2026-11-05T10:00:00Z");
+    expect(await uncommittedChange(dir)).toEqual({ added: 0, removed: 0 });
   });
 
   it("is empty for a novel with no commits yet", async () => {

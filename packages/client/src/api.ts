@@ -11,6 +11,8 @@ export interface WritingStats {
   days: WritingDay[];
   words: number;
   target: { words?: number; date?: string; daily?: number } | null;
+  /** Saved work not committed yet: what today's history will add. */
+  pending: { added: number; removed: number };
 }
 
 export type { ChapterComparison, ChangeStatus, Comparison, DiffPart, EntryComparison, EventComparison, FieldChange, ParagraphDiff, RelationshipComparison, SceneComparison } from "@gh-writer/core/compare";

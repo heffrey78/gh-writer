@@ -65,6 +65,28 @@ export async function writingHistory(root: string): Promise<CommitWords[]> {
   return commits.map((c) => ({ commit: c.commit, ...cache.commits[c.commit]! }));
 }
 
+/**
+ * Words added and removed by saved work not committed yet: each scene file that differs from the
+ * last commit (or is new), word-diffed against it. What the history will say once it's committed.
+ */
+export async function uncommittedChange(root: string): Promise<{ added: number; removed: number }> {
+  const changed = (await gitPlumbing(root, ["diff", "--name-only", "-z", "--relative", "HEAD", "--", "manuscript"]).catch(() => Buffer.alloc(0))).toString().split("\0");
+  const untracked = (await gitPlumbing(root, ["ls-files", "--others", "--exclude-standard", "-z", "--", "manuscript"]).catch(() => Buffer.alloc(0))).toString().split("\0");
+  const paths = [...new Set([...changed, ...untracked])].filter(isScene);
+  if (!paths.length) return { added: 0, removed: 0 };
+  const before = await readBlobs(root, paths.map((p) => `HEAD:./${p}`));
+  const body = (text: string | undefined, path: string) => (text === undefined ? undefined : /^---\r?\n/.test(text) ? parseMarkdown(text, path).body : text);
+  let added = 0;
+  let removed = 0;
+  for (const path of paths) {
+    const now = await readFile(join(root, path), "utf8").catch(() => undefined);
+    const change = wordChange(body(before.get(`HEAD:./${path}`), path), body(now, path));
+    added += change.added;
+    removed += change.removed;
+  }
+  return { added, removed };
+}
+
 /** git log's records: each commit's hash, author date and the scene files it changed. */
 function parseLog(out: string): { commit: string; date: string; changes: Change[] }[] {
   const commits: { commit: string; date: string; changes: Change[] }[] = [];
@@ -94,7 +116,7 @@ function parseLog(out: string): { commit: string; date: string; changes: Change[
   return commits;
 }
 
-/** Blobs' texts by object ID, with one git process. */
+/** Blobs' texts by the name asked for (an object ID, or rev:path), with one git process; a missing one is left out. */
 async function readBlobs(root: string, oids: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (!oids.length) return out;
@@ -102,8 +124,10 @@ async function readBlobs(root: string, oids: string[]): Promise<Map<string, stri
   let at = 0;
   for (const oid of oids) {
     const header = data.indexOf(0x0a, at);
-    const [, type, size] = data.subarray(at, header).toString().split(" ");
-    if (type === "missing" || size === undefined) {
+    // "<oid> <type> <size>", or "<name> missing" (the name may hold spaces: read from the end).
+    const fields = data.subarray(at, header).toString().split(" ");
+    const size = fields.at(-1);
+    if (size === "missing" || fields.length < 3) {
       at = header + 1;
       continue;
     }
@@ -136,8 +160,9 @@ async function writeCache(file: string, cache: Cache): Promise<void> {
 }
 
 /**
- * GET /:id/stats  { days, words, target }: the open version's writing days (words added, removed, net,
- * and the book's length at each day's end), the manuscript's words now (as saved), and novel.yaml's target.
+ * GET /:id/stats  { days, words, target, pending }: the open version's writing days (words added,
+ * removed, net, and the book's length at each day's end), the manuscript's words now (as saved),
+ * novel.yaml's target, and the words added and removed by saved work not yet committed.
  */
 export function statsRoutes(routes: Hono<Env>): void {
   /** PUT /:id/target  { words?, date?, daily? } (null removes one) → { commit, files }: novel.yaml's targets, one commit. */
@@ -151,6 +176,6 @@ export function statsRoutes(routes: Hono<Env>): void {
     const { novel } = await c.var.ws.loadModel();
     const words = novel.allScenes.reduce((n, s) => n + countWords(s.body), 0);
     const days = writingDays(await writingHistory(c.var.ws.root), words);
-    return c.json({ days, words, target: novel.config?.target ?? null });
+    return c.json({ days, words, target: novel.config?.target ?? null, pending: await uncommittedChange(c.var.ws.root) });
   });
 }
