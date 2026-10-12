@@ -20,3 +20,4 @@ export { compileBook, CompileError, numberWords, presets, type Block, type Book,
 export { readableSpan, sceneFacts } from "./facts.ts";
 export { LEGACY_COLOURS, nextSeriesSlot, relationshipStyle, SERIES, seriesHex, seriesSlot, type RelationshipLine, type SeriesColour, type SeriesSlot } from "./palette.ts";
 export { entryPresence, type EntryPresence, type PresenceMark } from "./entry-presence.ts";
+export { locationProfile, plotlineProfile, storySpan, themeProfile, type LocationProfile, type PlotlineProfile, type Tally, type ThemeProfile } from "./entry-profile.ts";

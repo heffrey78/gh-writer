@@ -18,6 +18,7 @@ import { Button } from "../ui/button.tsx";
 import { AddButton, EditorButtons, EditorFrame, PencilButton, TextEditor, useInPlace, type InPlace } from "./profile.tsx";
 import { RelationshipArcs } from "./arcs.tsx";
 import { InTheStory } from "./strip.tsx";
+import { TypeSections } from "./type-sections.tsx";
 import { mentionEntities, typeOf } from "./types.ts";
 
 const VIA: Record<SceneLink, string> = { pov: "point of view", characters: "present", locations: "set here", entities: "present", plotlines: "plotline", themes: "theme", mention: "mentioned" };
@@ -258,6 +259,7 @@ export function EntryPage({
       <EntryIssues novelId={novelId} novel={novel} entity={entity} />
 
       <InTheStory novelId={novelId} novel={novel} entity={entity} />
+      <TypeSections novelId={novelId} novel={novel} entity={entity} workspace={workspace} />
 
       <RelationshipArcs novelId={novelId} novel={novel} entity={entity} />
 
