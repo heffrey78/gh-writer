@@ -20,11 +20,11 @@ relationship_types:
   - key: allies
     label: Allied with
     symmetric: true
-    style: { color: ok, line: solid }
+    style: { color: series-6, line: solid }
   - key: rivals
     label: Rivals with
     symmetric: true
-    style: { color: danger, line: dashed }
+    style: { color: series-8, line: dashed }
   - key: mentor
     label: Mentor of
     inverse_label: Mentee of

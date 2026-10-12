@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GraphCanvas, type GraphEdge, type GraphNode } from "./graph-canvas.tsx";
 
 const TYPES = ["Allied with", "Rivals with", "Sibling of", "Mentor of", "Owes", "Loves"];
-const TONES = ["accent", "danger", "ok", "warn", "ink", "muted"];
+const TONES = ["series-1", "series-2", "series-3", "series-4", "series-5", "series-6"] as const;
 
 /** A deterministic pseudo-random sequence, so every run measures the same graph. */
 function random(seed: number) {

@@ -146,7 +146,7 @@ export function GraphCanvas({ nodes, edges, label, onNodesMoved, colorMode = "sy
   const flowEdges: Edge[] = useMemo(
     () =>
       edges.map((e) => {
-        const colour = `var(--ghw-${e.tone ?? "muted"})`;
+        const colour = `var(--ghw-${e.tone ?? "series-1"})`;
         const faint = selected && e.source !== selected && e.target !== selected;
         return {
           id: e.id,

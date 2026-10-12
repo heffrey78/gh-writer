@@ -153,6 +153,11 @@ describe("validate", () => {
     expect(r.diagnostics[0]!.pointer).toBe("/layouts/relationship-graph/nodes/char_zzzzzz");
     const styled = await fixture({ "novel.yaml": NOVEL.replace("    symmetric: true\n", "    symmetric: true\n    style: { color: danger, line: dashed }\n") });
     expect(styled.diagnostics).toEqual([]);
+    // A palette slot, as the app writes it.
+    const slotted = await fixture({ "novel.yaml": NOVEL.replace("    symmetric: true\n", "    symmetric: true\n    style: { color: series-7, line: dotted }\n") });
+    expect(slotted.diagnostics).toEqual([]);
+    const nine = await fixture({ "novel.yaml": NOVEL.replace("    symmetric: true\n", "    symmetric: true\n    style: { color: series-9 }\n") });
+    expect(nine.diagnostics.length).toBeGreaterThan(0);
     const bad = await fixture({ "novel.yaml": NOVEL.replace("    symmetric: true\n", "    symmetric: true\n    style: { color: \"#ff0000\" }\n") });
     expect(only(bad.diagnostics)).toEqual(["E_SCHEMA"]);
   });

@@ -40,9 +40,13 @@ export interface RelationshipTypeFile {
   style?: RelationshipStyle;
 }
 
-/** A colour from the app's palette (light and dark) and a line style, for drawing a relationship. */
+/**
+ * A colour from the chart palette (series-1 … series-8, each with a light and a dark step) and a line
+ * style, for drawing a relationship. The older names (accent, danger, ok, warn, ink, muted) still
+ * read, each as its nearest slot.
+ */
 export interface RelationshipStyle {
-  color?: "accent" | "danger" | "ok" | "warn" | "ink" | "muted";
+  color?: "series-1" | "series-2" | "series-3" | "series-4" | "series-5" | "series-6" | "series-7" | "series-8" | "accent" | "danger" | "ok" | "warn" | "ink" | "muted";
   line?: "solid" | "dashed" | "dotted";
 }
 

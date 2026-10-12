@@ -19,9 +19,9 @@ describe("snapshots", () => {
         '  char_7f3k2q ---|"Sibling of"| char_b3n0vs',
         '  char_7f3k2q -.-|"Rivals with"| char_b3n0vs',
         '  char_t0ma5h -->|"Mentor of"| char_7f3k2q',
-        "  linkStyle 0 stroke:#2c5d8f,stroke-width:2px",
-        "  linkStyle 1 stroke:#a3271d,stroke-width:2px",
-        "  linkStyle 2 stroke:#a3271d,stroke-width:2px",
+        "  linkStyle 0 stroke:#2a78d6,stroke-width:2px",
+        "  linkStyle 1 stroke:#e34948,stroke-width:2px",
+        "  linkStyle 2 stroke:#eda100,stroke-width:2px",
         "",
       ].join("\n"),
     );

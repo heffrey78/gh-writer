@@ -1,4 +1,5 @@
-import { countWords, mentions, relationshipsAt, storyTimeline, type Chapter, type Entity, type Novel, type Part, type Relationship, type RelationshipStyle, type Scene, type StoryInstant, type TimelineItem } from "./index.ts";
+import { relationshipStyle, type SeriesSlot } from "./palette.ts";
+import { countWords, mentions, relationshipsAt, storyTimeline, type Chapter, type Entity, type Novel, type Part, type Relationship, type Scene, type StoryInstant, type TimelineItem } from "./index.ts";
 
 /*
  * The data behind every diagram: the relationship graph, the plotline swimlanes, the presence matrix
@@ -36,8 +37,8 @@ export interface GraphEdge {
   source: string;
   target: string;
   label: string;
-  /** A colour token name (accent, warn, ok, danger, ink, muted); muted when unset. */
-  tone?: string;
+  /** Its type's colour: a slot of the chart palette. */
+  tone?: SeriesSlot;
   line?: "solid" | "dashed" | "dotted";
   /** Symmetric relationships have no arrow. */
   directed?: boolean;
@@ -73,8 +74,6 @@ export function sceneColumns(novel: Novel, scenes: Scene[]) {
 
 /** The layouts.yaml diagram the relationship graph keeps its positions in. */
 export const RELATIONSHIP_GRAPH = "relationship-graph";
-
-const TONES: NonNullable<RelationshipStyle["color"]>[] = ["accent", "warn", "ok", "danger", "ink", "muted"];
 
 export interface GraphView {
   nodes: GraphNode[];
@@ -142,15 +141,15 @@ export function graphAt(novel: Novel, sceneId: string | undefined, filter: Graph
 }
 
 function edgeOf(novel: Novel, r: Relationship): GraphEdge {
-  const index = novel.relationshipTypes.findIndex((t) => t.key === r.type);
-  const type = novel.relationshipTypes[index];
+  const type = novel.relationshipTypes.find((t) => t.key === r.type);
+  const { slot, line } = relationshipStyle(novel, r.type);
   return {
     id: r.id,
     source: r.from,
     target: r.to,
     label: type?.label ?? r.type,
-    tone: type?.style?.color ?? TONES[Math.max(index, 0) % TONES.length]!,
-    line: type?.style?.line ?? "solid",
+    tone: slot,
+    line,
     directed: !type?.symmetric,
   };
 }

@@ -106,11 +106,19 @@
             "uniqueItems": true
           },
           "style": {
-            "description": "How diagrams draw this relationship: a colour from the app's palette and a line style.",
+            "description": "How diagrams draw this relationship: a colour from the chart palette (series-1 to series-8; the older names accent, danger, ok, warn, ink and muted read as their nearest slot) and a line style.",
             "type": "object",
             "properties": {
               "color": {
                 "enum": [
+                  "series-1",
+                  "series-2",
+                  "series-3",
+                  "series-4",
+                  "series-5",
+                  "series-6",
+                  "series-7",
+                  "series-8",
                   "accent",
                   "danger",
                   "ok",

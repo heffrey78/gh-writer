@@ -216,3 +216,20 @@ test("with reduced motion, edges change without animating", async ({ page, app }
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await expect(page.locator(".ghw-graph .react-flow__edge").first()).toHaveCSS("animation-name", "ghw-edge-in");
 });
+
+test("each relationship type is drawn in its palette colour and line, light and dark", async ({ page, app }) => {
+  await open(page, app);
+  const stroke = (name: string) =>
+    edge(page, name)
+      .locator("path.react-flow__edge-path")
+      .evaluate((p) => [getComputedStyle(p).stroke, getComputedStyle(p).strokeDasharray]);
+  // Allied with: series-6 (green), solid; Sibling of: by its place, series-1 (blue).
+  expect(await stroke("Ada Varn, Allied with, Ben Varn")).toEqual(["rgb(0, 131, 0)", "none"]);
+  expect(await stroke("Ada Varn, Sibling of, Ben Varn")).toEqual(["rgb(42, 120, 214)", "none"]);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect.poll(() => stroke("Ada Varn, Sibling of, Ben Varn")).toEqual(["rgb(57, 135, 229)", "none"]);
+  // Rivals with: series-8 (red), dashed.
+  await page.getByRole("slider", { name: "Story position" }).focus();
+  for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
+  await expect.poll(() => stroke("Ada Varn, Rivals with, Ben Varn")).toEqual(["rgb(230, 103, 103)", "6px, 4px"]);
+});

@@ -16,10 +16,10 @@ flowchart LR
   char_7f3k2q ---|"Allied with"| char_b3n0vs
   char_t0ma5h -->|"Mentor of"| char_7f3k2q
   char_b3n0vs -->|"Owes"| char_m1re1a
-  linkStyle 0 stroke:#2c5d8f,stroke-width:2px
-  linkStyle 1 stroke:#2f6b3a,stroke-width:2px
-  linkStyle 2 stroke:#a3271d,stroke-width:2px
-  linkStyle 3 stroke:#1f1d1a,stroke-width:2px
+  linkStyle 0 stroke:#2a78d6,stroke-width:2px
+  linkStyle 1 stroke:#008300,stroke-width:2px
+  linkStyle 2 stroke:#eda100,stroke-width:2px
+  linkStyle 3 stroke:#e87ba4,stroke-width:2px
 ```
 
 At the end of the book (“The Last Rivet”):
@@ -33,9 +33,9 @@ flowchart LR
   char_7f3k2q ---|"Sibling of"| char_b3n0vs
   char_7f3k2q ---|"Allied with"| char_b3n0vs
   char_t0ma5h -->|"Mentor of"| char_7f3k2q
-  linkStyle 0 stroke:#2c5d8f,stroke-width:2px
-  linkStyle 1 stroke:#2f6b3a,stroke-width:2px
-  linkStyle 2 stroke:#a3271d,stroke-width:2px
+  linkStyle 0 stroke:#2a78d6,stroke-width:2px
+  linkStyle 1 stroke:#008300,stroke-width:2px
+  linkStyle 2 stroke:#eda100,stroke-width:2px
 ```
 
 As drawn in gh-writer, where the nodes are placed by hand:

@@ -20,7 +20,7 @@ describe("the relationship graph at a scene", () => {
   it("styles edges by their type, arrows only on directed types, and lists them as sentences", () => {
     const view = graphAt(novel, "sc_0d9wm4");
     const rivals = view.edges.find((e) => e.label === "Rivals with")!;
-    expect(rivals).toMatchObject({ tone: "danger", line: "dashed", directed: false });
+    expect(rivals).toMatchObject({ tone: "series-8", line: "dashed", directed: false });
     expect(view.edges.find((e) => e.label === "Mentor of")).toMatchObject({ directed: true });
     expect(view.list.map((l) => l.text)).toContain("Ada Varn: Rivals with Ben Varn, from “The Betrayal”, until “The Last Rivet” (After the bridge betrayal.)");
   });
