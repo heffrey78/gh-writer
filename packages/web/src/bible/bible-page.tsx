@@ -1,24 +1,57 @@
-import type { Novel } from "@gh-writer/core";
+import { entryPresences, type Entity, type EntryPresence, type Novel } from "@gh-writer/core";
 import { Plus, Search } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { Button } from "../ui/button.tsx";
 import { NewEntryDialog, NewTypeDialog } from "./new-entry.tsx";
 import { RelationshipTypes } from "./relationship-types.tsx";
+import { markWords } from "./strip.tsx";
 import { entriesByType, matches, plural } from "./types.ts";
 
-/** The story bible: every entry by type, searchable by name and alias. */
+type Sort = "first" | "name" | "most";
+const SORTS: { key: Sort; label: string }[] = [
+  { key: "first", label: "First appearance" },
+  { key: "name", label: "Name" },
+  { key: "most", label: "Most scenes" },
+];
+
+const MARK = { carries: "bg-accent", present: "bg-accent/40", mentioned: "bg-accent/15", absent: "bg-rule/60" } as const;
+
+/**
+ * The story bible (#162): every entry as a card, grouped by type, with its summary, a fact or two, a
+ * small strip of the scenes it's in and how many; searchable by name or other name and sorted by
+ * first appearance, name or most scenes.
+ */
 export function BiblePage({ novelId, novel }: { novelId: string; novel: Novel }) {
   const [params, setParams] = useSearchParams();
   const query = params.get("q") ?? "";
   const [adding, setAdding] = useState<string | undefined | null>(null);
   const [addingType, setAddingType] = useState(false);
   const searchId = useId();
-  const groups = entriesByType(novel).map((g) => ({ ...g, shown: g.entries.filter((e) => matches(e, query)) }));
+  const sort: Sort = (params.get("sort") as Sort | null) ?? "first";
+  const sortId = useId();
+  const presences = useMemo(() => entryPresences(novel), [novel]);
+  const order = (a: Entity, b: Entity) => {
+    const pa = presences.get(a.id);
+    const pb = presences.get(b.id);
+    if (sort === "most") return (pb?.count ?? 0) - (pa?.count ?? 0) || a.name.localeCompare(b.name);
+    if (sort === "first") {
+      const at = (p: EntryPresence | undefined) => (p?.first ? novel.scenes.indexOf(p.first) : Infinity);
+      return at(pa) - at(pb) || a.name.localeCompare(b.name);
+    }
+    return a.name.localeCompare(b.name);
+  };
+  const groups = entriesByType(novel).map((g) => ({ ...g, shown: g.entries.filter((e) => matches(e, query)).sort(order) }));
+  const setParam = (key: string, value: string | undefined) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setParams(next, { replace: true });
+  };
   const found = groups.reduce((n, g) => n + g.shown.length, 0);
 
   return (
-    <div className="mx-auto grid w-full max-w-4xl gap-6 px-6 py-6">
+    <div className="mx-auto grid w-full max-w-6xl gap-6 px-6 py-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Story bible</h1>
         <div className="flex gap-2">
@@ -28,19 +61,31 @@ export function BiblePage({ novelId, novel }: { novelId: string; novel: Novel })
           </Button>
         </div>
       </div>
-      <div className="relative">
-        <label htmlFor={searchId} className="sr-only">
-          Search the bible
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-60 flex-1">
+          <label htmlFor={searchId} className="sr-only">
+            Search the bible
+          </label>
+          <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" aria-hidden />
+          <input
+            id={searchId}
+            type="search"
+            placeholder="Search by name or other name"
+            value={query}
+            onChange={(e) => setParam("q", e.target.value || undefined)}
+            className="h-9 w-full rounded-md border border-rule bg-raised pr-3 pl-9 text-sm"
+          />
+        </div>
+        <label htmlFor={sortId} className="flex items-center gap-2 text-sm text-muted">
+          Sort
+          <select id={sortId} value={sort} onChange={(e) => setParam("sort", e.target.value === "first" ? undefined : e.target.value)} className="h-9 rounded-md border border-rule bg-raised px-2 text-ink">
+            {SORTS.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
+              </option>
+            ))}
+          </select>
         </label>
-        <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted" aria-hidden />
-        <input
-          id={searchId}
-          type="search"
-          placeholder="Search by name or alias"
-          value={query}
-          onChange={(e) => setParams(e.target.value ? { q: e.target.value } : {}, { replace: true })}
-          className="h-9 w-full rounded-md border border-rule bg-raised pr-3 pl-9 text-sm"
-        />
       </div>
       {query && (
         <p role="status" className="text-sm text-muted">
@@ -59,13 +104,10 @@ export function BiblePage({ novelId, novel }: { novelId: string; novel: Novel })
               </Button>
             </div>
             {shown.length ? (
-              <ul className="grid gap-1 sm:grid-cols-2">
+              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {shown.map((e) => (
-                  <li key={e.id}>
-                    <Link to={`/novels/${novelId}/bible/${e.id}`} className="block rounded-md border border-rule bg-raised px-3 py-2 hover:bg-panel">
-                      <span className="font-medium">{e.name}</span>
-                      {e.summary && <span className="mt-0.5 line-clamp-2 block text-sm text-muted">{e.summary}</span>}
-                    </Link>
+                  <li key={e.id} className="grid">
+                    <EntryCard novelId={novelId} entity={e} presence={presences.get(e.id)} />
                   </li>
                 ))}
               </ul>
@@ -79,5 +121,36 @@ export function BiblePage({ novelId, novel }: { novelId: string; novel: Novel })
       <NewEntryDialog novelId={novelId} novel={novel} type={adding ?? undefined} open={adding !== null} onOpenChange={(o) => !o && setAdding(null)} />
       <NewTypeDialog novelId={novelId} novel={novel} open={addingType} onOpenChange={setAddingType} />
     </div>
+  );
+}
+
+/** An entry in the gallery: what it is at a glance, opening its profile. */
+function EntryCard({ novelId, entity, presence }: { novelId: string; entity: Entity; presence: EntryPresence | undefined }) {
+  const count = presence?.count ?? 0;
+  const n = presence?.scenes.length ?? 0;
+  const words = markWords(entity.type);
+  const facts = [
+    ...Object.entries(entity.fields)
+      .slice(0, 2)
+      .map(([, v]) => (typeof v === "boolean" ? null : String(v)))
+      .filter(Boolean),
+    ...(entity.aliases.length ? [`also ${entity.aliases.join(", ")}`] : []),
+  ].slice(0, 2);
+  return (
+    <Link to={`/novels/${novelId}/bible/${entity.id}`} className="grid content-start gap-2 rounded-lg border border-rule bg-raised px-4 py-3 hover:border-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none">
+      <span className="font-semibold">{entity.name}</span>
+      {entity.summary && <span className="line-clamp-2 font-prose leading-snug">{entity.summary}</span>}
+      {facts.length > 0 && <span className="text-[13px] text-muted">{facts.join(" · ")}</span>}
+      <span className="flex items-center gap-2.5">
+        {n > 0 && (
+          <span aria-hidden className="grid flex-1" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))`, gap: n > 40 ? 0 : 2 }}>
+            {presence!.scenes.map(({ scene, mark }) => (
+              <span key={scene.id} title={`${scene.title}: ${mark === "absent" ? "not there" : (words[mark] ?? words.present)}`} className={`h-2 rounded-[2px] ${MARK[mark]}`} />
+            ))}
+          </span>
+        )}
+        <span className="text-xs whitespace-nowrap text-muted">{count === 0 ? "Not in the story yet" : `${count} ${count === 1 ? "scene" : "scenes"}`}</span>
+      </span>
+    </Link>
   );
 }

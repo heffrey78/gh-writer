@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { gridKey, presence } from "../src/diagrams.ts";
-import { entryPresence, loadNovel, memorySource } from "../src/index.ts";
+import { entryPresence, entryPresences, loadNovel, memorySource } from "../src/index.ts";
 import { nodeSource } from "../src/node.ts";
 
 const novel = await loadNovel(nodeSource(fileURLToPath(new URL("../../../examples/sample-novel/", import.meta.url))));
@@ -23,6 +23,12 @@ describe("entryPresence", () => {
       const m = presence(novel, e.type);
       for (const { scene, mark } of entryPresence(novel, e.id)!.scenes) expect(mark !== "absent").toBe(m.marks.has(gridKey(e.id, scene.id)));
     }
+  });
+
+  it("works out every entry's at once, the same as one by one", () => {
+    const all = entryPresences(novel);
+    expect([...all.keys()].sort()).toEqual(novel.entities.map((e) => e.id).sort());
+    for (const e of novel.entities) expect(all.get(e.id)).toEqual(entryPresence(novel, e.id));
   });
 
   it("says where it starts and ends, how often it carries the scene, its longest absence and its events", () => {

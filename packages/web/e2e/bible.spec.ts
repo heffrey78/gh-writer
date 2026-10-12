@@ -199,3 +199,46 @@ test("in the story: a strip of every scene, marking where the entry carries it, 
   await strip.getByRole("link", { name: "Mirela's Offer: set here" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Mirela's Offer" })).toBeVisible();
 });
+
+test("the bible as a gallery: cards with a summary, facts, a strip and a count; sorted three ways by keyboard", async ({ page, app }) => {
+  const novel = await open(page, app);
+  await palette(page, "story bible");
+  const characters = page.getByRole("main").getByRole("region", { name: /^Characters/ });
+  const cards = characters.getByRole("listitem").getByRole("link");
+  // By first appearance: Ada at the station, Ben on the span, Tomas in his workshop, Mirela at her offer.
+  await expect(cards.locator("span.font-semibold")).toHaveText(["Ada Varn", "Ben Varn", "Tomas Hale", "Mirela Kost"]);
+  const ada = cards.filter({ hasText: "Ada Varn" });
+  await expect(ada).toContainText("Bridge engineer who comes home after twelve years");
+  await expect(ada).toContainText("31 · Structural engineer");
+  // Counts as the backlinks have them: every scene file that names the entry, front matter or prose.
+  const naming = (id: string) => readdirSync(join(novel.dir, "manuscript"), { recursive: true }).filter((f) => String(f).endsWith(".md") && novel.read(join("manuscript", String(f))).includes(id)).length;
+  for (const [name, id] of [["Ada Varn", ADA], ["Ben Varn", "char_b3n0vs"], ["Tomas Hale", "char_t0ma5h"], ["Mirela Kost", "char_m1re1a"]] as const) {
+    const n = naming(id);
+    await expect(cards.filter({ hasText: name })).toContainText(`${n} ${n === 1 ? "scene" : "scenes"}`);
+  }
+  await axe(page);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await axe(page);
+  await page.emulateMedia({ colorScheme: "light" });
+
+  // Sorted by name, then by most scenes, from the keyboard; the choice is in the address.
+  const sort = page.getByRole("combobox", { name: "Sort" });
+  await sort.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(sort).toHaveValue("name");
+  await expect(cards.locator("span.font-semibold")).toHaveText(["Ada Varn", "Ben Varn", "Mirela Kost", "Tomas Hale"]);
+  await page.keyboard.press("ArrowDown");
+  await expect(cards.locator("span.font-semibold")).toHaveText(["Ada Varn", "Ben Varn", "Tomas Hale", "Mirela Kost"]);
+  await expect(page).toHaveURL(/sort=most/);
+
+  // Search by another name keeps the sort; an entry no scene uses says so.
+  await page.getByRole("searchbox", { name: "Search the bible" }).fill("the plans");
+  await expect(page.getByRole("main").getByRole("region", { name: /^Artifacts/ }).getByRole("link")).toContainText("1 scene");
+  await page.getByRole("searchbox", { name: "Search the bible" }).fill("");
+  await page.getByRole("button", { name: "New character" }).click();
+  await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("Ilse Varn");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { level: 1, name: "Ilse Varn" })).toBeVisible();
+  await page.goBack();
+  await expect(cards.filter({ hasText: "Ilse Varn" })).toContainText("Not in the story yet");
+});

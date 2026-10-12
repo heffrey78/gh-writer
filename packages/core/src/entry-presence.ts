@@ -1,4 +1,4 @@
-import { gridKey, presence, sceneColumns } from "./diagrams.ts";
+import { gridKey, presence, sceneColumns, type PresenceMatrix } from "./diagrams.ts";
 import type { Novel, Scene, StoryEvent } from "./model.ts";
 import { backlinks } from "./queries.ts";
 
@@ -31,8 +31,20 @@ export interface EntryPresence {
  */
 export function entryPresence(novel: Novel, id: string): EntryPresence | undefined {
   const entity = novel.entities.find((e) => e.id === id);
-  if (!entity) return undefined;
-  const matrix = presence(novel, entity.type);
+  return entity && fromMatrix(novel, presence(novel, entity.type), id);
+}
+
+/** Every entry's presence, by ID: each type's marks worked out once (the bible's gallery). */
+export function entryPresences(novel: Novel): Map<string, EntryPresence> {
+  const out = new Map<string, EntryPresence>();
+  for (const type of new Set(novel.entities.map((e) => e.type))) {
+    const matrix = presence(novel, type);
+    for (const e of novel.entities) if (e.type === type) out.set(e.id, fromMatrix(novel, matrix, e.id));
+  }
+  return out;
+}
+
+function fromMatrix(novel: Novel, matrix: PresenceMatrix, id: string): EntryPresence {
   const scenes = matrix.scenes.map((scene) => {
     const p = matrix.marks.get(gridKey(id, scene.id));
     const mark: PresenceMark = !p
