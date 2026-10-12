@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { Command as Cmdk } from "cmdk";
 import { Dialog } from "radix-ui";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -232,7 +233,13 @@ export function CommandPalette() {
             aria-describedby={undefined}
             className="fixed top-1/2 left-1/2 z-[70] max-h-[85vh] w-[min(40rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg border border-rule bg-raised p-5 text-ink shadow-2xl"
           >
-            <Dialog.Title className="text-lg font-semibold">Keyboard shortcuts</Dialog.Title>
+            <div className="flex items-start justify-between gap-3">
+              <Dialog.Title className="text-lg font-semibold">Keyboard shortcuts</Dialog.Title>
+              {/* Something to focus, so a long list scrolls from the keyboard too. */}
+              <Dialog.Close aria-label="Close" className="rounded-md p-1 text-muted hover:bg-paper hover:text-ink">
+                <X className="size-4" aria-hidden />
+              </Dialog.Close>
+            </div>
             <div className="mt-4 grid gap-5 sm:grid-cols-2">
               {shortcuts.map(({ group, entries }) => (
                 <section key={group} aria-labelledby={`keys-${group}`}>
