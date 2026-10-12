@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { loadNovel, type FileSource, type Novel } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
@@ -7,7 +7,7 @@ import { BibleOperations } from "./bible.ts";
 import { Checkpoints } from "./checkpoints.ts";
 import { ManuscriptOperations } from "./manuscript.ts";
 import { Committer, type CommitStatus, type CommitterOptions } from "./committer.ts";
-import { atomicWrite, hashText, IMAGES_DIR, isVisible, readText, writablePath, type TextFile, type WriteHooks } from "./files.ts";
+import { atomicWrite, hashText, imageVersion, isVisible, readText, writablePath, type TextFile, type WriteHooks } from "./files.ts";
 import type { Library } from "./library.ts";
 import { git } from "./git.ts";
 import { githubRepoOf, type GitHub, type GitHubRepo } from "./github.ts";
@@ -172,11 +172,11 @@ export class NovelWorkspace {
     };
     const novel = await loadNovel(source);
     const images: Record<string, string> = {};
-    const shown = [novel.config?.cover, ...novel.entities.map((e) => e.image)].filter((p): p is string => !!p?.startsWith(`${IMAGES_DIR}/`) && isVisible(p));
+    const shown = [novel.config?.cover, ...novel.entities.map((e) => e.image)].filter((p): p is string => !!p);
     await Promise.all(
       [...new Set(shown)].map(async (path) => {
-        const info = await stat(join(this.root, path)).catch(() => undefined);
-        if (info?.isFile()) images[path] = `${info.size.toString(36)}-${Math.round(info.mtimeMs).toString(36)}`;
+        const version = await imageVersion(this.root, path);
+        if (version) images[path] = version;
       }),
     );
     return { novel, files, images };

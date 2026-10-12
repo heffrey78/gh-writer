@@ -53,11 +53,7 @@ test("adds a character, fills in the details and notes, all saved to its file", 
   await page.getByRole("button", { name: "Add tags" }).click();
   await page.keyboard.type("family, Varn");
   await page.keyboard.press("Enter");
-  await page.getByRole("button", { name: "Add a portrait" }).click();
-  await page.keyboard.type("bible/images/ilse.jpg");
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("button", { name: "Portrait of Ilse Varn: bible/images/ilse.jpg. Edit the portrait" })).toBeFocused();
-  await expect.poll(() => novel.read(file)).toContain("image: bible/images/ilse.jpg");
+  await expect.poll(() => novel.read(file)).toMatch(/tags:\n {2}- family\n {2}- Varn\n/);
   expect(novel.read(file)).toContain("summary: Ada's aunt, who never left.");
   expect(novel.read(file)).toMatch(/aliases:\n {2}- Ilse\n {2}- the Aunt\n/);
   expect(novel.read(file)).toMatch(/fields:\n {2}age: "67"\n/);

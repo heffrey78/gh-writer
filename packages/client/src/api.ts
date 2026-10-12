@@ -73,6 +73,9 @@ export interface LibraryEntry {
   path: string;
   title: string;
   author?: string;
+  /** The cover from novel.yaml, a path in the novel (images/cover.jpg), and its version for imageUrl. */
+  cover?: string;
+  coverVersion?: string;
   remote?: string;
   lastOpened: string;
 }
@@ -213,6 +216,7 @@ export interface EntityFields {
   aliases?: string[];
   summary?: string | null;
   image?: string | null;
+  image_focus?: [number, number] | null;
   fields?: Record<string, string | number | boolean>;
   tags?: string[];
 }
@@ -293,6 +297,17 @@ export interface RequestOptions {
 
 export type Api = ReturnType<typeof createApi>;
 
+/**
+ * Where the app shows a picture from: images/<path> through the server, with its version (the model's
+ * `images`) so a replaced picture isn't shown from the cache. Undefined for a path outside images/,
+ * which the server doesn't serve.
+ */
+export function imageUrl(novelId: string, path: string | undefined, version?: string, baseUrl = ""): string | undefined {
+  if (!path?.startsWith("images/") || path.split("/").some((s) => s === "" || s.startsWith("."))) return undefined;
+  const rest = path.slice("images/".length).split("/").map(encodeURIComponent).join("/");
+  return `${baseUrl}/api/novels/${encodeURIComponent(novelId)}/images/${rest}${version ? `?v=${encodeURIComponent(version)}` : ""}`;
+}
+
 /** Browsers refuse keepalive requests with larger bodies; stay under their 64 kB budget. */
 const KEEPALIVE_LIMIT = 60_000;
 
@@ -325,6 +340,19 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
   }
 
   const file = (novelId: string, path: string) => `/api/novels/${encodeURIComponent(novelId)}/files/${path.split("/").map(encodeURIComponent).join("/")}`;
+
+  /** Send an image's bytes (the request's body, with its type); failures throw as `request`'s do. */
+  async function upload<T>(method: string, path: string, image: Blob): Promise<T> {
+    let res: Response;
+    try {
+      res = await fetch(`${baseUrl}${path}`, { method, headers: { "content-type": image.type || "application/octet-stream", ...headers }, body: image, credentials: "same-origin" });
+    } catch (e) {
+      throw new ApiError(0, "UNREACHABLE", `Couldn't reach gh-writer: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    const data = (await res.json().catch(() => undefined)) as T & { code?: string; error?: string };
+    if (!res.ok) throw new ApiError(res.status, data?.code ?? "HTTP", data?.error ?? `${method} ${path}: HTTP ${res.status}`);
+    return data;
+  }
 
   return {
     session: async () => (await request<{ authenticated: boolean }>("GET", "/api/session")).data,
@@ -378,8 +406,11 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
         (await request<{ remote: string; status: SyncStatus }>("POST", `/api/novels/${encodeURIComponent(novelId)}/publish`, repo)).data,
     },
     removeNovel: async (id: string) => void (await request("DELETE", `/api/library/${encodeURIComponent(id)}`)),
-    /** The story model (core's Novel) and the hash of each file it was read from. */
-    novel: async <Novel = unknown>(id: string) => (await request<{ novel: Novel; files: Record<string, string> }>("GET", `/api/novels/${encodeURIComponent(id)}`)).data,
+    /** The story model (core's Novel), the hash of each file it was read from, and a version of each picture it shows. */
+    novel: async <Novel = unknown>(id: string) => (await request<{ novel: Novel; files: Record<string, string>; images: Record<string, string> }>("GET", `/api/novels/${encodeURIComponent(id)}`)).data,
+    /** Give the book a cover (JPEG or PNG bytes, already resized): images/cover.jpg and `cover:` in novel.yaml, one commit. */
+    setCover: (id: string, image: Blob) => upload<OperationResult & { cover: string }>("PUT", `/api/novels/${encodeURIComponent(id)}/cover`, image),
+    removeCover: async (id: string) => (await request<OperationResult>("POST", `/api/novels/${encodeURIComponent(id)}/cover/delete`)).data,
     readFile: async (novelId: string, path: string) => (await request<TextFile & { path: string }>("GET", file(novelId, path))).data,
     /** Write if the file on disk still has hash `base` (null: doesn't exist); otherwise the current file comes back. */
     writeFile: async (novelId: string, path: string, content: string, base: string | null, options?: RequestOptions): Promise<WriteResult> => {
@@ -403,7 +434,8 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
       }
       const filename = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? `novel.${options.format}`;
       const missing = [...decodeURIComponent(res.headers.get("x-missing-characters") ?? "")];
-      return { blob: await res.blob(), filename, missing };
+      const coverProblem = res.headers.get("x-cover-problem");
+      return { blob: await res.blob(), filename, missing, ...(coverProblem ? { coverProblem: decodeURIComponent(coverProblem) } : {}) };
     },
     /** Newest first. */
     checkpoints: async (id: string) => (await request<{ checkpoints: Checkpoint[] }>("GET", `/api/novels/${encodeURIComponent(id)}/checkpoints`)).data.checkpoints,
@@ -470,7 +502,7 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
       return status === 409 ? { ok: false, conflicts: data.conflicts ?? null } : { ok: true, status: data };
     },
     /** The story bible's changes: each is one commit; refusals throw ApiError with the server's code (STALE, BAD_REQUEST, BLOCKED…). */
-    bible: bibleApi((id) => `/api/novels/${encodeURIComponent(id)}/bible`, request),
+    bible: bibleApi((id) => `/api/novels/${encodeURIComponent(id)}/bible`, request, upload),
     issues: issuesApi((id) => `/api/novels/${encodeURIComponent(id)}/issues`, request),
     /** Reshaping the manuscript: each is one commit; IDs never change. */
     manuscript: manuscriptApi((id) => `/api/novels/${encodeURIComponent(id)}/manuscript`, request),
@@ -608,9 +640,21 @@ function issuesApi(root: (novelId: string) => string, request: Request) {
   };
 }
 
-function bibleApi(root: (novelId: string) => string, request: Request) {
+function bibleApi(root: (novelId: string) => string, request: Request, upload: <T>(method: string, path: string, image: Blob) => Promise<T>) {
   const call = async <T>(method: string, novelId: string, path: string, body?: unknown) => (await request<T>(method, `${root(novelId)}${path}`, body)).data;
   return {
+    /**
+     * Give an entry a picture (JPEG or PNG bytes, already cropped and resized), with the point its
+     * thumbnails centre on: saved in images/ and set as its image, one commit. `base`: the entry file's hash.
+     */
+    setPicture: (novelId: string, id: string, base: string, image: Blob, focus?: [number, number]) =>
+      upload<OperationResult & { file: string; image: string }>(
+        "PUT",
+        `${root(novelId)}/entities/${encodeURIComponent(id)}/picture?base=${encodeURIComponent(base)}${focus ? `&focus=${focus.join(",")}` : ""}`,
+        image,
+      ),
+    /** Take an entry's picture away, and its file in images/. */
+    removePicture: (novelId: string, id: string, base: string) => call<OperationResult & { file: string }>("POST", novelId, `/entities/${encodeURIComponent(id)}/picture/delete`, { base }),
     /** `id`: one the app picked (e.g. for a mention written before the file); otherwise the server picks. */
     createEntity: (novelId: string, type: string, fields: EntityFields & { name: string }, notes?: string, id?: string) =>
       call<OperationResult & { id: string; file: string }>("POST", novelId, "/entities", { type, ...fields, ...(notes ? { notes } : {}), ...(id ? { id } : {}) }),

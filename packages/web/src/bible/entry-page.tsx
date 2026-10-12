@@ -6,7 +6,7 @@ import { useIssueList } from "../issues/use-issues.ts";
 import { useNotice } from "../novel/notice.tsx";
 import { SceneEditor, type SpellService } from "@gh-writer/editor/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Image, Trash2, X } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { AlertDialog } from "radix-ui";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Link, useNavigate } from "react-router";
@@ -16,6 +16,8 @@ import type { Workspace } from "../novel/workspace.ts";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
+import { PictureSlot } from "./picture.tsx";
+import { shapeForType } from "./pictures.ts";
 import { AddButton, EditorButtons, EditorFrame, FieldRows, Lead, PencilButton, readField, TextEditor, useInPlace, type InPlace } from "./profile.tsx";
 import { RelationshipArcs } from "./arcs.tsx";
 import { InTheStory } from "./strip.tsx";
@@ -79,9 +81,9 @@ export function EntryPage({
    * change is heard of), so two parts saved in quick succession don't refuse each other.
    */
   const queue = useRef<Promise<unknown>>(Promise.resolve());
-  const change = (changes: EntityFields) => {
+  const save = (operation: (base: string) => Promise<{ file: string }>) => {
     const run = queue.current.then(async () => {
-      const { file: path } = await api.bible.updateEntity(novelId, entity.id, await base(), changes);
+      const { file: path } = await operation(await base());
       if (path === entity.file) await workspace.fileChanged({ type: "change", path, hash: null });
       else await workspace.open([path]);
       await refresh();
@@ -89,6 +91,7 @@ export function EntryPage({
     queue.current = run.catch(() => undefined);
     return run;
   };
+  const change = (changes: EntityFields) => save((b) => api.bible.updateEntity(novelId, entity.id, b, changes));
   const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 
   const [references, setReferences] = useState<Reference[]>();
@@ -133,7 +136,17 @@ export function EntryPage({
   return (
     <div className={embedded ? (tab ? "grid gap-4" : "grid gap-5") : "mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] gap-5 px-6 py-6"}>
       <div className="flex flex-wrap items-start gap-4">
-        {!tab && <Portrait place={place} image={entity.image} name={entity.name} onSave={(image) => change({ image: image || null })} />}
+        {!tab && (
+          <PictureSlot
+            novelId={novelId}
+            name={entity.name}
+            shape={shapeForType(entity.type)}
+            image={entity.image}
+            focus={entity.imageFocus}
+            onSave={(picture, focus) => save((b) => api.bible.setPicture(novelId, entity.id, b, picture, focus))}
+            onRemove={() => save((b) => api.bible.removePicture(novelId, entity.id, b))}
+          />
+        )}
         <div className="grid min-w-0 flex-1 gap-1.5">
           {!tab && <div className="flex items-center gap-2">
             <p className="flex-1 text-sm text-muted">
@@ -383,29 +396,6 @@ function FieldEditor({
         )}
       </div>
     </EditorFrame>
-  );
-}
-
-/** The entry's image, or a slot for one: its path in the repository, edited in place. */
-function Portrait({ place, image, name, onSave }: { place: InPlace; image: string | undefined; name: string; onSave: (image: string) => Promise<unknown> }) {
-  if (place.editing === "image") {
-    return (
-      <div className="w-full sm:w-72">
-        <TextEditor place={place} label="Portrait" hint="A path in the repository, e.g. bible/images/ada.jpg." value={image ?? ""} onSave={onSave} />
-      </div>
-    );
-  }
-  return (
-    <button
-      ref={place.trigger("image")}
-      type="button"
-      onClick={() => place.start("image")}
-      aria-label={image ? `Portrait of ${name}: ${image}. Edit the portrait` : "Add a portrait"}
-      className="grid size-24 shrink-0 place-items-center gap-1 rounded-lg border border-dashed border-rule bg-panel p-2 text-center text-[11px] text-muted hover:border-accent hover:text-ink"
-    >
-      <Image className="size-5" aria-hidden />
-      <span className={image ? "line-clamp-2 break-all" : undefined}>{image ? image.split("/").at(-1) : "Add a portrait"}</span>
-    </button>
   );
 }
 

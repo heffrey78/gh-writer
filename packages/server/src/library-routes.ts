@@ -2,6 +2,7 @@ import { homedir } from "node:os";
 import { sep } from "node:path";
 import { Hono, type Context } from "hono";
 import { streamSSE } from "hono/streaming";
+import { imageVersion } from "./files.ts";
 import { classifyGitError, GitFailure } from "./git.ts";
 import type { GitHub } from "./github.ts";
 import { LibraryError, type Library } from "./library.ts";
@@ -16,7 +17,16 @@ import { LibraryError, type Library } from "./library.ts";
 export function libraryRoutes(library: Library, github?: GitHub): Hono {
   const routes = new Hono();
 
-  routes.get("/", async (c) => c.json({ novels: await library.list(), notices: library.notices, folder: tilde(library.cloneDir) }));
+  // Each cover with its version, so the shelf shows a replaced one anew.
+  routes.get("/", async (c) => {
+    const novels = await Promise.all(
+      (await library.list()).map(async (n) => {
+        const coverVersion = await imageVersion(n.path, n.cover);
+        return coverVersion ? { ...n, coverVersion } : n;
+      }),
+    );
+    return c.json({ novels, notices: library.notices, folder: tilde(library.cloneDir) });
+  });
 
   routes.post("/new", async (c) => {
     const body = await jsonBody(c);

@@ -147,6 +147,16 @@ export async function servableImage(root: string, path: string): Promise<{ full:
   return { full, type, size: info.size, mtimeMs: info.mtimeMs };
 }
 
+/**
+ * A version of the picture at `path` in images/ (its size and modification time), for the app to put
+ * in its URL so a replaced picture is fetched anew; undefined if it isn't a file in images/.
+ */
+export async function imageVersion(root: string, path: string | undefined): Promise<string | undefined> {
+  if (!path?.startsWith(`${IMAGES_DIR}/`) || !isVisible(path)) return undefined;
+  const info = await stat(join(root, ...path.split("/"))).catch(() => undefined);
+  return info?.isFile() ? `${info.size.toString(36)}-${Math.round(info.mtimeMs).toString(36)}` : undefined;
+}
+
 /** Check that image `bytes` may be written to `path` (in images/, JPEG or PNG, not too large), and return its full path. */
 export async function writableImagePath(root: string, path: string, bytes: Uint8Array): Promise<string> {
   if (!path.startsWith(`${IMAGES_DIR}/`) || !imageType(path)) throw new FileError("NOT_WRITABLE", `Images are written to ${IMAGES_DIR}/ only: "${path}"`);
