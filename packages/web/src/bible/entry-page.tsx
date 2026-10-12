@@ -8,7 +8,7 @@ import { SceneEditor, type SpellService } from "@gh-writer/editor/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Image, Trash2, X } from "lucide-react";
 import { AlertDialog } from "radix-ui";
-import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useStore } from "zustand";
 import { api, keys } from "../api.ts";
@@ -64,10 +64,21 @@ export function EntryPage({
     await workspace.autosave.flush();
     return workspace.store.getState().files[entity.file]?.hash ?? "";
   };
-  /** Save some of the entry's details, then reload the book; throws to say why it couldn't. */
-  const change = async (changes: EntityFields) => {
-    await api.bible.updateEntity(novelId, entity.id, await base(), changes);
-    await refresh();
+  /**
+   * Save some of the entry's details, then reload the book; throws to say why it couldn't. One at a
+   * time: each is based on the file as the one before left it (read back at once, not when the
+   * change is heard of), so two parts saved in quick succession don't refuse each other.
+   */
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const change = (changes: EntityFields) => {
+    const run = queue.current.then(async () => {
+      const { file: path } = await api.bible.updateEntity(novelId, entity.id, await base(), changes);
+      if (path === entity.file) await workspace.fileChanged({ type: "change", path, hash: null });
+      else await workspace.open([path]);
+      await refresh();
+    });
+    queue.current = run.catch(() => undefined);
+    return run;
   };
   const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 
