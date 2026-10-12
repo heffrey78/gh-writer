@@ -10,7 +10,7 @@ import { MENU_ITEM } from "../layout.tsx";
 import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
 import { Picker, type PickerItem, type PickerProps } from "../ui/picker.tsx";
-import { useEntryPanel } from "./mention-card.tsx";
+import { useEntryPanel } from "./entry-tab.tsx";
 import { useNotice } from "./notice.tsx";
 import { STATUSES } from "./outline.tsx";
 import type { Workspace } from "./workspace.ts";

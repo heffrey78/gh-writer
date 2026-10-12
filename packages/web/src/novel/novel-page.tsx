@@ -35,7 +35,7 @@ import { SyncBadge } from "./sync-badge.tsx";
 import { createWorkspace, type Workspace } from "./workspace.ts";
 import { createQuickEntries, type QuickEntries } from "../bible/quick-entries.ts";
 import { unlink } from "../bible/quick-entry.ts";
-import { useEntryPanel } from "./mention-card.tsx";
+import { useEntryPanel } from "./entry-tab.tsx";
 import { useNotice } from "./notice.tsx";
 import { useWritingEditor } from "./writing-view.tsx";
 import { useGitHubRepo } from "../github/repo.ts";
@@ -87,7 +87,7 @@ export function NovelPage() {
             run: () => {
               // On the right sidebar's Entry tab when writing; otherwise its page.
               const editor = useWritingEditor.getState().editor;
-              if (editor && !editor.isDestroyed && !writingModes.getState().focus) useEntryPanel.getState().open(e.id);
+              if (editor && !editor.isDestroyed && !writingModes.getState().focus) useEntryPanel.getState().open(e.id, { edit: true });
               else latest.current.navigate(`/novels/${novelId}/bible/${e.id}`);
             },
           },

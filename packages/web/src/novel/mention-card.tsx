@@ -1,15 +1,13 @@
 import { relationshipsAt, type Novel, type Scene } from "@gh-writer/core";
 import type { MentionTarget } from "@gh-writer/editor";
-import type { SpellService } from "@gh-writer/editor/react";
 import type { Editor } from "@tiptap/core";
 import { X } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { create } from "zustand";
-import { describe, EntryPage } from "../bible/entry-page.tsx";
+import { describe } from "../bible/entry-page.tsx";
 import { typeOf } from "../bible/types.ts";
 import { Button } from "../ui/button.tsx";
-import { useRightSidebar } from "./right-sidebar.tsx";
-import type { Workspace } from "./workspace.ts";
+import { useEntryPanel } from "./entry-tab.tsx";
 
 interface Card extends MentionTarget {
   /** The scene the mention is in: relationships are shown as they stand there. */
@@ -44,24 +42,6 @@ export function leaveMention(): void {
     if (card?.via === "pointer" && !hovered) hide();
   }, 250);
 }
-
-interface PanelState {
-  /** The entry on the right sidebar's Entry tab. */
-  entry: string | null;
-  /** The tab should take the focus when it next shows the entry: it was opened to be read. */
-  focus: boolean;
-  /** Show the entry on the Entry tab and move the focus to it. */
-  open: (id: string) => void;
-}
-
-export const useEntryPanel = create<PanelState>((set) => ({
-  entry: null,
-  focus: false,
-  open: (id) => {
-    set({ entry: id, focus: true });
-    useRightSidebar.getState().show("entry");
-  },
-}));
 
 const FIELDS = 4;
 
@@ -192,50 +172,5 @@ export function MentionCard({ novel }: { novel: Novel }) {
         </>
       )}
     </div>
-  );
-}
-
-/**
- * The right sidebar's Entry tab: the bible entry opened from a mention's card (or just made from
- * the @ menu), whole and editable. Escape or F6 returns to the text, caret where it was.
- */
-export function EntryTab({
-  novelId,
-  novel,
-  workspace,
-  spell,
-}: {
-  novelId: string;
-  novel: Novel;
-  workspace: Workspace;
-  spell: { service: SpellService; onAddWord: (w: string) => void } | undefined;
-}) {
-  const id = useEntryPanel((s) => s.entry);
-  const focus = useEntryPanel((s) => s.focus);
-  const headingId = useId();
-  const ref = useRef<HTMLElement>(null);
-  const entity = id ? novel.entities.find((e) => e.id === id) : undefined;
-
-  useEffect(() => {
-    if (!focus) return;
-    useEntryPanel.setState({ focus: false });
-    ref.current?.focus();
-  }, [focus, id]);
-
-  if (!id) {
-    return (
-      <p className="p-4 text-sm text-muted">
-        No entry open. Point at a name in the text (or put the caret on it and press Alt+Enter), then choose “Open entry”.
-      </p>
-    );
-  }
-  return (
-    <section ref={ref} tabIndex={-1} aria-labelledby={headingId} className="grid content-start gap-3 p-4 outline-none">
-      {entity ? (
-        <EntryPage novelId={novelId} novel={novel} entity={entity} workspace={workspace} spell={spell} embedded={{ headingId }} />
-      ) : (
-        <p id={headingId}>This entry no longer exists.</p>
-      )}
-    </section>
   );
 }

@@ -49,8 +49,9 @@ test("@ + a new name makes the character in place: the mention, its file, the sc
   await axe(page);
   await notice(page).getByRole("button", { name: "Add details" }).click();
   const panel = page.getByRole("region", { name: "Mira Kostova" });
+  // Its form, ready to fill in.
   await expect(panel.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("Mira Kostova");
-  await expect(panel).toBeFocused();
+  await expect(panel.getByRole("textbox", { name: "Name", exact: true })).toBeFocused();
   expect(page.url()).toBe(url);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
