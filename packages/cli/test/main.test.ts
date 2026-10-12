@@ -78,7 +78,7 @@ describe("gh-writer snapshots", () => {
     const again = run(main, "snapshots", novel);
     expect(again.out).toContain("Wrote diagrams/relationships.svg, diagrams/README.md");
     expect(readFileSync(join(novel, "diagrams/README.md"), "utf8")).toContain('-.-|"Rivals with"|');
-  });
+  }, 15_000); // Runs the CLI five times: about 3.5 s alone, past 5 s on a busy machine.
 
   it("removes a snapshot it drew once a diagram has nothing to show, and never a file it didn't write", () => {
     const novel = join(tmp, "snapshots-stale");
