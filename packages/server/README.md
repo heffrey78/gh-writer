@@ -16,7 +16,8 @@ await server.close();
 |---|---|---|
 | `GET /api/health` | yes | `{ status: "ok" }` |
 | `GET /api/session` | no | `{ authenticated }`: whether the request carries a valid session cookie |
-| `GET /api/library` | yes | `{ novels, notices, folder }`: `folder` is where new novels and clones go, with `~` for home |
+| `GET /api/library` | yes | `{ novels, notices, folder }`: `folder` is where new novels and clones go, with `~` for home; a novel with a cover has its version as `coverVersion` |
+| `GET /api/library/:id/cover` | yes | the novel's cover image, for the shelf: read from its folder without opening the novel (which would start syncing it) |
 | `POST /api/library` | yes | `{ path }` → `201 { novel }`, or `400 { code, error }` |
 | `POST /api/library/new` | yes | `{ title, author?, path?, identity?: { name, email } }` → `201 { novel }`, or `400 { code, error }` |
 | `DELETE /api/library/:id` | yes | `204`: forgets the novel; its folder is left alone |

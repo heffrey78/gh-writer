@@ -1,6 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
+import { unzipSync } from "fflate";
 import { axe, expect, test, type App } from "./fixtures.ts";
 import { dropPicture, makePicture, pastePicture, pictureIn } from "./pictures.ts";
 
@@ -179,4 +180,87 @@ test("a portrait on the gallery card, the mention card and the Entry tab; initia
   await axe(page);
   await page.emulateMedia({ colorScheme: "dark" });
   await axe(page);
+});
+
+test("the book's cover: set from the shelf, shown there and in Compile, in the EPUB, changed and removed from Compile", async ({ page, app }) => {
+  const dir = app.novelRepo("varn");
+  await app.restart(dir);
+  await page.goto(app.launchUrl);
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
+  const read = (path: string) => readFileSync(join(dir, path), "utf8");
+  const lastCommit = () => app.git(dir, "log", "-1", "--format=%s").trim();
+  const images = () => (existsSync(join(dir, "images")) ? readdirSync(join(dir, "images")).sort() : []);
+
+  // From the book's menu on the shelf.
+  await page.goto(`${app.url}/`);
+  const book = page.getByRole("list", { name: "Novels" }).getByRole("link", { name: "The Bridge at Varn, by gh-writer sample" });
+  await expect(book).toBeVisible();
+  await expect(book.getByRole("img")).toHaveCount(0);
+  const bytes = await makePicture(page, { width: 2000, height: 3000, name: "cover-art.jpg" });
+  await page.getByRole("button", { name: "More for “The Bridge at Varn”" }).click();
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("menuitem", { name: "Set a cover…" }).click();
+  await (await chooser).setFiles({ name: "cover-art.jpg", mimeType: "image/jpeg", buffer: bytes });
+  const dialog = page.getByRole("dialog", { name: "The cover of The Bridge at Varn" });
+  await expect(dialog).toContainText(/Resized to 1600 × 2560 px/);
+  await expect(dialog.getByText("images/cover.jpg")).toBeVisible();
+  // A cover is shown whole: no focal point.
+  await expect(dialog.getByRole("button", { name: /^Focal point/ })).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Use this cover" }).click();
+  await expect(book.getByRole("img", { name: "The cover of The Bridge at Varn" })).toBeVisible();
+  expect(pictureIn(dir, "images/cover.jpg")).toEqual({ type: "image/jpeg", width: 1600, height: 2560 });
+  expect(read("novel.yaml")).toMatch(/\ncover: images\/cover\.jpg\n/);
+  expect(lastCommit()).toBe("Add a cover to the book");
+  await axe(page);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await axe(page);
+  await page.emulateMedia({ colorScheme: "light" });
+
+  // In Compile: the cover, its file and size, and it goes into the EPUB.
+  await book.click();
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.keyboard.type("Compile the manuscript");
+  await page.keyboard.press("Enter");
+  const compile = page.getByRole("dialog", { name: "Compile the manuscript" });
+  const row = compile.getByRole("region", { name: "Cover" });
+  await expect(row.getByRole("img", { name: "The cover of The Bridge at Varn" })).toBeVisible();
+  await expect(row).toContainText("images/cover.jpg");
+  await expect(row).toContainText("1600 × 2560 px");
+  await expect(row).toContainText("Word manuscripts go out without one");
+  await axe(page);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await axe(page);
+  await page.emulateMedia({ colorScheme: "light" });
+  for (const name of [/^Word/, /^PDF/]) await compile.getByRole("checkbox", { name }).uncheck();
+  const download = page.waitForEvent("download");
+  await compile.getByRole("button", { name: "Compile" }).click();
+  const epub = unzipSync(new Uint8Array(readFileSync((await (await download).path())!)));
+  expect(Object.keys(epub)).toContain("OEBPS/images/cover.jpg");
+
+  // Changed, then removed, from Compile.
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.keyboard.type("Compile the manuscript");
+  await page.keyboard.press("Enter");
+  const second = await makePicture(page, { width: 1000, height: 1600, name: "second.jpg" });
+  const again = page.waitForEvent("filechooser");
+  await row.getByRole("button", { name: "Change…" }).click();
+  await (await again).setFiles({ name: "second.jpg", mimeType: "image/jpeg", buffer: second });
+  await expect(dialog).toContainText("second.jpg · 1000 × 1600 px");
+  await expect(dialog).toContainText("At 1000 × 1600 px");
+  await dialog.getByRole("button", { name: "Use this cover" }).click();
+  await expect(row).toContainText("1000 × 1600 px");
+  await expect.poll(lastCommit).toBe("Change the book's cover");
+
+  await row.getByRole("button", { name: "Remove" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Remove" }).click();
+  await expect(row.getByRole("button", { name: "Add a cover…" })).toBeVisible();
+  await expect.poll(lastCommit).toBe("Remove the book's cover");
+  expect(images()).toEqual([]);
+  expect(read("novel.yaml")).not.toContain("cover:");
+
+  // The shelf has its generated cover back.
+  await page.goto(`${app.url}/`);
+  await expect(book).toBeVisible();
+  await expect(book.getByRole("img")).toHaveCount(0);
 });

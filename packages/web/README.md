@@ -15,7 +15,7 @@ npm run test:e2e -w @gh-writer/web   # build, then Playwright against real serve
 | `src/main.tsx` | Routes: `/` the library, `/novels/:novelId/*` a novel's workspace |
 | `src/layout.tsx` | The frame: skip link, top bar, theme choice |
 | `src/github/` | The GitHub connection: the account control in the top bar (Connect GitHub, or the login with Sign out), and the Connect dialog (gh's account, or a code entered on github.com), opened from anywhere with `useConnect` |
-| `src/library/` | The library: novels as generated covers on a shelf (`cover.tsx`), and the New novel, Open a folder and Clone from GitHub dialogs (`?add=new\|open\|clone`, also in the palette) |
+| `src/library/` | The library: novels on a shelf, each in its own cover (from `/api/library/:id/cover`) or a generated one (`cover.tsx`), its menu setting or removing the cover, and the New novel, Open a folder and Clone from GitHub dialogs (`?add=new\|open\|clone`, also in the palette) |
 | `src/novel/` | A novel's workspace: navigation, the writing view, save and sync state, conflicts, spell check |
 | `src/commands.ts`, `src/palette.tsx` | The command registry, the palette (Mod+K) and the shortcut reference (Mod+/) |
 | `src/ui/` | Shared controls (button, field, alert, confirmation dialog), in the shadcn/ui manner |

@@ -308,6 +308,12 @@ export function imageUrl(novelId: string, path: string | undefined, version?: st
   return `${baseUrl}/api/novels/${encodeURIComponent(novelId)}/images/${rest}${version ? `?v=${encodeURIComponent(version)}` : ""}`;
 }
 
+/** A library novel's cover, for the shelf (read without opening the novel), or undefined if it has none. */
+export function coverUrl(novel: { id: string; cover?: string; coverVersion?: string }, baseUrl = ""): string | undefined {
+  if (!novel.cover || !novel.coverVersion) return undefined;
+  return `${baseUrl}/api/library/${encodeURIComponent(novel.id)}/cover?v=${encodeURIComponent(novel.coverVersion)}`;
+}
+
 /** Browsers refuse keepalive requests with larger bodies; stay under their 64 kB budget. */
 const KEEPALIVE_LIMIT = 60_000;
 

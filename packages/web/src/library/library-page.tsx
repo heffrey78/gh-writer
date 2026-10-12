@@ -1,4 +1,4 @@
-import type { LibraryEntry } from "@gh-writer/client";
+import { coverUrl, type LibraryEntry } from "@gh-writer/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FolderOpen, GitBranch, MoreHorizontal, Plus, X } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
@@ -11,6 +11,8 @@ import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { Confirm } from "../ui/confirm.tsx";
 import { usePublish } from "../github/publish.tsx";
+import { usePictureFlow } from "../bible/picture.tsx";
+import { SHAPES } from "../bible/pictures.ts";
 import { CloneDialog, NewNovelDialog, OpenFolderDialog } from "./add-dialogs.tsx";
 import { Cover } from "./cover.tsx";
 
@@ -134,11 +136,22 @@ function Book({ novel, menus }: { novel: LibraryEntry; menus: HTMLElement | null
     mutationFn: () => api.removeNovel(novel.id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.library }),
   });
+  // The book's own cover (#168), set or changed from its menu, as from Compile.
+  const shown = () => Promise.all([queryClient.invalidateQueries({ queryKey: keys.library }), queryClient.invalidateQueries({ queryKey: keys.novel(novel.id) })]);
+  const cover = usePictureFlow({
+    name: novel.title,
+    shape: SHAPES.cover,
+    onSave: async (picture) => {
+      await api.setCover(novel.id, picture);
+      await shown();
+    },
+  });
+  const [removingCover, setRemovingCover] = useState(false);
   const item = "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent-soft";
   return (
     <li className="flex min-w-0 flex-col">
       <Link to={`/novels/${novel.id}`} className="block w-fit rounded-[2px_5px_5px_2px] transition-transform hover:-translate-y-1 focus-visible:-translate-y-1" title={novel.path} aria-label={novel.author ? `${novel.title}, by ${novel.author}` : novel.title}>
-        <Cover id={novel.id} title={novel.title} author={novel.author} />
+        <Cover id={novel.id} title={novel.title} author={novel.author} image={coverUrl(novel)} />
       </Link>
       <div className="mt-[1.4rem] flex items-start gap-1">
         <div className="min-w-0 flex-1 text-xs leading-4">
@@ -166,6 +179,15 @@ function Book({ novel, menus }: { novel: LibraryEntry; menus: HTMLElement | null
                   Put on GitHub…
                 </DropdownMenu.Item>
               )}
+              <DropdownMenu.Item className={item} onSelect={cover.choose}>
+                {novel.cover ? "Change the cover…" : "Set a cover…"}
+              </DropdownMenu.Item>
+              {novel.cover && (
+                <DropdownMenu.Item className={item} onSelect={() => setRemovingCover(true)}>
+                  Remove the cover…
+                </DropdownMenu.Item>
+              )}
+              <DropdownMenu.Separator className="my-1 h-px bg-rule" />
               <DropdownMenu.Item className={item} onSelect={() => setRemoving(true)}>
                 Remove from library…
               </DropdownMenu.Item>
@@ -173,6 +195,21 @@ function Book({ novel, menus }: { novel: LibraryEntry; menus: HTMLElement | null
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
       </div>
+      {cover.element}
+      {cover.problem && (
+        <p role="alert" className="mt-1 text-xs text-danger">
+          {cover.problem}
+        </p>
+      )}
+      <Confirm
+        open={removingCover}
+        onOpenChange={setRemovingCover}
+        title={`Remove the cover of “${novel.title}”?`}
+        description="The shelf shows a generated cover again, and e-books and PDFs go out without one. Its file is deleted from images/; the novel's history keeps it."
+        action="Remove"
+        danger
+        onConfirm={() => void api.removeCover(novel.id).then(shown, (e: unknown) => cover.setProblem(e instanceof Error ? e.message : String(e)))}
+      />
       <Confirm
         open={removing}
         onOpenChange={setRemoving}

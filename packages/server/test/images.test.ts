@@ -258,8 +258,17 @@ describe("through the server", () => {
       const put = await upload("/cover", jpeg());
       expect(await put.json()).toMatchObject({ cover: "images/cover.jpg" });
       expect(library.get(novel.id)?.cover).toBe("images/cover.jpg");
+
+      // The shelf: the cover's version in the list, and the cover itself, read without opening the novel.
+      const cookie = `${sessionCookie(server.port)}=t`;
+      const list = (await (await fetch(`${server.url}/api/library`, { headers: { cookie } })).json()) as { novels: { id: string; cover?: string; coverVersion?: string }[] };
+      expect(list.novels.find((n) => n.id === novel.id)).toMatchObject({ cover: "images/cover.jpg", coverVersion: expect.any(String) });
+      const shelf = await fetch(`${server.url}/api/library/${novel.id}/cover`, { headers: { cookie } });
+      expect(shelf.headers.get("content-type")).toBe("image/jpeg");
+      expect(Buffer.from(await shelf.arrayBuffer())).toEqual(jpeg());
       expect((await post("/cover/delete")).status).toBe(200);
       expect(library.get(novel.id)?.cover).toBeUndefined();
+      expect((await fetch(`${server.url}/api/library/${novel.id}/cover`, { headers: { cookie } })).status).toBe(404);
       clean();
     } finally {
       await server.close();

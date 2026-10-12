@@ -12,6 +12,8 @@ This guide is for the person writing the book. It assumes gh-writer is installed
 - **Open a folder** adds a novel already on this computer.
 - **Clone from GitHub** copies a novel from GitHub, after you've connected (see [GitHub](#github)), listing your repositories to choose from.
 
+Each book stands on the shelf in a cover of its own design, or with your cover: its **⋯** menu has *Set a cover…* (and *Change the cover…*, *Remove the cover…*), as does the Compile dialog. A cover is framed like a [picture](#the-story-bible), at 5:8, and saved as `images/cover.jpg`, 1600 × 2560 px.
+
 `npx gh-writer serve path/to/novel` opens one novel directly. Taking a novel out of the library leaves its folder alone.
 
 ## Finding your way
@@ -165,7 +167,7 @@ Issues are for the work around the book: plot holes, continuity errors, research
 - **E-book (EPUB)** for readers and e-readers.
 - **PDF**, laid out like the Word file.
 
-Compile the whole book or a range of chapters. Anything you've just typed is saved first. Presets in a `compile.yaml` file in the novel set the title page details, chapter headings ("Chapter Four: The Flood", or just the number or title), the scene break marker, and front and back matter such as a dedication; see the [format spec](docs/format/v1.md#compileyaml).
+Compile the whole book or a range of chapters. Anything you've just typed is saved first. The **Cover** row shows the book's cover, if it has one, with *Change…* and *Remove* (or *Add a cover…*): it's the e-book's cover and the PDF's first page, and Word manuscripts go out without one, as agents expect. Presets in a `compile.yaml` file in the novel set the title page details, chapter headings ("Chapter Four: The Flood", or just the number or title), the scene break marker, and front and back matter such as a dedication; see the [format spec](docs/format/v1.md#compileyaml).
 
 **On GitHub**, every named checkpoint you make becomes a Release of the novel's repository with the three files attached, and *Actions → Compile → Run workflow* compiles on demand. The files are identical to the app's for the same saved version.
 

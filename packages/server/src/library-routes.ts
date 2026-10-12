@@ -1,14 +1,17 @@
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { sep } from "node:path";
 import { Hono, type Context } from "hono";
 import { streamSSE } from "hono/streaming";
-import { imageVersion } from "./files.ts";
+import { FileError, imageVersion, servableImage } from "./files.ts";
 import { classifyGitError, GitFailure } from "./git.ts";
 import type { GitHub } from "./github.ts";
 import { LibraryError, type Library } from "./library.ts";
 
 /**
- * GET    /api/library        { novels, notices, folder }: folder is where new novels and clones go, ~ for home
+ * GET    /api/library        { novels, notices, folder }: folder is where new novels and clones go, ~ for home;
+ *                             each novel with its cover's version, when it has one
+ * GET    /api/library/:id/cover  the novel's cover image, for the shelf (without opening the novel)
  * POST   /api/library        { path } → 201 { novel }
  * POST   /api/library/new    { title, author?, path?, identity?: { name, email } } → 201 { novel }
  * DELETE /api/library/:id    forget a novel (its folder stays) → 204
@@ -26,6 +29,20 @@ export function libraryRoutes(library: Library, github?: GitHub): Hono {
       }),
     );
     return c.json({ novels, notices: library.notices, folder: tilde(library.cloneDir) });
+  });
+
+  // Read straight from the folder: opening the novel for this would start syncing every book on the shelf.
+  routes.get("/:id/cover", async (c) => {
+    const entry = library.get(c.req.param("id"));
+    if (!entry?.cover) return c.json({ code: "NOT_FOUND", error: "That novel has no cover." }, 404);
+    try {
+      const image = await servableImage(entry.path, entry.cover);
+      if (!image) return c.json({ code: "NOT_FOUND", error: `No image "${entry.cover}".` }, 404);
+      return new Response(await readFile(image.full), { headers: { "content-type": image.type, "cache-control": "no-cache", "x-content-type-options": "nosniff" } });
+    } catch (e) {
+      if (!(e instanceof FileError)) throw e;
+      return c.json({ code: e.code, error: e.message }, 400);
+    }
   });
 
   routes.post("/new", async (c) => {

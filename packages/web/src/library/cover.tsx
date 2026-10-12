@@ -54,17 +54,28 @@ function titleSize(title: string): string {
   return "0.9rem";
 }
 
+const SHADOW = "0 1px 0 rgb(0 0 0 / 0.2), 5px 6px 12px -6px rgb(0 0 0 / 0.55)";
+
 /**
- * A generated book cover: the title and author over one of a few designs, coloured from the novel's
- * ID. Decorative patterns are hidden from assistive technology; the text is real text.
+ * A book cover: the novel's own (`image`, #168), or one generated from its ID, the title and author
+ * over one of a few designs. A generated cover's patterns are hidden from assistive technology; its
+ * text is real text.
  */
-export function Cover({ id, title, author, className }: { id: string; title: string; author?: string | undefined; className?: string }) {
+export function Cover({ id, title, author, image, className }: { id: string; title: string; author?: string | undefined; image?: string | undefined; className?: string }) {
   const { design, palette: p } = coverFor(id);
   const size = titleSize(title);
+  if (image) {
+    return (
+      <div className={cn("relative aspect-[2/3] w-36 overflow-hidden rounded-[2px_5px_5px_2px] bg-panel select-none", className)} style={{ boxShadow: SHADOW }}>
+        <img src={image} alt={`The cover of ${title}`} loading="lazy" decoding="async" draggable={false} className="size-full object-cover" />
+        <Crease />
+      </div>
+    );
+  }
   return (
     <div
       className={cn("relative aspect-[2/3] w-36 overflow-hidden rounded-[2px_5px_5px_2px] text-left select-none", className)}
-      style={{ background: p.bg, color: p.ink, boxShadow: "0 1px 0 rgb(0 0 0 / 0.2), 5px 6px 12px -6px rgb(0 0 0 / 0.55)" }}
+      style={{ background: p.bg, color: p.ink, boxShadow: SHADOW }}
     >
       <Pattern design={design} palette={p} />
       {design === "night" && (
@@ -102,10 +113,14 @@ export function Cover({ id, title, author, className }: { id: string; title: str
           )}
         </>
       )}
-      {/* The spine's crease. */}
-      <span className="pointer-events-none absolute inset-y-0 left-0 w-2" style={{ background: "linear-gradient(to right, rgb(0 0 0 / 0.28), rgb(255 255 255 / 0.12) 55%, transparent)" }} aria-hidden />
+      <Crease />
     </div>
   );
+}
+
+/** The spine's crease. */
+function Crease() {
+  return <span className="pointer-events-none absolute inset-y-0 left-0 w-2" style={{ background: "linear-gradient(to right, rgb(0 0 0 / 0.28), rgb(255 255 255 / 0.12) 55%, transparent)" }} aria-hidden />;
 }
 
 /**
