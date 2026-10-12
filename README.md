@@ -10,13 +10,21 @@
 
 - **A distraction-free editor** for scenes, or a whole chapter as one continuous text while each scene stays its own file. Focus mode, typewriter scrolling, word counts for the scene, chapter and session, and a session goal.
 - **Mentions.** Type `@` and a few letters to mention a character, place or anything else in the story bible. Hover over a mention (or press Alt+Enter) for a card showing who they are and how they relate to everyone else *at that point in the story*.
-- **Quick entry.** Create a new character, location or entry of your own type straight from the `@` menu or the scene details, without leaving the scene.
+- **A sidebar beside the text**: the scene the caret is in as a readable card, each detail edited in place, with what the rest of the book says about it ("8 h after “The Station”", "First appearance of Ben Varn"); details pinned under every scene's title; and any story bible entry as a sheet to read, with Back and Forward. Ctrl+Shift+\\ hides and shows it.
+- **Quick entry.** Create a new character, location or entry of your own type straight from the `@` menu or the Scene card, without leaving the scene.
 - **Spell check** that knows your characters' names, with a per-novel dictionary.
 - **Progress** from the book's own history: words added and cut each day, the length against a target and deadline with a projected finish, a daily goal with a streak, and which chapters and scenes run long or short.
 - **Find and replace** across the scene, the chapter or the whole manuscript, with one Undo for everything.
 - **Autosave that doesn't lose words**, even if the app or the browser crashes, and conflicts shown side by side if a file changes elsewhere.
 
 ![A mention card: Ada Varn, her details, and her relationships at "The Station"](docs/screenshots/mention-card.png)
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/scene-card.png" alt="The Scene card beside a chapter, with point of view and story time pinned under each scene's title"></td>
+    <td><img src="docs/screenshots/entry-tab.png" alt="The Entry tab: Ada Varn's sheet beside the text"></td>
+  </tr>
+</table>
 
 ![Progress: the book against its target, today's words and streak, and the words per day](docs/screenshots/progress.png)
 

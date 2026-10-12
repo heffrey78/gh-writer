@@ -37,7 +37,14 @@ Choose a chapter or scene in the tree on the left. A chapter opens as one contin
 - **Quick entry:** under **New entry** at the bottom of the `@` list, *New character “Mira”*, *New location “Mira”* and so on create an entry named what you typed and mention it, without leaving the text. Fill in the rest later.
 - **Spell check** knows the story bible's names. Ctrl+. (or a right-click) on an underlined word offers suggestions, **Add to dictionary** (the novel's own `dictionary.txt`) and **Ignore**.
 - **Find** (Ctrl+F) searches the scene, chapter or whole manuscript; **Find and replace** (Ctrl+Shift+H) replaces across all of it, with one Undo.
-- **Scene details** (in the command palette: *Show scene details*) opens a panel beside the text with the scene's point of view, status (idea, outlined, drafted, revised, final), synopsis, characters, locations, plotlines and their beats, themes, tags and when it happens in story time.
+
+### The right sidebar
+
+Beside the text, the right sidebar has two tabs: **Scene** and **Entry**. **Ctrl+Shift+\\** (⌘⇧\\ on a Mac) hides and shows it; hidden, it's a strip of icons at the right edge. Drag its left edge to widen it (or focus that edge and use ← →). **F6** moves between the text and the sidebar, and **Escape** returns to the text with the caret where it was. Its tab, width and whether it's showing are remembered. On a narrow window it opens as a sheet over the text when you ask for it.
+
+- **Scene** is a card for the scene the caret is in: its title and place in the chapter, the synopsis, the status (idea, outlined, drafted, revised, final) as five steps, and a row for each detail it has: point of view, where, characters, when (and for how long) in story time, plotlines with their weight and beat, entries of your own types, themes and tags. Details it hasn't got yet are under **Add…**. Each row's pencil edits it in place, with the people and places pickers (and *New character “…”* to make one as you go); Enter saves a single field and Escape or **Done** returns to the row. ◀ ▶ step through the chapter's scenes without moving the caret. **From the story** lists what the rest of the book says about the scene: the first or last scene, how long after the scene before it comes (or how far back a flashback goes), first appearances, someone back after a long absence, plotlines beginning or ending, relationships starting or ending.
+- **Pins:** the pin on a row puts that detail under every scene's title in the text, as a quiet line (*Ada Varn · Day 1, 09:10 · 20 min*), sidebar showing or not. It's only shown, never written into your scene files.
+- **Entry** shows a story bible entry: choose a name on the Scene card, or *Open entry* on a mention's card. It reads like a character sheet: the summary, fields, relationships at the caret's scene, the scenes it's in (choose one to go there), notes, and *Open the full entry*. **Back** and **Forward** walk the entries you've opened; **Keep this entry here** (the pin) keeps it while you open other names. **Edit details** shows the entry's form in place; after a quick entry, the notice's **Add details** opens it so.
 
 ## Structure: parts, chapters and scenes
 
@@ -156,7 +163,7 @@ Compile the whole book or a range of chapters. Anything you've just typed is sav
 
 ## Keyboard
 
-Everything is reachable from the keyboard. **Ctrl+K** opens the command palette, which can do anything in the app: go to a chapter or scene, open a view, make a checkpoint, sync, change the theme. **Ctrl+/** lists the keyboard shortcuts, and **Ctrl+\\** collapses or expands the sidebar.
+Everything is reachable from the keyboard. **Ctrl+K** opens the command palette, which can do anything in the app: go to a chapter or scene, open a view, make a checkpoint, sync, change the theme. **Ctrl+/** lists the keyboard shortcuts, **Ctrl+\\** collapses or expands the sidebar, and **Ctrl+Shift+\\** hides or shows the right sidebar; **F6** moves between it and the text.
 
 ![The command palette](docs/screenshots/palette.png)
 

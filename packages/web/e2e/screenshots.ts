@@ -32,6 +32,20 @@ test("the writing view, light and dark, with a mention card", async ({ page, app
   await shoot(page, "writing-dark");
 });
 
+test("the right sidebar: the Scene card with details pinned, and the Entry tab", async ({ page, app }) => {
+  await open(page, app);
+  const card = page.getByRole("region", { name: "Details of “The Station”" });
+  await card.getByRole("button", { name: "Pin point of view under the scene titles" }).click();
+  await card.getByRole("button", { name: "Pin when under the scene titles" }).click();
+  await expect(page.locator(".ghw-pinned")).toHaveCount(2);
+  await card.getByRole("heading", { level: 2 }).click();
+  await shoot(page, "scene-card");
+  await card.getByRole("button", { name: "Ada Varn" }).first().click();
+  await expect(page.getByRole("region", { name: "Ada Varn" })).toBeFocused();
+  await page.getByRole("region", { name: "Ada Varn" }).evaluate((e) => (e as HTMLElement).blur());
+  await shoot(page, "entry-tab");
+});
+
 test("planning views", async ({ page, app }) => {
   const id = await open(page, app);
   for (const [path, name] of [
