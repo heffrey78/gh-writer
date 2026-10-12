@@ -44,7 +44,7 @@ Beside the text, the right sidebar has two tabs: **Scene** and **Entry**. **Ctrl
 
 - **Scene** is a card for the scene the caret is in: its title and place in the chapter, the synopsis, the status (idea, outlined, drafted, revised, final) as five steps, and a row for each detail it has: point of view, where, characters, when (and for how long) in story time, plotlines with their weight and beat, entries of your own types, themes and tags. Details it hasn't got yet are under **Add…**. Each row's pencil edits it in place, with the people and places pickers (and *New character “…”* to make one as you go); Enter saves a single field and Escape or **Done** returns to the row. ◀ ▶ step through the chapter's scenes without moving the caret. **From the story** lists what the rest of the book says about the scene: the first or last scene, how long after the scene before it comes (or how far back a flashback goes), first appearances, someone back after a long absence, plotlines beginning or ending, relationships starting or ending.
 - **Pins:** the pin on a row puts that detail under every scene's title in the text, as a quiet line (*Ada Varn · Day 1, 09:10 · 20 min*), sidebar showing or not. It's only shown, never written into your scene files.
-- **Entry** shows a story bible entry: choose a name on the Scene card, or *Open entry* on a mention's card. It reads like a character sheet: the summary, fields, relationships at the caret's scene, the scenes it's in (choose one to go there), notes, and *Open the full entry*. **Back** and **Forward** walk the entries you've opened; **Keep this entry here** (the pin) keeps it while you open other names. **Edit details** shows the entry's form in place; after a quick entry, the notice's **Add details** opens it so.
+- **Entry** shows a story bible entry: choose a name on the Scene card, or *Open entry* on a mention's card. It's the entry's profile at the sidebar's size, read first and edited in place just as on its page, with its strip of scenes and its relationships read at the caret's scene, and *Open the full entry*. **Back** and **Forward** walk the entries you've opened; **Keep this entry here** (the pin) keeps it while you open other names. After a quick entry, the notice's **Add details** opens it with the name ready to edit.
 
 ## Structure: parts, chapters and scenes
 
@@ -59,11 +59,19 @@ The tree on the left holds the book. **Scene**, **Chapter** and **Part** add one
 
 ## The story bible
 
-**Story bible** in the left panel lists characters, locations, plotlines, themes and any types of your own (an "Artifacts" type in the sample novel, say). Each entry has a name, other names (recognised when you type `@`), a summary, fields of your choice, tags and notes.
+**Story bible** in the left panel opens a gallery of every entry, grouped by type: characters, locations, plotlines, themes and any types of your own (an "Artifacts" type in the sample novel, say). Each card shows the summary, a fact or two, a small strip of the scenes the entry is in and how many; an entry no scene uses yet says *Not in the story yet*. Search by name or other name, and sort by first appearance, name or most scenes.
 
-Relationships (sibling of, mentor of, allied with…) live on the entries' pages, each from a scene and, if it ends, until a scene. The kinds of relationship are yours to define in `novel.yaml`. Off-page events, like a flood years before the story starts, live on the story map's **Timeline**.
+An entry opens as a profile, to read first. Each part has a pencil (or *+ Add…* while it's empty) and edits in place: the name, other names (recognised when you type `@`), tags, a portrait (its path in the repository), the summary, fields of your choice (*+ Add a field*; rename or remove one from its pencil) and the notes, which you write in straight away. Enter saves, Escape leaves it as it was. Below them:
 
-![A character's page in the story bible](docs/screenshots/bible.png)
+- **In the story**: every scene in reading order, under its part and chapter names, marked where the entry carries the scene (a character's point of view, a plotline's major beat, a theme at its strongest), is in it, or is only mentioned. Each mark opens its scene. Beneath it: first and last appearance, how many scenes, the longest absence, and the off-page events it's part of.
+- **By type**: a location's visitors and the story time its scenes span; a plotline's beats in reading order, with *+ Write the beat* where a scene hasn't said what happens (written into that scene), the scenes it skips, who's in it and where; a theme's strength scene by scene.
+- **Relationships** as arcs over the same scenes: each from the scene it starts to the scene it ends, in its kind's colour and line, with its name on the bar. The marker under them (arrow keys, or a click) reads what holds at one scene. A bar opens *Change at…*, *End at…* and *Remove…*; *+ Add a relationship* makes a new one.
+
+The kinds of relationship are listed at the end of the gallery. **Edit** one to rename it or choose its colour, from the eight of the app's chart palette (each readable in light and dark, and for colour-blind readers), and its line: solid, dashed or dotted. A new kind takes a colour no other kind uses, so adding one never repaints the rest; the same colours are used in the graph, the arcs, the cards and the diagrams on github.com. Off-page events, like a flood years before the story starts, live on the story map's **Timeline**.
+
+![A character's profile: the strip of scenes and the relationships as arcs](docs/screenshots/bible.png)
+
+![The story bible as a gallery of cards](docs/screenshots/gallery.png)
 
 ## Story map and relationships
 

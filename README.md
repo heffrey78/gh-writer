@@ -10,7 +10,7 @@
 
 - **A distraction-free editor** for scenes, or a whole chapter as one continuous text while each scene stays its own file. Focus mode, typewriter scrolling, word counts for the scene, chapter and session, and a session goal.
 - **Mentions.** Type `@` and a few letters to mention a character, place or anything else in the story bible. Hover over a mention (or press Alt+Enter) for a card showing who they are and how they relate to everyone else *at that point in the story*.
-- **A sidebar beside the text**: the scene the caret is in as a readable card, each detail edited in place, with what the rest of the book says about it ("8 h after “The Station”", "First appearance of Ben Varn"); details pinned under every scene's title; and any story bible entry as a sheet to read, with Back and Forward. Ctrl+Shift+\\ hides and shows it.
+- **A sidebar beside the text**: the scene the caret is in as a readable card, each detail edited in place, with what the rest of the book says about it ("8 h after “The Station”", "First appearance of Ben Varn"); details pinned under every scene's title; and any story bible entry as its profile, with Back and Forward. Ctrl+Shift+\\ hides and shows it.
 - **Quick entry.** Create a new character, location or entry of your own type straight from the `@` menu or the Scene card, without leaving the scene.
 - **Spell check** that knows your characters' names, with a per-novel dictionary.
 - **Progress** from the book's own history: words added and cut each day, the length against a target and deadline with a projected finish, a daily goal with a streak, and which chapters and scenes run long or short.
@@ -31,13 +31,17 @@
 ### Plan
 
 - **Manuscript structure**: parts, chapters and scenes in a tree you can rearrange with the keyboard or by dragging, and an **outline** of every scene as a table or as index cards, filtered by point of view, character, plotline or status.
-- **A story bible** of characters, locations, plotlines, themes and types you invent, with relationships that start and end at particular scenes, drawn as a **relationship graph** with a slider to step through the story and watch alliances change.
+- **A story bible** of characters, locations, plotlines, themes and types you invent, as a gallery of cards and a profile for each entry, read first and edited in place: where it is across the book, scene by scene; a plotline's beats (and the ones still to write); and its relationships as arcs that start and end at particular scenes, in colours you choose from a palette that stays readable for colour-blind readers. The same relationships are drawn as a **relationship graph** with a slider to step through the story and watch alliances change.
 - **A story map** of the story's elements against its scenes, all exportable as SVG (and some as Mermaid):
   - **plotlines** showing each one's beats scene by scene, and where one goes quiet;
   - **presence** of characters and themes in each scene;
   - a **timeline** setting story time against reading order, flashbacks and off-page events included.
 
 <table>
+  <tr>
+    <td><img src="docs/screenshots/gallery.png" alt="The story bible as a gallery of cards, each with a strip of the scenes the entry is in"></td>
+    <td><img src="docs/screenshots/bible.png" alt="Ada Varn's profile: her scenes in reading order and her relationships as arcs"></td>
+  </tr>
   <tr>
     <td><img src="docs/screenshots/outline-cards.png" alt="The outline as cards: scenes grouped by chapter"></td>
     <td><img src="docs/screenshots/relationships.png" alt="The relationship graph at the first scene"></td>

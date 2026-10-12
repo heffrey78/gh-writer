@@ -85,7 +85,11 @@ test("drafts: versions with their checkpoints", async ({ page, app }) => {
 test("the story bible", async ({ page, app }) => {
   await open(page, app);
   await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Story bible" }).click();
-  await page.getByRole("main").getByRole("link", { name: "Ada Varn" }).first().click();
+  await page.waitForTimeout(500);
+  await shoot(page, "gallery");
+  await page.getByRole("main").getByRole("link", { name: /^Ada Varn/ }).first().click();
+  // Tall enough for her strip and arcs.
+  await page.setViewportSize({ width: 1440, height: 1500 });
   await page.waitForTimeout(800);
   await shoot(page, "bible");
 });
