@@ -427,7 +427,7 @@ test("an entry's open issues on its page, a scene's in its details; renames foll
   await page.keyboard.type("show the scene's details");
   await page.keyboard.press("Enter");
   const details = page.getByRole("region", { name: "Details of “The Station”" });
-  await details.getByRole("group", { name: "Open issues" }).getByRole("button", { name: "Who counted the flags?" }).click();
+  await details.getByRole("region", { name: "Open issues" }).getByRole("button", { name: "Who counted the flags?" }).click();
   await expect(page.getByRole("complementary", { name: /Who counted the flags\?/ })).toBeVisible();
 
   // An entry deleted: its label can go too.

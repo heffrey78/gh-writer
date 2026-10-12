@@ -84,6 +84,7 @@ test("the swimlanes and the scene details panel agree after an edit in either", 
   await page.keyboard.type("show the scene's details");
   await page.keyboard.press("Enter");
   const panel = page.getByRole("region", { name: "Details of “The Station”" });
+  await panel.getByRole("button", { name: "Edit plotlines" }).click();
   await panel.getByRole("combobox", { name: "Weight of “The Sale”" }).selectOption("major");
   await openView(page, "Plotlines");
   await expect(grid(page).getByRole("gridcell", { name: /^The Station: major beat in The Sale/ })).toBeVisible();

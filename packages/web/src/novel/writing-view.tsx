@@ -313,7 +313,16 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
 
   const heading = "scene" in view ? view.scene.title : chapterTitle(novel, view.chapter);
 
-  const detailsScene = current && scenes.find((s) => s.id === current.id);
+  // The Scene tab shows the scene the caret is in, or one stepped to from it (◀ ▶) until the caret moves.
+  const [stepped, setStepped] = useState<{ from: string; to: string }>();
+  const atCaret = current && scenes.find((s) => s.id === current.id);
+  useEffect(() => {
+    if (!editor) return;
+    const back = () => setStepped(undefined);
+    editor.on("selectionUpdate", back);
+    return () => void editor.off("selectionUpdate", back);
+  }, [editor]);
+  const detailsScene = (stepped && stepped.from === atCaret?.id && novel.allScenes.find((s) => s.id === stepped.to)) || atCaret;
 
   // The text scrolls on its own, so the sidebar beside it stays put.
   return (
@@ -400,6 +409,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
                   workspace={workspace}
                   path={detailsScene.file}
                   title={detailsScene.title}
+                  onStep={(to) => atCaret && setStepped({ from: atCaret.id, to })}
                   newEntry={newEntry.create}
                   issues={repo ? anchored.filter((a) => a.scene === detailsScene.file).map(({ number, title }) => ({ number, title })) : undefined}
                   onOpenIssue={(n) => issueMarks.onOpen([n])}

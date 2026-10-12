@@ -115,10 +115,12 @@ test("the matrix and the scene details panel agree after an edit in either", asy
   await page.keyboard.type("show the scene's details");
   await page.keyboard.press("Enter");
   const panel = page.getByRole("region", { name: "Details of “The Station”" });
-  await expect(panel.getByRole("list").first()).toContainText("Tomas Hale");
+  await expect(panel.locator("dd").filter({ hasText: "Tomas Hale" })).toBeVisible();
   await openView(page, "Presence");
   await expect(cell).toHaveAccessibleName("The Station: Tomas Hale present");
   await page.getByRole("tree", { name: "Manuscript" }).getByRole("treeitem", { name: /^The Station,/ }).click();
+  await expect(page.getByRole("textbox", { name: "Scene text" })).toBeFocused();
+  await panel.getByRole("button", { name: "Edit characters" }).click();
   await panel.getByRole("button", { name: "Remove “Tomas Hale”" }).click();
   await openView(page, "Presence");
   await expect(grid(page, "Characters by scene").getByRole("gridcell", { name: "The Station: Tomas Hale not there" })).toBeVisible();
