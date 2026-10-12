@@ -4,7 +4,8 @@ import type { Editor } from "@tiptap/core";
 import { X } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { create } from "zustand";
-import { describe } from "../bible/entry-page.tsx";
+import { FieldRows, Lead } from "../bible/profile.tsx";
+import { RelationshipLines } from "../bible/relationship-types.tsx";
 import { typeOf } from "../bible/types.ts";
 import { Button } from "../ui/button.tsx";
 import { useEntryPanel } from "./entry-tab.tsx";
@@ -133,26 +134,13 @@ export function MentionCard({ novel }: { novel: Novel }) {
         <p className="text-muted">No entry has this ID. It may have been deleted.</p>
       ) : (
         <>
-          {entity.summary && <p>{entity.summary}</p>}
-          {fields.length > 0 && (
-            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-              {fields.map(([k, v]) => (
-                <div key={k} className="contents">
-                  <dt className="text-muted capitalize">{k.replace(/_/g, " ")}</dt>
-                  <dd>{String(v)}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
+          {entity.summary && <Lead size="card">{entity.summary}</Lead>}
+          {fields.length > 0 && <FieldRows fields={fields} compact />}
           {card.scene && (
             <section aria-label={`Relationships at “${card.scene.title}”`} className="grid gap-1 border-t border-rule pt-2">
               <p className="text-xs text-muted">At “{card.scene.title}”</p>
               {relationships.length ? (
-                <ul className="grid gap-0.5">
-                  {relationships.map((r) => (
-                    <li key={r.id}>{describe(novel, entity.id, r)}</li>
-                  ))}
-                </ul>
+                <RelationshipLines novel={novel} entityId={entity.id} relationships={relationships} />
               ) : (
                 <p className="text-muted">No relationships here.</p>
               )}

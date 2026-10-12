@@ -2,7 +2,7 @@ import { entryPresence, relationshipsAt, relationshipStyle, type Entity, type No
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { api, keys } from "../api.ts";
 import { MENU_ITEM } from "../layout.tsx";
@@ -13,6 +13,7 @@ import { cn } from "../ui/cn.ts";
 import { Confirm } from "../ui/confirm.tsx";
 import { describeRelationship as describe } from "@gh-writer/core/diagrams";
 import { ProfileSection } from "./profile.tsx";
+import { RelationshipLines } from "./relationship-types.tsx";
 import { AddRelationshipDialog, RelationshipAtSceneDialog } from "./relationships.tsx";
 import { StripHeader } from "./strip.tsx";
 
@@ -27,12 +28,19 @@ type Lane = { r: Relationship; start: number; end: number }[];
 
 const BORDER = { solid: "solid", dashed: "dashed", dotted: "dotted" } as const;
 
-export function RelationshipArcs({ novelId, novel, entity }: { novelId: string; novel: Novel; entity: Entity }) {
+export function RelationshipArcs({ novelId, novel, entity, compact }: { novelId: string; novel: Novel; entity: Entity; compact?: boolean }) {
+  /** The name column: narrower in the sidebar. */
+  const cols = compact ? "grid-cols-[4.5rem_minmax(0,1fr)]" : "grid-cols-[6.5rem_minmax(0,1fr)]";
   const queryClient = useQueryClient();
   const presence = useMemo(() => entryPresence(novel, entity.id), [novel, entity.id]);
   const n = presence?.scenes.length ?? 0;
   const current = useCurrentScene((s) => s.scene);
   const [at, setAt] = useState(() => Math.max(0, novel.scenes.findIndex((s) => s.id === current?.id)));
+  // Beside the text, the marker follows the scene the author is in.
+  useEffect(() => {
+    const i = novel.scenes.findIndex((s) => s.id === current?.id);
+    if (i >= 0) setAt(i);
+  }, [current?.id, novel]);
   const [dialog, setDialog] = useState<{ kind: "add" } | { kind: "change" | "end" | "remove"; relationship: Relationship }>();
   const markerName = useId();
   const refresh = () => queryClient.invalidateQueries({ queryKey: keys.novel(novelId) });
@@ -81,12 +89,12 @@ export function RelationshipArcs({ novelId, novel, entity }: { novelId: string; 
         presence &&
         n > 0 && (
           <>
-            <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5">
+            <div className={cn("grid items-center gap-x-3 gap-y-1.5", cols)}>
               <StripHeader presence={presence} />
             </div>
             <ul aria-label="All relationships" className="grid gap-2">
               {groups.map(([other, lanes]) => (
-                <li key={other} className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-start gap-x-3">
+                <li key={other} className={cn("grid items-start gap-x-3", cols)}>
                   <Link to={`/novels/${novelId}/bible/${other}`} className="truncate pt-0.5 text-sm text-accent underline decoration-accent/35 underline-offset-[3px] hover:decoration-accent">
                     {name(other)}
                   </Link>
@@ -141,7 +149,7 @@ export function RelationshipArcs({ novelId, novel, entity }: { novelId: string; 
             </ul>
 
             {/* The marker: one scene at a time, by arrow keys or a click, read below. */}
-            <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3">
+            <div className={cn("grid items-center gap-x-3", cols)}>
               <span className="text-[13px] text-muted">Read at</span>
               <div role="radiogroup" aria-label="Read the relationships at a scene" className="grid gap-[3px]" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}>
                   {presence.scenes.map(({ scene: s }, i) => (
@@ -154,14 +162,10 @@ export function RelationshipArcs({ novelId, novel, entity }: { novelId: string; 
               </div>
             </div>
             {scene && (
-              <section aria-label={`At “${scene.title}”`} aria-live="polite" className="ml-[calc(6.5rem+0.75rem)] grid gap-1 rounded-lg border border-rule bg-raised px-3 py-2 text-sm">
+              <section aria-label={`At “${scene.title}”`} aria-live="polite" className={cn("grid gap-1 rounded-lg border border-rule bg-raised px-3 py-2 text-sm", compact ? "ml-[calc(4.5rem+0.75rem)]" : "ml-[calc(6.5rem+0.75rem)]")}>
                 <p className="text-xs text-muted">At “{scene.title}”</p>
                 {holding.length ? (
-                  <ul className="grid gap-0.5">
-                    {holding.map((r) => (
-                      <li key={r.id}>{describe(novel, entity.id, r)}</li>
-                    ))}
-                  </ul>
+                  <RelationshipLines novel={novel} entityId={entity.id} relationships={holding} />
                 ) : (
                   <p className="text-muted">None hold here.</p>
                 )}

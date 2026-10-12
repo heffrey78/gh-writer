@@ -63,7 +63,7 @@ test("Alt+Enter beside a mention opens its card; Escape and the entry panel retu
   await expect(panel).toBeFocused();
   await expect(page.getByRole("tab", { name: "Entry" })).toHaveAttribute("aria-selected", "true");
   await expect(panel.getByRole("heading", { level: 2, name: "Ada Varn" })).toBeVisible();
-  await expect(panel.getByRole("button", { name: "Edit details" })).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Edit summary" })).toBeVisible();
   await axe(page);
   await page.keyboard.press("Escape");
   await expect(text).toBeFocused();

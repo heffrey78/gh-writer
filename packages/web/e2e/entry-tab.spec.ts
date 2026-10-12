@@ -16,8 +16,10 @@ test("the Entry tab: a sheet to read, Back and Forward through names opened, a p
   await expect(entryTab).toHaveAttribute("aria-selected", "true");
   await expect(ada.getByText("Character", { exact: true })).toBeVisible();
   await expect(ada.getByRole("region", { name: "At “The Station”" })).toBeVisible();
-  const scenes = ada.getByRole("region", { name: /^In \d+ scenes$/ });
-  await expect(scenes.getByRole("button", { name: "The Station" })).toHaveAttribute("aria-current", "true");
+  // The profile at the sidebar's size: its strip, and its arcs read at the caret's scene.
+  const strip = ada.getByRole("region", { name: "In the story" }).getByRole("list", { name: "Scenes, in reading order" });
+  await expect(strip.getByRole("link", { name: "The Station: point of view" })).toBeVisible();
+  await expect(ada.getByRole("region", { name: "Relationships" }).getByRole("list", { name: "All relationships" })).toBeVisible();
   await expect(ada.getByRole("region", { name: "Notes" })).toContainText("Voice: short sentences when she is angry");
   await expect(ada.getByRole("link", { name: "Open the full entry" })).toBeVisible();
   await axe(page);
@@ -49,15 +51,15 @@ test("the Entry tab: a sheet to read, Back and Forward through names opened, a p
   await expect(ada).toBeFocused();
   await expect(ada.getByRole("button", { name: "Keep this entry here" })).toHaveAttribute("aria-pressed", "false");
 
-  // The form in place, and back to the sheet.
-  await ada.getByRole("button", { name: "Edit details" }).click();
-  await expect(ada.getByRole("textbox", { name: "Name", exact: true })).toBeFocused();
-  await expect(ada.getByRole("button", { name: "Edit summary" })).toBeVisible();
-  await ada.getByRole("button", { name: "Back to the sheet" }).click();
+  // Edited in place, as on its page.
+  await ada.getByRole("button", { name: "Edit occupation" }).click();
+  await expect(ada.getByRole("textbox", { name: "Field name" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(ada.getByRole("button", { name: "Edit occupation" })).toBeFocused();
   await expect(ada.getByRole("heading", { level: 2, name: "Ada Varn" })).toBeVisible();
 
   // A scene it's in opens.
-  await ada.getByRole("region", { name: /^In \d+ scenes$/ }).getByRole("button", { name: "The Betrayal" }).click();
+  await strip.getByRole("link", { name: "The Betrayal: point of view" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "The Betrayal" })).toBeVisible();
   await expect(ada.getByRole("region", { name: "At “The Betrayal”" })).toContainText("Rivals with Ben Varn");
 });

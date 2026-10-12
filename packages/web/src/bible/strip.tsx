@@ -78,7 +78,7 @@ export function StripHeader({ presence }: { presence: EntryPresence }) {
 }
 
 /** Where an entry is across the book, and the facts that follow from it. */
-export function InTheStory({ novelId, novel, entity }: { novelId: string; novel: Novel; entity: Entity }) {
+export function InTheStory({ novelId, novel, entity, compact }: { novelId: string; novel: Novel; entity: Entity; compact?: boolean }) {
   const presence = useMemo(() => entryPresence(novel, entity.id), [novel, entity.id]);
   if (!presence) return null;
   const words = markWords(entity.type);
@@ -90,7 +90,7 @@ export function InTheStory({ novelId, novel, entity }: { novelId: string; novel:
       {n === 0 ? (
         <p className="text-sm text-muted">The book has no scenes yet.</p>
       ) : (
-        <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5">
+        <div className={cn("grid items-center gap-x-3 gap-y-1.5", compact ? "grid-cols-[3.5rem_minmax(0,1fr)]" : "grid-cols-[6.5rem_minmax(0,1fr)]")}>
           <StripHeader presence={presence} />
           <StripRow label="Scenes" columns={n}>
             <ol aria-label="Scenes, in reading order" className="contents">

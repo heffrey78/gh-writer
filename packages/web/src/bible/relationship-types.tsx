@@ -1,4 +1,5 @@
-import { nextSeriesSlot, relationshipStyle, SERIES, slugify, type Novel, type RelationshipLine, type SeriesSlot } from "@gh-writer/core";
+import { nextSeriesSlot, relationshipStyle, SERIES, slugify, type Novel, type Relationship, type RelationshipLine, type SeriesSlot } from "@gh-writer/core";
+import { describeRelationship as describe } from "@gh-writer/core/diagrams";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog } from "radix-ui";
 import { useId, useState } from "react";
@@ -150,5 +151,22 @@ export function RelationshipTypes({ novelId, novel }: { novelId: string; novel: 
         </Dialog.Portal>
       </Dialog.Root>
     </section>
+  );
+}
+
+/** Relationships as sentences from `entityId`'s side, each beside its kind's line: the same look as the arcs and the graph. */
+export function RelationshipLines({ novel, entityId, relationships }: { novel: Novel; entityId: string; relationships: Relationship[] }) {
+  return (
+    <ul className="grid gap-0.5">
+      {relationships.map((r) => {
+        const { slot, line } = relationshipStyle(novel, r.type);
+        return (
+          <li key={r.id} className="flex items-center gap-2">
+            <LineSample color={slot} line={line} className="h-2 w-5 shrink-0" />
+            <span>{describe(novel, entityId, r)}</span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

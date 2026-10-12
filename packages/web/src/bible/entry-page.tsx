@@ -15,7 +15,8 @@ import { api, keys } from "../api.ts";
 import type { Workspace } from "../novel/workspace.ts";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
-import { AddButton, EditorButtons, EditorFrame, PencilButton, TextEditor, useInPlace, type InPlace } from "./profile.tsx";
+import { cn } from "../ui/cn.ts";
+import { AddButton, EditorButtons, EditorFrame, FieldRows, Lead, PencilButton, readField, TextEditor, useInPlace, type InPlace } from "./profile.tsx";
 import { RelationshipArcs } from "./arcs.tsx";
 import { InTheStory } from "./strip.tsx";
 import { TypeSections } from "./type-sections.tsx";
@@ -38,6 +39,7 @@ export function EntryPage({
   spell,
   embedded,
   startEditing,
+  size = "page",
 }: {
   novelId: string;
   novel: Novel;
@@ -48,7 +50,13 @@ export function EntryPage({
   embedded?: { headingId: string };
   /** A part to open for editing at once ("name" after a quick entry's Add details). */
   startEditing?: "name";
+  /**
+   * How much it shows: the whole page, or the right sidebar's Entry tab (#163), which leaves out the
+   * portrait, delete, issues and the type's own sections, and links to the page instead.
+   */
+  size?: "page" | "tab";
 }) {
+  const tab = size === "tab";
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const type = typeOf(novel, entity);
@@ -123,11 +131,11 @@ export function EntryPage({
 
   const Heading = embedded ? "h2" : "h1";
   return (
-    <div className={embedded ? "grid gap-5" : "mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] gap-5 px-6 py-6"}>
+    <div className={embedded ? (tab ? "grid gap-4" : "grid gap-5") : "mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] gap-5 px-6 py-6"}>
       <div className="flex flex-wrap items-start gap-4">
-        <Portrait place={place} image={entity.image} name={entity.name} onSave={(image) => change({ image: image || null })} />
+        {!tab && <Portrait place={place} image={entity.image} name={entity.name} onSave={(image) => change({ image: image || null })} />}
         <div className="grid min-w-0 flex-1 gap-1.5">
-          <div className="flex items-center gap-2">
+          {!tab && <div className="flex items-center gap-2">
             <p className="flex-1 text-sm text-muted">
               <Link to={`/novels/${novelId}/bible`} className="underline-offset-2 hover:underline">
                 Story bible
@@ -137,7 +145,7 @@ export function EntryPage({
             <Button variant="ghost" size="sm" onClick={() => remove.mutate(false)} disabled={remove.isPending}>
               <Trash2 className="size-4" aria-hidden /> Delete
             </Button>
-          </div>
+          </div>}
 
           {place.editing === "name" ? (
             <>
@@ -194,7 +202,9 @@ export function EntryPage({
         <TextEditor place={place} label="Summary" multiline value={entity.summary ?? ""} onSave={(v) => change({ summary: v || null })} />
       ) : entity.summary ? (
         <div className="group flex items-start gap-1">
-          <p className="flex-1 font-prose text-lg leading-normal">{entity.summary}</p>
+          <div className="flex-1">
+            <Lead size={tab ? "tab" : "page"}>{entity.summary}</Lead>
+          </div>
           <PencilButton place={place} part="summary" label="summary" />
         </div>
       ) : (
@@ -205,23 +215,20 @@ export function EntryPage({
 
       <div className="grid gap-1">
         {fields.length > 0 && (
-          <dl aria-label="Fields" className="grid gap-0.5">
-            {fields.map(([key, value], i) => (
-              <div key={key} className="group -mx-1.5 flex items-baseline gap-2.5 rounded-md px-1.5 py-1">
-                <dt className="w-32 shrink-0 text-[13px] text-muted capitalize">{key.replace(/_/g, " ")}</dt>
-                <dd className="flex min-w-0 flex-1 items-baseline gap-1">
-                  {place.editing === `field:${key}` ? (
-                    <FieldEditor place={place} name={key} value={value} others={fields.map(([k]) => k).filter((k) => k !== key)} onSave={(to) => change({ fields: withField(i, to) })} />
-                  ) : (
-                    <>
-                      <span className="flex-1">{typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)}</span>
-                      <PencilButton place={place} part={`field:${key}`} label={key.replace(/_/g, " ")} />
-                    </>
-                  )}
-                </dd>
-              </div>
-            ))}
-          </dl>
+          <FieldRows
+            fields={fields}
+            compact={tab}
+            value={(key, value, i) =>
+              place.editing === `field:${key}` ? (
+                <FieldEditor place={place} name={key} value={value} others={fields.map(([k]) => k).filter((k) => k !== key)} onSave={(to) => change({ fields: withField(i, to) })} />
+              ) : (
+                <>
+                  <span className="flex-1">{readField(value)}</span>
+                  <PencilButton place={place} part={`field:${key}`} label={key.replace(/_/g, " ")} />
+                </>
+              )
+            }
+          />
         )}
         {place.editing === "field:" ? (
           <FieldEditor place={place} name="" value="" others={fields.map(([k]) => k)} onSave={(to) => change({ fields: withField(fields.length, to) })} />
@@ -247,7 +254,7 @@ export function EntryPage({
               markdown={file.body}
               onChange={(md) => workspace.change(entity.file, md)}
               entities={mentions}
-              className="[&_.ghw-prose]:min-h-16 [&_.ghw-prose]:py-1"
+              className={cn("[&_.ghw-prose]:min-h-16 [&_.ghw-prose]:py-1", tab && "[&_.ghw-prose]:text-base [&_.ghw-prose]:leading-normal")}
               {...(spell ? { spell } : {})}
             />
           </div>
@@ -256,12 +263,17 @@ export function EntryPage({
         )}
       </section>
 
-      <EntryIssues novelId={novelId} novel={novel} entity={entity} />
+      {!tab && <EntryIssues novelId={novelId} novel={novel} entity={entity} />}
 
-      <InTheStory novelId={novelId} novel={novel} entity={entity} />
-      <TypeSections novelId={novelId} novel={novel} entity={entity} workspace={workspace} />
+      <InTheStory novelId={novelId} novel={novel} entity={entity} compact={tab} />
+      {!tab && <TypeSections novelId={novelId} novel={novel} entity={entity} workspace={workspace} />}
 
-      <RelationshipArcs novelId={novelId} novel={novel} entity={entity} />
+      <RelationshipArcs novelId={novelId} novel={novel} entity={entity} compact={tab} />
+      {tab && (
+        <Link to={`/novels/${novelId}/bible/${entity.id}`} className="justify-self-start text-sm text-accent underline decoration-accent/35 underline-offset-[3px] hover:decoration-accent">
+          Open the full entry
+        </Link>
+      )}
 
       <AlertDialog.Root open={references !== undefined} onOpenChange={(o) => !o && setReferences(undefined)}>
         <AlertDialog.Portal>
