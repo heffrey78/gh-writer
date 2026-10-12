@@ -168,6 +168,8 @@ test("in a chapter, follows the scene the caret is in; steps to others; names op
   await palette(page, "show the scene's details");
   const station = page.getByRole("region", { name: "Details of “The Station”" });
   await expect(station).toBeVisible();
+  // What the rest of the book says about it.
+  await expect(station.getByRole("region", { name: "From the story" }).getByRole("listitem")).toHaveText(["The book's first scene.", "First appearance of Ada Varn.", "The Sale begins here."]);
   await expect(station.getByRole("button", { name: "Previous scene" })).toBeDisabled();
   await page.getByRole("textbox", { name: "Chapter text" }).getByText(/met her at the toll house/).click();
   const bridge = page.getByRole("region", { name: "Details of “Walking the Span”" });

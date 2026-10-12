@@ -17,3 +17,4 @@ export { resolveAnchor, type AnchorMatch, type AnchorOptions } from "./anchor-ma
 export { ISSUE_KINDS, kindLabel, kindOf, STOCK_LABELS, type IssueKind } from "./issue-kinds.ts";
 export { entityLabel, entityOfLabel, type LabelDef } from "./entity-labels.ts";
 export { compileBook, CompileError, numberWords, presets, type Block, type Book, type BookChapter, type BookSection, type CompileOptions, type Run } from "./compile.ts";
+export { readableSpan, sceneFacts } from "./facts.ts";

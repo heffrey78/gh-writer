@@ -1,4 +1,4 @@
-import { readFrontMatter, type Novel, type YamlEdit } from "@gh-writer/core";
+import { readFrontMatter, sceneFacts, type Novel, type YamlEdit } from "@gh-writer/core";
 import { chapterTitle } from "@gh-writer/core/diagrams";
 import { joinSceneFile } from "@gh-writer/editor";
 import { ChevronLeft, ChevronRight, Pencil, Pin, Plus, X } from "lucide-react";
@@ -196,6 +196,8 @@ export function SceneDetails({
   const at = chapter && scene ? chapter.sceneIds.indexOf(scene.id) : -1;
   const prev = chapter && at > 0 ? chapter.sceneIds[at - 1] : undefined;
   const next = chapter && at >= 0 ? chapter.sceneIds[at + 1] : undefined;
+  // What the rest of the book says about it: worked out again when the book is, not as it's typed.
+  const facts = useMemo(() => (scene ? sceneFacts(novel, scene.id) : []), [novel, scene?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!file) return null;
   const when = fm.when && typeof fm.when === "object" ? (fm.when as { at?: string; day?: number; time?: string }) : undefined;
@@ -584,6 +586,19 @@ export function SceneDetails({
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
+      )}
+
+      {facts.length > 0 && (
+        <section aria-labelledby={`${headingId}-facts`} className="grid gap-1.5 border-t border-rule pt-3">
+          <h3 id={`${headingId}-facts`} className="text-xs font-semibold tracking-wide text-muted uppercase">
+            From the story
+          </h3>
+          <ul className="grid list-disc gap-1 pl-4">
+            {facts.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {pinnedHere.length > 0 && (
