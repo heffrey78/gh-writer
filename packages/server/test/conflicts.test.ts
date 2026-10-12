@@ -120,6 +120,29 @@ describe("resolving", () => {
     expect(read(b, SCENE)).toBe(read(a, SCENE));
   });
 
+  it("settles a picture changed on both sides by keeping one of them, as it is", async () => {
+    const PICTURE = "images/ada-varn.jpg";
+    const jpeg = (fill: number) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0x10]), Buffer.alloc(256, fill), Buffer.from([0xff, 0xd9])]);
+    const [a, b] = [clone(), clone()];
+    mkdirSync(join(a, "images"));
+    writeFileSync(join(a, PICTURE), jpeg(1));
+    await syncer(a).sync();
+    await syncer(b).sync();
+    writeFileSync(join(a, PICTURE), jpeg(2));
+    await syncer(a).sync();
+    writeFileSync(join(b, PICTURE), jpeg(3));
+    const s = syncer(b);
+    expect((await s.sync()).state).toBe("conflict");
+    const conflicts = (await s.conflicts())!;
+    expect(conflicts.files).toEqual([expect.objectContaining({ path: PICTURE, binary: true, inOurs: true, inTheirs: true })]);
+    // Text can't settle it.
+    await expect(s.resolve(conflicts.upstream, { [PICTURE]: { ours: conflicts.files[0]!.ours, content: "x" } })).rejects.toMatchObject({ code: "BAD_RESOLUTION" });
+
+    await s.resolve(conflicts.upstream, { [PICTURE]: { ours: conflicts.files[0]!.ours, keep: "theirs" } });
+    expect(readFileSync(join(b, PICTURE))).toEqual(jpeg(2));
+    expect(gitIn(b, "status", "--porcelain")).toBe("");
+  });
+
   it("settles an edit against a deletion", async () => {
     const [a, b] = [clone(), clone()];
     rmSync(join(a, SCENE2));

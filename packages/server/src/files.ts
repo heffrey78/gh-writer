@@ -8,10 +8,37 @@ export const MAX_FILE_BYTES = 2 * 1024 * 1024;
 /** Text files the API writes. Reading is open to any non-hidden UTF-8 file. */
 const WRITABLE = /\.(md|markdown|yaml|yml|txt|json)$/i;
 
+/** Pictures: the cover and the bible's, in images/. GitHub refuses files over 100 MB, and so do we. */
+export const IMAGES_DIR = "images";
+export const MAX_IMAGE_BYTES = 100 * 1024 * 1024;
+
+/** The images the API serves, by extension. Never SVG: it can carry script. */
+export const IMAGE_TYPES: Readonly<Record<string, string>> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+};
+
+/** An image's media type by its extension, or undefined if it isn't one the API serves. */
+export function imageType(path: string): string | undefined {
+  const dot = path.lastIndexOf(".");
+  return dot < 0 ? undefined : IMAGE_TYPES[path.slice(dot).toLowerCase()];
+}
+
+/** The format of image bytes the app saves, from their first bytes: JPEG or PNG, or undefined. */
+export function sniffImage(bytes: Uint8Array): { ext: ".jpg" | ".png"; type: string } | undefined {
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return { ext: ".jpg", type: "image/jpeg" };
+  const png = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (png.every((b, i) => bytes[i] === b)) return { ext: ".png", type: "image/png" };
+  return undefined;
+}
+
 /** Suffix of the temporary files atomic writes leave behind if the process dies mid-write. */
 export const TEMP_SUFFIX = ".ghw-tmp";
 
-export type FileErrorCode = "BAD_PATH" | "NOT_FOUND" | "NOT_TEXT" | "TOO_LARGE" | "NOT_WRITABLE";
+export type FileErrorCode = "BAD_PATH" | "NOT_FOUND" | "NOT_TEXT" | "TOO_LARGE" | "NOT_WRITABLE" | "NOT_IMAGE";
 
 export class FileError extends Error {
   readonly code: FileErrorCode;
@@ -96,6 +123,38 @@ export async function readText(root: string, path: string): Promise<TextFile | u
   return { content, hash: hashText(bytes) };
 }
 
+/** A file's bytes, or undefined if it doesn't exist. */
+export async function readBytes(root: string, path: string, max = MAX_IMAGE_BYTES): Promise<{ bytes: Buffer; hash: string } | undefined> {
+  const full = await resolveInside(root, path);
+  const info = await stat(full).catch(() => undefined);
+  if (!info) return undefined;
+  if (info.size > max) throw new FileError("TOO_LARGE", `"${path}" is larger than ${max} bytes.`);
+  const bytes = await readFile(full);
+  return { bytes, hash: hashText(bytes) };
+}
+
+/**
+ * An image in images/ the API may serve: its full path, media type and size, or undefined if it
+ * isn't there. Anything outside images/, or not an image by its extension, is BAD_PATH.
+ */
+export async function servableImage(root: string, path: string): Promise<{ full: string; type: string; size: number; mtimeMs: number } | undefined> {
+  const type = imageType(path);
+  if (!path.startsWith(`${IMAGES_DIR}/`) || !type) throw new FileError("BAD_PATH", `Only images in ${IMAGES_DIR}/ are served: "${path}"`);
+  const full = await resolveInside(root, path);
+  const info = await stat(full).catch(() => undefined);
+  if (!info?.isFile()) return undefined;
+  if (info.size > MAX_IMAGE_BYTES) throw new FileError("TOO_LARGE", `"${path}" is larger than ${MAX_IMAGE_BYTES} bytes.`);
+  return { full, type, size: info.size, mtimeMs: info.mtimeMs };
+}
+
+/** Check that image `bytes` may be written to `path` (in images/, JPEG or PNG, not too large), and return its full path. */
+export async function writableImagePath(root: string, path: string, bytes: Uint8Array): Promise<string> {
+  if (!path.startsWith(`${IMAGES_DIR}/`) || !imageType(path)) throw new FileError("NOT_WRITABLE", `Images are written to ${IMAGES_DIR}/ only: "${path}"`);
+  if (bytes.byteLength > MAX_IMAGE_BYTES) throw new FileError("TOO_LARGE", `The image is larger than ${MAX_IMAGE_BYTES} bytes.`);
+  if (!sniffImage(bytes)) throw new FileError("NOT_IMAGE", "That isn't a JPEG or PNG image.");
+  return resolveInside(root, path);
+}
+
 export interface WriteHooks {
   /** Called once the temp file is on disk, before it replaces the target (fault-injection tests). */
   beforeRename?: (temp: string) => void | Promise<void>;
@@ -114,14 +173,14 @@ export async function writablePath(root: string, path: string, content: string):
  * mix: write a temp file in the same folder, fsync it, rename it over the target, then fsync the folder
  * so the rename itself is durable. The file keeps its permissions.
  */
-export async function atomicWrite(full: string, content: string, hooks: WriteHooks = {}): Promise<void> {
+export async function atomicWrite(full: string, content: string | Uint8Array, hooks: WriteHooks = {}): Promise<void> {
   const dir = dirname(full);
   await mkdir(dir, { recursive: true });
   const mode = (await stat(full).catch(() => undefined))?.mode;
   const temp = join(dir, `.${basename(full)}.${randomBytes(6).toString("hex")}${TEMP_SUFFIX}`);
   const handle = await open(temp, "wx", mode === undefined ? 0o644 : mode & 0o777);
   try {
-    await handle.writeFile(content, "utf8");
+    await (typeof content === "string" ? handle.writeFile(content, "utf8") : handle.writeFile(content));
     await handle.sync();
   } catch (e) {
     await handle.close();

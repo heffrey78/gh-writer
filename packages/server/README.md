@@ -21,9 +21,10 @@ await server.close();
 | `POST /api/library/new` | yes | `{ title, author?, path?, identity?: { name, email } }` → `201 { novel }`, or `400 { code, error }` |
 | `DELETE /api/library/:id` | yes | `204`: forgets the novel; its folder is left alone |
 | `POST /api/library/clone` | yes | `{ repo, path? }` → an event stream (below) |
-| `GET /api/novels/:id` | yes | `{ novel, files }`: the story model (core `loadNovel`) and the hash of each file it was read from |
+| `GET /api/novels/:id` | yes | `{ novel, files, images }`: the story model (core `loadNovel`), the hash of each file it was read from, and a version of each picture it shows from `images/` (see [Pictures](#pictures)) |
 | `GET /api/novels/:id/files/<path>` | yes | `{ path, content, hash }` |
 | `PUT /api/novels/:id/files/<path>` | yes | `{ content, base }` → `{ hash }`, or `409 { current }` |
+| `GET /api/novels/:id/images/<path>` | yes | the image at `images/<path>` (see [Pictures](#pictures)) |
 | `GET /api/novels/:id/events` | yes | an event stream of changes made outside the app, and of the sync status (below) |
 | `GET /api/novels/:id/sync` | yes | the sync status: `{ state, remote, branch, ahead, behind, lastSync, conflict?, error?, commit }` |
 | `POST /api/novels/:id/sync` | yes | syncs now, then answers with the status |
@@ -48,7 +49,7 @@ Routes added to `server.app` (before its first request) or in `createApp` sit be
 
 ## Library
 
-The library is the author's list of novels: `library.json` in the user config directory. That's `$XDG_CONFIG_HOME/gh-writer` (or `~/.config/gh-writer`) on Linux, `~/Library/Application Support/gh-writer` on macOS and `%APPDATA%\gh-writer` on Windows. `GH_WRITER_CONFIG_DIR` overrides it. Each entry has an `id` (`lib_…`), its `path`, the `title` and `author` from novel.yaml (read again whenever the novel is opened), the `remote` (origin, with any credentials stripped out of the URL) and `lastOpened`. `list()` returns the most recently opened first. The file is replaced atomically on every change.
+The library is the author's list of novels: `library.json` in the user config directory. That's `$XDG_CONFIG_HOME/gh-writer` (or `~/.config/gh-writer`) on Linux, `~/Library/Application Support/gh-writer` on macOS and `%APPDATA%\gh-writer` on Windows. `GH_WRITER_CONFIG_DIR` overrides it. Each entry has an `id` (`lib_…`), its `path`, the `title`, `author` and `cover` from novel.yaml (read again whenever the novel is opened, and when its cover changes), the `remote` (origin, with any credentials stripped out of the URL) and `lastOpened`. `list()` returns the most recently opened first. The file is replaced atomically on every change.
 
 - **Adding** a folder checks that it's a folder (`NOT_A_DIRECTORY`), inside a git work tree (`NOT_A_REPO`) and holds novel.yaml (`NOT_A_NOVEL`). Adding a folder that's already there refreshes its entry.
 - **Missing folders** are dropped whenever the library is read, at startup or later. Each drop leaves a `MISSING` notice in `notices` for the server's lifetime. An unreadable library.json is set aside (`UNREADABLE` notice, with the backup's path) and the library starts empty.
@@ -223,6 +224,21 @@ Operations run in the workspace's exclusive section, so saves wait for them. The
 | `POST /bible/relationship-types`, `PATCH /bible/relationship-types/:key` | Relationship types: label, inverse label, symmetric, the entity types at each end | |
 
 All are under `/api/novels/:id`. Other refusals are `400 BAD_REQUEST` (with what's wrong) and `404 NOT_FOUND`.
+
+### Pictures
+
+The bible's pictures and the book's cover live in `images/` (format spec, "`images/`"). The app crops and resizes a picture in the browser and sends the result's bytes, JPEG or PNG, as the request body with its `Content-Type`; the server needs no image library. A body over GitHub's 100 MB limit is refused (`413 TOO_LARGE`) from its `Content-Length`, before any of it is read; bytes that aren't JPEG or PNG are `400 BAD_REQUEST`.
+
+| Endpoint | Does | Commit |
+|---|---|---|
+| `PUT /bible/entities/:id/picture?base=&focus=x,y` | Saves the picture as `images/<slug of the name>.jpg` (or `.png`; `-2`, `-3`… if another file has the name) and sets the entry's `image` and `image_focus` (or removes `image_focus` without `focus`). A picture it had in `images/` is replaced: the same file when the name and format match, otherwise deleted. `base` is the entry file's hash. → `{ image, file, commit }` | `Bible: add a picture of Ada Varn` / `Bible: change the picture of …` |
+| `POST /bible/entities/:id/picture/delete` `{ base }` | Clears `image` and `image_focus` and deletes the file | `Bible: remove the picture of …` |
+| `PUT /cover` | Saves `images/cover.jpg` (or `.png`) and sets `cover:` in novel.yaml; the library entry is read again, for the shelf. → `{ cover, commit }` | `Add a cover to the book` / `Change the book's cover` |
+| `POST /cover/delete` | Removes `cover:` and deletes the file | `Remove the book's cover` |
+
+Only files in `images/` that nothing else shows are deleted: a picture the author keeps elsewhere (`bible/images/…`), or one another entry or the cover also shows, stays. Deleting an entry deletes its picture in the same commit. `transaction` writes bytes as well as text, so each of these is one commit like any other operation.
+
+`GET /images/<path>` serves `images/<path>` with its media type by extension: `.jpg`, `.jpeg`, `.png`, `.webp` and `.gif`, never SVG (it can carry script), with `X-Content-Type-Options: nosniff`. Anything else, any path outside `images/` (the path rules of [Novel files](#novel-files) apply) and symbolic links are `400 BAD_PATH`. The `ETag` is the file's size and modification time, with `Cache-Control: no-cache`: the browser checks it each time, and gets `304` while it's unchanged. The model's `images` gives the same version for each picture the cover and entries name in `images/`, so the app puts it in the URL and a replaced picture is never shown from the cache.
 
 ### Events
 

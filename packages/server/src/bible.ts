@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   backlinks,
@@ -19,7 +19,7 @@ import {
 } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
 import { parse, stringify } from "yaml";
-import { hashText } from "./files.ts";
+import { hashText, IMAGES_DIR, MAX_IMAGE_BYTES, sniffImage } from "./files.ts";
 import { OperationError, transaction, type FileWrite, type OperationResult } from "./operations.ts";
 
 /** What an entity's front matter holds, apart from its ID. */
@@ -28,6 +28,7 @@ export interface EntityFields {
   aliases?: string[];
   summary?: string | null;
   image?: string | null;
+  image_focus?: [number, number] | null;
   fields?: Record<string, string | number | boolean>;
   tags?: string[];
 }
@@ -169,7 +170,69 @@ export class BibleOperations {
       if (references.length && !confirm) {
         throw new OperationError("REFERENCED", `“${entity.name}” is referred to in ${references.length} place${references.length === 1 ? "" : "s"}.`, { references });
       }
-      return transaction(this.root, [{ path: entity.file, content: null, base }], `Bible: remove ${entity.name}`);
+      // Its picture goes with it, unless something else shows the same file.
+      const picture = this.#ownPicture(novel, entity.image, id);
+      return transaction(this.root, [{ path: entity.file, content: null, base }, ...(picture ? [{ path: picture, content: null }] : [])], `Bible: remove ${entity.name}`);
+    });
+  }
+
+  /**
+   * Give an entity a picture (or a new one): `bytes` (JPEG or PNG, already resized by the app) saved
+   * in images/ under a name from the entity's (images/ada-varn.jpg, with a suffix if taken), and its
+   * `image` and `image_focus` set, in one commit. A picture it had before is replaced: its file is
+   * reused when the name and format are the same, otherwise deleted.
+   */
+  setPicture(id: string, base: string, bytes: Uint8Array, focus?: [number, number]): Promise<OperationResult & { file: string; image: string }> {
+    return this.#run(async (novel) => {
+      const entity = novel.entities.find((e) => e.id === id);
+      if (!entity) throw new OperationError("NOT_FOUND", `No entity “${id}”.`);
+      const text = await this.#read(entity.file);
+      if (hashText(text) !== base) throw new OperationError("STALE", `“${entity.name}” changed since it was read.`, { path: entity.file });
+      const own = this.#ownPicture(novel, entity.image, id);
+      const image = await this.#imagePath(slugify(entity.name), checkImage(bytes), own);
+      const content = editFrontMatter(text, [{ path: ["image"], value: image }, focus ? { path: ["image_focus"], value: checkFocus(focus) } : { path: ["image_focus"], remove: true }]);
+      const writes: FileWrite[] = [{ path: image, content: bytes }, { path: entity.file, content, base }];
+      if (own && own !== image) writes.push({ path: own, content: null });
+      const message = entity.image ? `Bible: change the picture of ${entity.name}` : `Bible: add a picture of ${entity.name}`;
+      return { ...(await transaction(this.root, writes, message)), file: entity.file, image };
+    });
+  }
+
+  /** Take an entity's picture away: its `image` and `image_focus` cleared and its file in images/ deleted, in one commit. */
+  removePicture(id: string, base: string): Promise<OperationResult & { file: string }> {
+    return this.#run(async (novel) => {
+      const entity = novel.entities.find((e) => e.id === id);
+      if (!entity) throw new OperationError("NOT_FOUND", `No entity “${id}”.`);
+      const text = await this.#read(entity.file);
+      if (hashText(text) !== base) throw new OperationError("STALE", `“${entity.name}” changed since it was read.`, { path: entity.file });
+      if (!entity.image) return { commit: null, files: [], file: entity.file };
+      const own = this.#ownPicture(novel, entity.image, id);
+      const content = editFrontMatter(text, [{ path: ["image"], remove: true }, { path: ["image_focus"], remove: true }]);
+      const writes: FileWrite[] = [{ path: entity.file, content, base }, ...(own ? [{ path: own, content: null }] : [])];
+      return { ...(await transaction(this.root, writes, `Bible: remove the picture of ${entity.name}`)), file: entity.file };
+    });
+  }
+
+  /** Give the book a cover (or a new one): images/cover.jpg (or .png) and `cover:` in novel.yaml, in one commit. */
+  setCover(bytes: Uint8Array): Promise<OperationResult & { cover: string }> {
+    return this.#run(async (novel) => {
+      const old = novel.config?.cover;
+      const own = this.#ownPicture(novel, old, "novel");
+      const cover = await this.#imagePath("cover", checkImage(bytes), own);
+      const writes: FileWrite[] = [{ path: cover, content: bytes }, { path: NOVEL, content: editYaml(await this.#read(NOVEL), [{ path: ["cover"], value: cover }]) }];
+      if (own && own !== cover) writes.push({ path: own, content: null });
+      return { ...(await transaction(this.root, writes, old ? "Change the book's cover" : "Add a cover to the book")), cover };
+    });
+  }
+
+  /** Take the cover away: `cover:` out of novel.yaml and its file in images/ deleted, in one commit. */
+  removeCover(): Promise<OperationResult> {
+    return this.#run(async (novel) => {
+      const old = novel.config?.cover;
+      if (!old) return { commit: null, files: [] };
+      const own = this.#ownPicture(novel, old, "novel");
+      const writes: FileWrite[] = [{ path: NOVEL, content: editYaml(await this.#read(NOVEL), [{ path: ["cover"], remove: true }]) }, ...(own ? [{ path: own, content: null }] : [])];
+      return transaction(this.root, writes, "Remove the book's cover");
     });
   }
 
@@ -356,6 +419,23 @@ export class BibleOperations {
 
   // ——— Helpers ———
 
+  /**
+   * `image` (the picture of entity `owner`, or of the book for "novel"), if it's one the app may delete
+   * along with it: a file in images/ that nothing else shows. A picture kept elsewhere is the author's.
+   */
+  #ownPicture(novel: Novel, image: string | undefined, owner: string): string | undefined {
+    if (!image?.startsWith(`${IMAGES_DIR}/`) || image.split("/").some((s) => s === ".." || s === "." || s.startsWith("."))) return undefined;
+    const shared = (owner !== "novel" && novel.config?.cover === image) || novel.entities.some((e) => e.id !== owner && e.image === image);
+    return shared ? undefined : image;
+  }
+
+  /** images/<slug><ext>, with a suffix if another file has the name; `replacing` (the picture it takes over) doesn't count. */
+  async #imagePath(slug: string, ext: string, replacing: string | undefined): Promise<string> {
+    const names = await readdir(join(this.root, IMAGES_DIR)).catch(() => [] as string[]);
+    const taken = new Set(names.filter((n) => `${IMAGES_DIR}/${n}` !== replacing));
+    return `${IMAGES_DIR}/${uniqueFileName(slug, ext, taken)}`;
+  }
+
   #run<T>(fn: (novel: Novel) => Promise<T>): Promise<T> {
     return this.#exclusive(async () => fn(await loadNovel(nodeSource(this.root))));
   }
@@ -431,6 +511,22 @@ export class BibleOperations {
     return editYaml(current, [{ path: [key], value: [item] }]);
   }
 
+}
+
+/** The extension for image bytes the app sent: JPEG or PNG, within GitHub's limit. */
+function checkImage(bytes: Uint8Array): ".jpg" | ".png" {
+  if (bytes.byteLength > MAX_IMAGE_BYTES) throw new OperationError("BAD_REQUEST", "The image is larger than GitHub's 100 MB limit.");
+  const format = sniffImage(bytes);
+  if (!format) throw new OperationError("BAD_REQUEST", "That isn't a JPEG or PNG image.");
+  return format.ext;
+}
+
+/** A focal point within the picture, rounded to three places. */
+function checkFocus(focus: [number, number]): [number, number] {
+  if (!Array.isArray(focus) || focus.length !== 2 || !focus.every((n) => typeof n === "number" && n >= 0 && n <= 1)) {
+    throw new OperationError("BAD_REQUEST", "A focal point is two fractions, x and y, from 0 to 1.");
+  }
+  return [Math.round(focus[0] * 1000) / 1000, Math.round(focus[1] * 1000) / 1000];
 }
 
 function required(value: string | undefined, field: string): string {

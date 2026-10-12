@@ -1,13 +1,13 @@
 import { readdir, rmdir, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { hasGitIdentity, IDENTITY_MESSAGE } from "./committer.ts";
-import { atomicWrite, readText, writablePath } from "./files.ts";
+import { atomicWrite, readBytes, writableImagePath, writablePath } from "./files.ts";
 import { git } from "./git.ts";
 
-/** One file an operation writes (new text) or deletes (null). */
+/** One file an operation writes (new text, or an image's bytes) or deletes (null). */
 export interface FileWrite {
   path: string;
-  content: string | null;
+  content: string | Uint8Array | null;
   /** The hash the caller read: the change is refused if the file is different now. Null: must not exist. Omitted: not checked. */
   base?: string | null;
 }
@@ -44,21 +44,23 @@ export async function transaction(root: string, changes: FileWrite[], message: s
   if (!changes.length) return { commit: null, files: [] };
   if (!(await hasGitIdentity(root))) throw new OperationError("BLOCKED", IDENTITY_MESSAGE);
 
-  // What's there now, for the base checks and to put back.
-  const before = new Map<string, string | null>();
+  // What's there now, for the base checks and to put back: as bytes, since images are among them.
+  const before = new Map<string, Buffer | null>();
   for (const change of changes) {
-    const current = await readText(root, change.path);
+    const current = await readBytes(root, change.path);
     if (change.base !== undefined && (current?.hash ?? null) !== change.base) {
       throw new OperationError("STALE", `“${change.path}” changed since it was read.`, { path: change.path });
     }
-    before.set(change.path, current?.content ?? null);
+    before.set(change.path, current?.bytes ?? null);
   }
 
   const done: string[] = [];
   try {
     for (const change of changes) {
-      if (change.content === null) await remove(root, change.path);
-      else await atomicWrite(await writablePath(root, change.path, change.content), change.content);
+      const { content } = change;
+      if (content === null) await remove(root, change.path);
+      else if (typeof content === "string") await atomicWrite(await writablePath(root, change.path, content), content);
+      else await atomicWrite(await writableImagePath(root, change.path, content), content);
       done.push(change.path);
     }
   } catch (e) {

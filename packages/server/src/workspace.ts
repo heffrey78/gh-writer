@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { loadNovel, type FileSource, type Novel } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
@@ -7,7 +7,7 @@ import { BibleOperations } from "./bible.ts";
 import { Checkpoints } from "./checkpoints.ts";
 import { ManuscriptOperations } from "./manuscript.ts";
 import { Committer, type CommitStatus, type CommitterOptions } from "./committer.ts";
-import { atomicWrite, hashText, isVisible, readText, writablePath, type TextFile, type WriteHooks } from "./files.ts";
+import { atomicWrite, hashText, IMAGES_DIR, isVisible, readText, writablePath, type TextFile, type WriteHooks } from "./files.ts";
 import type { Library } from "./library.ts";
 import { git } from "./git.ts";
 import { githubRepoOf, type GitHub, type GitHubRepo } from "./github.ts";
@@ -151,8 +151,11 @@ export class NovelWorkspace {
     }
   }
 
-  /** The story model, with the hash of every file it was read from (the bases for writes). */
-  async loadModel(): Promise<{ novel: Novel; files: Record<string, string> }> {
+  /**
+   * The story model, with the hash of every file it was read from (the bases for writes), and a
+   * version of each picture it shows from images/ (its size and time), so a replaced one is fetched anew.
+   */
+  async loadModel(): Promise<{ novel: Novel; files: Record<string, string>; images: Record<string, string> }> {
     const files: Record<string, string> = {};
     const disk = nodeSource(this.root);
     const source: FileSource = {
@@ -167,7 +170,16 @@ export class NovelWorkspace {
         return bytes.toString("utf8");
       },
     };
-    return { novel: await loadNovel(source), files };
+    const novel = await loadNovel(source);
+    const images: Record<string, string> = {};
+    const shown = [novel.config?.cover, ...novel.entities.map((e) => e.image)].filter((p): p is string => !!p?.startsWith(`${IMAGES_DIR}/`) && isVisible(p));
+    await Promise.all(
+      [...new Set(shown)].map(async (path) => {
+        const info = await stat(join(this.root, path)).catch(() => undefined);
+        if (info?.isFile()) images[path] = `${info.size.toString(36)}-${Math.round(info.mtimeMs).toString(36)}`;
+      }),
+    );
+    return { novel, files, images };
   }
 
   read(path: string): Promise<TextFile | undefined> {

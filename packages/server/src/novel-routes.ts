@@ -4,6 +4,7 @@ import { streamSSE } from "hono/streaming";
 import { bibleRoutes } from "./bible-routes.ts";
 import { issueRoutes } from "./issues-routes.ts";
 import { compileRoutes } from "./compile-routes.ts";
+import { imageRoutes } from "./image-routes.ts";
 import { versionRoutes } from "./version-routes.ts";
 import { compareRoutes } from "./compare-routes.ts";
 import { statsRoutes } from "./stats.ts";
@@ -175,6 +176,7 @@ export function novelRoutes(library: Library, workspaces: Workspaces, github?: G
   );
 
   bibleRoutes(routes);
+  imageRoutes(routes, library);
   issueRoutes(routes);
   compileRoutes(routes);
   versionRoutes(routes);
@@ -229,7 +231,7 @@ function filePath(c: Context): string {
   }
 }
 
-const STATUS = { BAD_PATH: 400, NOT_FOUND: 404, NOT_TEXT: 415, TOO_LARGE: 413, NOT_WRITABLE: 400 } as const;
+const STATUS = { BAD_PATH: 400, NOT_FOUND: 404, NOT_TEXT: 415, TOO_LARGE: 413, NOT_WRITABLE: 400, NOT_IMAGE: 415 } as const;
 
 
 const CHECKPOINT_STATUS = { BAD_NAME: 400, NOT_FOUND: 404, SCENE_NOT_FOUND: 404, BLOCKED: 409 } as const;

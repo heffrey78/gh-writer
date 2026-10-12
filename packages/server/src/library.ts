@@ -14,6 +14,8 @@ export interface LibraryEntry {
   title: string;
   /** The author named in novel.yaml, if any. */
   author?: string;
+  /** The cover named in novel.yaml, a path in the novel (images/cover.jpg), if any. */
+  cover?: string;
   /** The origin remote, without any credentials embedded in it. */
   remote?: string;
   /** ISO timestamp. */
@@ -155,12 +157,21 @@ export class Library {
     const entry = this.get(id);
     if (!entry) throw new LibraryError("UNKNOWN_NOVEL", `No novel ${id} in the library.`);
     entry.lastOpened = new Date().toISOString();
-    // The title and author may have changed since: the shelf shows them.
+    await this.refresh(id);
+  }
+
+  /** Read a novel's title, author and cover from its novel.yaml again: the shelf shows them. */
+  async refresh(id: string): Promise<void> {
+    const entry = this.get(id);
+    if (!entry) throw new LibraryError("UNKNOWN_NOVEL", `No novel ${id} in the library.`);
     const cover = await coverOf(entry.path);
     if (cover) {
       entry.title = cover.title;
-      if (cover.author) entry.author = cover.author;
-      else delete entry.author;
+      for (const key of ["author", "cover"] as const) {
+        const value = cover[key];
+        if (value) entry[key] = value;
+        else delete entry[key];
+      }
     }
     await this.#save();
   }
@@ -253,13 +264,15 @@ export class Library {
 }
 
 /** The title and author in a novel's novel.yaml (the title defaults to the folder's name), or undefined without one. */
-async function coverOf(path: string): Promise<{ title: string; author?: string } | undefined> {
+/** What the shelf shows of a novel, from its novel.yaml: the title, the author and the cover image's path. */
+async function coverOf(path: string): Promise<{ title: string; author?: string; cover?: string } | undefined> {
   const yaml = await readFile(join(path, "novel.yaml"), "utf8").catch(() => undefined);
   if (yaml === undefined) return undefined;
-  const data = parseYaml(yaml, "novel.yaml").data as { title?: unknown; author?: unknown } | undefined;
+  const data = parseYaml(yaml, "novel.yaml").data as { title?: unknown; author?: unknown; cover?: unknown } | undefined;
   const title = typeof data?.title === "string" && data.title.trim() ? data.title.trim() : basename(path);
   const author = typeof data?.author === "string" ? data.author.trim() : "";
-  return { title, ...(author ? { author } : {}) };
+  const cover = typeof data?.cover === "string" ? data.cover.trim() : "";
+  return { title, ...(author ? { author } : {}), ...(cover ? { cover } : {}) };
 }
 
 /** https://user:token@host/… → https://host/… (an ssh URL's user is not a secret, and stays). */
