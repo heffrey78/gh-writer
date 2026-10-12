@@ -297,6 +297,7 @@ export async function loadNovel(source: FileSource): Promise<Novel> {
       aliases: strList(d["aliases"]),
       summary: str(d["summary"]),
       image: str(d["image"]),
+      imageFocus: focus(d["image_focus"]),
       fields,
       tags: strList(d["tags"]),
       body: md.body,
@@ -364,6 +365,12 @@ function isObject(v: unknown): v is Record<string, unknown> {
 
 function str(v: unknown): string | undefined {
   return typeof v === "string" ? v : undefined;
+}
+
+/** A focal point: two fractions, x and y; anything else (the schema reports it) is none. */
+function focus(v: unknown): [number, number] | undefined {
+  if (!Array.isArray(v) || v.length !== 2 || !v.every((n) => typeof n === "number" && n >= 0 && n <= 1)) return undefined;
+  return [v[0], v[1]];
 }
 
 function strList(v: unknown): string[] {

@@ -97,7 +97,10 @@ export interface Entity {
   name: string;
   aliases: string[];
   summary?: string;
+  /** A picture: a repository path (the app saves them under images/). */
   image?: string;
+  /** Where thumbnails of the picture centre: x and y, fractions of its width and height. */
+  imageFocus?: [number, number];
   fields: Record<string, string | number | boolean>;
   tags: string[];
   body: string;

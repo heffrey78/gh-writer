@@ -53,6 +53,40 @@ describe("validate", () => {
     expect((await fixture()).diagnostics).toEqual([]);
   });
 
+  it("W_MISSING_IMAGE for a cover or an entry's picture that isn't in the repository", async () => {
+    const present = await fixture({
+      "novel.yaml": `${NOVEL}cover: images/cover.jpg\n`,
+      "images/cover.jpg": "\xff\xd8",
+      "bible/characters/ada.md": "---\nid: char_aaaaaa\nname: Ada\nimage: images/ada.jpg\nimage_focus: [0.5, 0.3]\n---\n",
+      "images/ada.jpg": "\xff\xd8",
+    });
+    expect(present.diagnostics).toEqual([]);
+    expect(present.novel.config?.cover).toBe("images/cover.jpg");
+    expect(present.novel.entities.find((e) => e.id === "char_aaaaaa")).toMatchObject({ image: "images/ada.jpg", imageFocus: [0.5, 0.3] });
+
+    const missing = await fixture({
+      "novel.yaml": `${NOVEL}cover: images/cover.jpg\n`,
+      "bible/characters/ada.md": "---\nid: char_aaaaaa\nname: Ada\nimage: bible/images/ada.jpg\n---\n",
+      "images/other.jpg": "\xff\xd8",
+    });
+    expect(missing.diagnostics).toMatchObject([
+      { code: "W_MISSING_IMAGE", file: "bible/characters/ada.md", pointer: "/image", message: "Ada's picture, bible/images/ada.jpg, isn't in the repository" },
+      { code: "W_MISSING_IMAGE", file: "novel.yaml", pointer: "/cover", message: "The cover, images/cover.jpg, isn't in the repository" },
+    ]);
+  });
+
+  it("E_SCHEMA for a cover that isn't a repository path, or a focal point outside the picture", async () => {
+    const r = await fixture({
+      "novel.yaml": `${NOVEL}cover: /home/me/cover.jpg\n`,
+      "bible/characters/ada.md": "---\nid: char_aaaaaa\nname: Ada\nimage_focus: [0.5, 1.2]\n---\n",
+    });
+    expect(r.diagnostics.map((d) => [d.code, d.file])).toEqual([
+      ["E_SCHEMA", "bible/characters/ada.md"],
+      ["E_SCHEMA", "novel.yaml"],
+    ]);
+    expect(r.novel.entities.find((e) => e.id === "char_aaaaaa")?.imageFocus).toBeUndefined();
+  });
+
   it("E_DUPLICATE_ID across files and within a file", async () => {
     const r = await fixture({ "bible/characters/cal.md": "---\nid: char_aaaaaa\nname: Cal\n---\n" });
     expect(r.diagnostics).toMatchObject([{ code: "E_DUPLICATE_ID", file: "bible/characters/cal.md" }]);

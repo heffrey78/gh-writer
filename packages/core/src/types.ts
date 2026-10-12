@@ -10,6 +10,8 @@ export interface NovelFile {
   id: string;
   title: string;
   author?: string;
+  /** The cover image, a repository path (the app saves images/cover.jpg). */
+  cover?: string;
   /** BCP 47; default "en". */
   language?: string;
   /** The length to reach, by when, and the words a day aimed for. */
@@ -90,6 +92,8 @@ export interface EntityFrontMatter {
   aliases?: string[];
   summary?: string;
   image?: string;
+  /** Where thumbnails of the image centre: x and y, fractions of its width and height. */
+  image_focus?: [number, number];
   fields?: Record<string, string | number | boolean>;
   tags?: string[];
 }

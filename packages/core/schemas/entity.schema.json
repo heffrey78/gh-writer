@@ -8,7 +8,14 @@
     "name": { "$ref": "common.schema.json#/$defs/nonEmptyText" },
     "aliases": { "$ref": "common.schema.json#/$defs/tags" },
     "summary": { "$ref": "common.schema.json#/$defs/text" },
-    "image": { "type": "string", "pattern": "^[^/].*" },
+    "image": { "$ref": "common.schema.json#/$defs/repoPath" },
+    "image_focus": {
+      "description": "Where thumbnails of the picture centre: x and y, as fractions of its width and height.",
+      "type": "array",
+      "items": { "type": "number", "minimum": 0, "maximum": 1 },
+      "minItems": 2,
+      "maxItems": 2
+    },
     "fields": {
       "type": "object",
       "additionalProperties": { "type": ["string", "number", "boolean"] }

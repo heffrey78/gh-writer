@@ -17,6 +17,10 @@
     "author": {
       "$ref": "common.schema.json#/$defs/text"
     },
+    "cover": {
+      "$ref": "common.schema.json#/$defs/repoPath",
+      "description": "The book's cover image (JPEG or PNG), for the library shelf, e-books and PDFs, e.g. images/cover.jpg."
+    },
     "language": {
       "type": "string",
       "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$",

@@ -31,6 +31,7 @@ export const RULES: Readonly<Record<string, Severity>> = {
   W_REL_SELF: "warning",
   W_LAYOUT_UNKNOWN: "warning",
   W_TIME_OVERLAP: "warning",
+  W_MISSING_IMAGE: "warning",
 };
 
 export interface ValidationResult {
@@ -43,7 +44,7 @@ export interface ValidationResult {
 /** Load and fully validate a novel repository. */
 export async function validate(source: FileSource): Promise<ValidationResult> {
   const novel = await loadNovel(source);
-  const diagnostics = sortDiagnostics([...novel.diagnostics, ...validateNovel(novel)]);
+  const diagnostics = sortDiagnostics([...novel.diagnostics, ...validateNovel(novel), ...(await missingImages(novel, source))]);
   const errors = diagnostics.filter((d) => d.severity === "error").length;
   return { novel, diagnostics, errors, warnings: diagnostics.length - errors };
 }
@@ -198,6 +199,32 @@ export function validateNovel(novel: Novel): Diagnostic[] {
   }
   for (const c of novel.chapters) checkPrefixes(novel.scenes.filter((s) => s.chapterId === c.id), "Scene file");
 
+  return out;
+}
+
+/**
+ * Pictures named by the cover and the bible's entries that aren't in the repository. Found by listing
+ * their folders rather than reading them: images can be large, and aren't text.
+ */
+async function missingImages(novel: Novel, source: FileSource): Promise<Diagnostic[]> {
+  if (novel.diagnostics.some((d) => d.code === "E_SCHEMA_VERSION")) return [];
+  const listings = new Map<string, Promise<Set<string>>>();
+  const exists = (path: string) => {
+    const slash = path.lastIndexOf("/");
+    const dir = slash < 0 ? "" : path.slice(0, slash);
+    if (!listings.has(dir)) listings.set(dir, source.list(dir).then((entries) => new Set(entries.filter((e) => !e.dir).map((e) => e.name))));
+    return listings.get(dir)!.then((names) => names.has(path.slice(slash + 1)));
+  };
+  const wanted = [
+    ...(novel.config?.cover ? [{ path: novel.config.cover, file: "novel.yaml", pointer: "/cover", what: "The cover" }] : []),
+    ...novel.entities.flatMap((e) => (e.image ? [{ path: e.image, file: e.file, pointer: "/image", what: `${e.name}'s picture` }] : [])),
+  ];
+  const out: Diagnostic[] = [];
+  for (const w of wanted) {
+    // A path that isn't a plain repository path is the schema's to report.
+    if (/^\/|\\|(^|\/)\.\.?(\/|$)/.test(w.path)) continue;
+    if (!(await exists(w.path))) out.push({ severity: "warning", code: "W_MISSING_IMAGE", file: w.file, pointer: w.pointer, message: `${w.what}, ${w.path}, isn't in the repository` });
+  }
   return out;
 }
 
