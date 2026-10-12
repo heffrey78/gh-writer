@@ -118,9 +118,10 @@ test("lists every scene that refers to a character, and asks before deleting one
   const naming = scenes(join(novel.dir, "manuscript"))
     .filter((f) => readFileSync(f, "utf8").includes(ADA))
     .map((f) => /^title: (.*)$/m.exec(readFileSync(f, "utf8"))![1]!);
-  const listed = page.getByRole("region", { name: "In the story" }).getByRole("listitem").filter({ has: page.getByRole("link") });
+  // On the strip, each scene she's in is a link to it.
+  const listed = page.getByRole("region", { name: "In the story" }).getByRole("list", { name: "Scenes, in reading order" }).getByRole("link");
   await expect(listed).toHaveCount(naming.length);
-  for (const title of naming) await expect(listed.filter({ hasText: title })).toHaveCount(1);
+  for (const title of naming) await expect(listed.and(page.getByRole("link", { name: new RegExp(`^${title.replace(/[?]/g, "\\?")}: `) }))).toHaveCount(1);
   await expect(page.getByRole("list", { name: "All relationships" })).toContainText("Rivals with Ben Varn, from “The Betrayal”");
 
   await page.getByRole("button", { name: "Delete", exact: true }).click();
@@ -170,4 +171,31 @@ test("searches the bible by name and alias", async ({ page, app }) => {
   await axe(page);
   await page.emulateMedia({ colorScheme: "dark" });
   await axe(page);
+});
+
+test("in the story: a strip of every scene, marking where the entry carries it, is in it or is mentioned", async ({ page, app }) => {
+  await open(page, app);
+  await page.goto(`${app.url}${new URL(app.launchUrl).pathname.replace(/\/chapter.*$/, "")}/bible/${ADA}`);
+  const story = page.getByRole("region", { name: "In the story" });
+  const strip = story.getByRole("list", { name: "Scenes, in reading order" });
+  // Her point of view in all but The Flood, where she's in the scene.
+  await expect(strip.getByRole("listitem")).toHaveCount(8);
+  await expect(strip.getByRole("link")).toHaveText(["", "", "", "", "", "", "", ""]);
+  await expect(strip.getByRole("link", { name: "The Station: point of view" })).toBeVisible();
+  await expect(strip.getByRole("link", { name: "The Flood: in the scene" })).toBeVisible();
+  await expect(story.getByRole("list", { name: "Key" }).getByRole("listitem")).toHaveText(["Point of view", "In the scene", "Mentioned", "Not there"]);
+  await expect(story).toContainText("In all 8 scenes, from “The Station” to “The Last Rivet”; point of view in 7.");
+  await expect(story).toContainText("Off the page: ");
+  await axe(page);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await axe(page);
+  await page.emulateMedia({ colorScheme: "light" });
+
+  // A place, with an absence; and a mark opens its scene.
+  await page.goto(`${app.url}${new URL(app.launchUrl).pathname.replace(/\/chapter.*$/, "")}/bible/loc_w0rk5p`);
+  await expect(story).toContainText("In 2 of 8 scenes, from “Tomas's Workshop” to “Mirela's Offer”.");
+  await expect(story).toContainText("Longest absence: 3 scenes, “Ben's Ledger” to “The Flood”.");
+  await expect(strip.getByRole("listitem").filter({ hasText: "Ben's Ledger: not there" })).toHaveCount(1);
+  await strip.getByRole("link", { name: "Mirela's Offer: set here" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Mirela's Offer" })).toBeVisible();
 });

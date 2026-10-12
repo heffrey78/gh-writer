@@ -1,5 +1,5 @@
 import type { EntityFields, Reference } from "@gh-writer/client";
-import { backlinks, entityOfLabel, type Entity, type Novel, type Relationship, type SceneLink } from "@gh-writer/core";
+import { entityOfLabel, type Entity, type Novel, type Relationship, type SceneLink } from "@gh-writer/core";
 import { useGitHubRepo } from "../github/repo.ts";
 import { EntryIssues } from "../issues/entry-issues.tsx";
 import { useIssueList } from "../issues/use-issues.ts";
@@ -17,6 +17,7 @@ import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { AddButton, EditorButtons, EditorFrame, PencilButton, TextEditor, useInPlace, type InPlace } from "./profile.tsx";
 import { RelationshipsPanel } from "./relationships.tsx";
+import { InTheStory } from "./strip.tsx";
 import { mentionEntities, typeOf } from "./types.ts";
 
 const VIA: Record<SceneLink, string> = { pov: "point of view", characters: "present", locations: "set here", entities: "present", plotlines: "plotline", themes: "theme", mention: "mentioned" };
@@ -52,8 +53,7 @@ export function EntryPage({
   const type = typeOf(novel, entity);
   const file = useStore(workspace.store, (s) => s.files[entity.file]);
   const mentions = useMemo(() => mentionEntities(novel), [novel]);
-  const links = useMemo(() => backlinks(novel, entity.id), [novel, entity.id]);
-  const ids = { notes: useId(), links: useId() };
+  const ids = { notes: useId() };
   const place = useInPlace(startEditing);
 
   useEffect(() => void workspace.open([entity.file]), [workspace, entity.file]);
@@ -246,25 +246,7 @@ export function EntryPage({
 
       <EntryIssues novelId={novelId} novel={novel} entity={entity} />
 
-      <section aria-labelledby={`${ids.links}-h`} className="grid gap-2 border-t border-rule pt-4">
-        <h2 id={`${ids.links}-h`} className="text-xs font-semibold tracking-wide text-muted uppercase">
-          In the story
-        </h2>
-        {links.scenes.length ? (
-          <ul className="grid gap-1 text-sm">
-            {links.scenes.map(({ scene, via }) => (
-              <li key={scene.id}>
-                <Link to={`/novels/${novelId}/scene/${scene.id}`} className="font-medium text-accent underline-offset-2 hover:underline">
-                  {scene.title}
-                </Link>
-                <span className="text-muted"> · {via.map((v) => VIA[v]).join(", ")}</span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-muted">No scene refers to {entity.name} yet.</p>
-        )}
-      </section>
+      <InTheStory novelId={novelId} novel={novel} entity={entity} />
 
       <RelationshipsPanel novelId={novelId} novel={novel} entity={entity} />
 
