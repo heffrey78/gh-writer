@@ -1,9 +1,10 @@
 import { numberWords, type Block, type Book, type Run } from "@gh-writer/core";
+import type { CoverImage } from "./cover.ts";
 import { isoSeconds, xml } from "./xml.ts";
 import { zip, type ZipEntry } from "./zip.ts";
 
 /*
- * The book as an EPUB 3 e-book: a title page, front matter, a page for each part, a file per
+ * The book as an EPUB 3 e-book: its cover (if it has one), a title page, front matter, a page for each part, a file per
  * chapter, back matter, a navigation document (the table of contents, chapters under their parts)
  * and a small stylesheet. Metadata from novel.yaml; its identifier the novel's ID, so editions of
  * one novel are known as one book.
@@ -12,6 +13,8 @@ import { zip, type ZipEntry } from "./zip.ts";
 export interface EpubOptions {
   /** dcterms:modified (and the zip's dates): the commit's, so the same commit gives the same file. */
   date?: Date;
+  /** The book's cover: the first page, and the image reading systems show for the book. */
+  cover?: CoverImage;
 }
 
 interface Page {
@@ -25,9 +28,14 @@ interface Page {
   toc: boolean;
 }
 
-export function toEpub(book: Book, { date = new Date(0) }: EpubOptions = {}): Uint8Array {
+export function toEpub(book: Book, { date = new Date(0), cover }: EpubOptions = {}): Uint8Array {
   const pages: Page[] = [];
   const add = (page: Omit<Page, "file">) => pages.push({ ...page, file: `${page.id}.xhtml` });
+
+  const image = cover && { href: `images/cover.${cover.type === "image/png" ? "png" : "jpg"}`, type: cover.type };
+  if (image) {
+    add({ id: "cover", title: "Cover", toc: false, level: 0, body: `<section epub:type="cover" class="cover"><img src="${image.href}" alt="${xml(`The cover of ${book.title}`)}"/></section>` });
+  }
 
   add({
     id: "title",
@@ -55,9 +63,11 @@ export function toEpub(book: Book, { date = new Date(0) }: EpubOptions = {}): Ui
   const entries: ZipEntry[] = [
     { path: "mimetype", data: "application/epub+zip", store: true },
     { path: "META-INF/container.xml", data: container },
-    { path: "OEBPS/content.opf", data: opf(book, pages, date) },
+    { path: "OEBPS/content.opf", data: opf(book, pages, date, image) },
     { path: "OEBPS/nav.xhtml", data: page("Contents", nav(pages)) },
     { path: "OEBPS/style.css", data: css },
+    // Already compressed: stored as it is.
+    ...(cover && image ? [{ path: `OEBPS/${image.href}`, data: cover.bytes, store: true }] : []),
     ...pages.map((p) => ({ path: `OEBPS/${p.file}`, data: page(p.title, p.body) })),
   ];
   return zip(entries, date);
@@ -105,14 +115,20 @@ function nav(pages: Page[]): string {
   }
   if (open) items.push("</ol></li>");
   // A contents list can't be empty: with nothing else, the title page.
-  if (!items.length && pages[0]) items.push(`<li><a href="${pages[0].file}">${xml(pages[0].title)}</a></li>`);
-  return `<nav epub:type="toc" id="toc"><h1>Contents</h1><ol>${items.join("")}</ol></nav>`;
+  const titlePage = pages.find((p) => p.id === "title");
+  if (!items.length && titlePage) items.push(`<li><a href="${titlePage.file}">${xml(titlePage.title)}</a></li>`);
+  const toc = `<nav epub:type="toc" id="toc"><h1>Contents</h1><ol>${items.join("")}</ol></nav>`;
+  // Where the book starts: reading systems open a book with a cover there, and offer a way to it.
+  const cover = pages.find((p) => p.id === "cover");
+  const start = pages.find((p) => p.toc) ?? titlePage;
+  const landmarks = cover && start ? `<nav epub:type="landmarks" id="landmarks" hidden=""><h2>Landmarks</h2><ol><li><a epub:type="cover" href="${cover.file}">Cover</a></li><li><a epub:type="bodymatter" href="${start.file}">Start</a></li></ol></nav>` : "";
+  return toc + landmarks;
 }
 
-function opf(book: Book, pages: Page[], date: Date): string {
+function opf(book: Book, pages: Page[], date: Date, image: { href: string; type: string } | undefined): string {
   const id = book.id ? `urn:gh-writer:${book.id}` : `urn:gh-writer:${xml(book.title)}`;
   return `<?xml version="1.0" encoding="UTF-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id" xml:lang="${xml(book.language)}"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">${xml(id)}</dc:identifier><dc:title>${xml(book.title)}</dc:title>${book.author ? `<dc:creator>${xml(book.author)}</dc:creator>` : ""}<dc:language>${xml(book.language)}</dc:language><meta property="dcterms:modified">${isoSeconds(date)}</meta></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="style" href="style.css" media-type="text/css"/>${pages.map((p) => `<item id="${p.id}" href="${p.file}" media-type="application/xhtml+xml"/>`).join("")}</manifest><spine>${pages.map((p) => `<itemref idref="${p.id}"/>`).join("")}</spine></package>`;
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id" xml:lang="${xml(book.language)}"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">${xml(id)}</dc:identifier><dc:title>${xml(book.title)}</dc:title>${book.author ? `<dc:creator>${xml(book.author)}</dc:creator>` : ""}<dc:language>${xml(book.language)}</dc:language><meta property="dcterms:modified">${isoSeconds(date)}</meta>${image ? '<meta name="cover" content="cover-image"/>' : ""}</metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="style" href="style.css" media-type="text/css"/>${image ? `<item id="cover-image" href="${image.href}" media-type="${image.type}" properties="cover-image"/>` : ""}${pages.map((p) => `<item id="${p.id}" href="${p.file}" media-type="application/xhtml+xml"/>`).join("")}</manifest><spine>${pages.map((p) => `<itemref idref="${p.id}"/>`).join("")}</spine></package>`;
 }
 
 const container = `<?xml version="1.0" encoding="UTF-8"?>
@@ -129,4 +145,6 @@ blockquote em { font-style: normal; }
 .titlepage h1 { font-size: 2em; margin: 0 0 1em; page-break-before: auto; }
 .author, .part-title { text-align: center; text-indent: 0; }
 .part { text-align: center; margin-top: 30%; }
+.cover { margin: 0; padding: 0; text-align: center; }
+.cover img { max-width: 100%; max-height: 100%; }
 `;

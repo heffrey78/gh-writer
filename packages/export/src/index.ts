@@ -1,3 +1,4 @@
+export { coverImage, pdfCover, readCover, type CoverImage } from "./cover.ts";
 export { toDocx, type DocxOptions } from "./docx.ts";
 export { toEpub, type EpubOptions } from "./epub.ts";
 export { commitDate, fileName, FORMATS, isFormat, MEDIA_TYPES, render, type Format, type Rendered } from "./files.ts";

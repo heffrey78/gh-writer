@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -52,6 +52,10 @@ describe("novel template", () => {
   it("the vendored compiler makes the same files, byte for byte, as the app's compiler from the same commit", async () => {
     const novel = join(tmp, "compile-sample");
     cpSync(join(repo, "examples/sample-novel"), novel, { recursive: true });
+    // With a cover, and the kind the PDF has to flatten: a PNG with transparency.
+    mkdirSync(join(novel, "images"));
+    cpSync(join(repo, "packages/export/test/fixtures/cover-alpha.png"), join(novel, "images/cover.png"));
+    appendFileSync(join(novel, "novel.yaml"), "cover: images/cover.png\n");
     for (const args of [["init", "-q"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "Draft"]]) spawnSync("git", ["-C", novel, ...args]);
     // In another clock zone than this process's, as GitHub's (UTC) and the author's machine may be.
     const bundled = node([join(template, ".github/gh-writer/compile.mjs"), novel, "--out", join(tmp, "by-bundle")], repo, { TZ: "Pacific/Kiritimati" });
@@ -61,6 +65,8 @@ describe("novel template", () => {
     expect(files).toEqual(["the-bridge-at-varn.docx", "the-bridge-at-varn.epub", "the-bridge-at-varn.pdf"]);
     expect(readdirSync(join(tmp, "by-bundle")).sort()).toEqual(files);
     for (const f of files) expect(readFileSync(join(tmp, "by-bundle", f)).equals(readFileSync(join(tmp, "by-app", f))), f).toBe(true);
+    // The cover went in (a zip's file names are plain in its headers).
+    expect(readFileSync(join(tmp, "by-app", "the-bridge-at-varn.epub")).includes("OEBPS/images/cover.png")).toBe(true);
   }, 60_000);
 
   it("compiles named checkpoints into a Release, and on demand with a preset and range", () => {

@@ -1,6 +1,6 @@
 import { compileBook, CompileError } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
-import { commitDate, fileName, isFormat, MEDIA_TYPES, render } from "@gh-writer/export";
+import { commitDate, fileName, isFormat, MEDIA_TYPES, readCover, render } from "@gh-writer/export";
 import type { Hono } from "hono";
 import { body, type Env } from "./bible-routes.ts";
 
@@ -9,7 +9,8 @@ import { body, type Env } from "./bible-routes.ts";
  *
  * Compiles what's saved on disk. Its dates are the latest commit's when everything saved is
  * committed (so the same commit compiles to the same file here and in the novel's GitHub Action),
- * otherwise now. X-Missing-Characters lists what the PDF's type has no letter for.
+ * otherwise now. X-Missing-Characters lists what the PDF's type has no letter for. The cover in
+ * novel.yaml goes on EPUBs and PDFs; X-Cover-Problem says why it couldn't (a missing file…).
  * Refusals: 400 BAD_REQUEST (an unknown format, preset or chapter).
  */
 
@@ -28,12 +29,14 @@ export function compileRoutes(routes: Hono<Env>): void {
       if (e instanceof CompileError) return c.json({ code: "BAD_REQUEST", error: e.message }, 400);
       throw e;
     }
-    const { bytes, missing } = await render(book, format, { date: await commitDate(ws.root) });
+    const { cover, problem } = format === "docx" ? {} : await readCover(ws.root, novel);
+    const { bytes, missing } = await render(book, format, { date: await commitDate(ws.root), cover });
     return new Response(Buffer.from(bytes), {
       headers: {
         "content-type": MEDIA_TYPES[format],
         "content-disposition": `attachment; filename="${fileName(book, novel.chapters.length, format)}"`,
         "x-missing-characters": encodeURIComponent(missing.join("")),
+        ...(problem ? { "x-cover-problem": encodeURIComponent(problem) } : {}),
         "cache-control": "no-store",
       },
     });

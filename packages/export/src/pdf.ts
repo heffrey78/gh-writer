@@ -4,9 +4,10 @@ import { numberWords, type Block, type Book, type Run } from "@gh-writer/core";
 import { zlibSync } from "fflate";
 import * as fontkit from "fontkit";
 import PDFDocument from "pdfkit";
+import { pdfCover, type CoverImage } from "./cover.ts";
 
 /*
- * The book as a PDF, laid out like the DOCX (standard manuscript format): Letter pages, 1-inch
+ * The book as a PDF, laid out like the DOCX (standard manuscript format), after its cover if it has one: Letter pages, 1-inch
  * margins, 12 pt type double-spaced with first lines indented half an inch, a title page without a
  * header, then Surname / SHORT TITLE / page at the top right; each chapter on a new page, its heading
  * a third of the way down; scene breaks centred; "THE END". The type is Liberation Serif (SIL Open Font
@@ -26,6 +27,8 @@ export interface PdfOptions {
   date?: Date;
   /** Default: Liberation Serif, shipped with gh-writer. */
   fonts?: PdfFonts;
+  /** The book's cover, alone on the first page. */
+  cover?: CoverImage;
 }
 
 export interface PdfResult {
@@ -72,7 +75,7 @@ function portableDeflate<T>(fn: () => T): T {
   }
 }
 
-export function toPdf(book: Book, { date = new Date(0), fonts = defaultFonts() }: PdfOptions = {}): Promise<PdfResult> {
+export function toPdf(book: Book, { date = new Date(0), fonts = defaultFonts(), cover }: PdfOptions = {}): Promise<PdfResult> {
   const doc = new PDFDocument({
     size: [PAGE.width, PAGE.height],
     margins: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN },
@@ -133,6 +136,14 @@ export function toPdf(book: Book, { date = new Date(0), fonts = defaultFonts() }
     }
   };
 
+  // The cover, as large as the page allows, centred; the manuscript starts on the next page.
+  const coverBytes = cover && pdfCover(cover);
+  if (coverBytes) {
+    // An image is embedded as it is (its own filter), but under fflate all the same, should pdfkit deflate anything here.
+    portableDeflate(() => doc.image(Buffer.from(coverBytes), 0, 0, { fit: [PAGE.width, PAGE.height], align: "center", valign: "center" }));
+    newPage();
+  }
+
   // Title page: contact details top left (single-spaced), word count top right, title and byline centred.
   doc.y = MARGIN;
   const top = doc.y;
@@ -169,11 +180,12 @@ export function toPdf(book: Book, { date = new Date(0), fonts = defaultFonts() }
   }
   for (const s of book.back) section(s.title, s.blocks);
 
-  // The running header, from page 2, once every page is there.
+  // The running header, from the manuscript's page 2 (the title page is its page 1), once every page is there.
   const range = doc.bufferedPageRange();
-  for (let i = range.start + 1; i < range.start + range.count; i++) {
+  const titlePage = range.start + (coverBytes ? 1 : 0);
+  for (let i = titlePage + 1; i < range.start + range.count; i++) {
     doc.switchToPage(i);
-    const header = `${book.header.surname} / ${book.header.shortTitle} / ${i - range.start + 1}`;
+    const header = `${book.header.surname} / ${book.header.shortTitle} / ${i - titlePage + 1}`;
     check(header, "regular");
     // In the top margin: no new page for writing there.
     const bottom = doc.page.margins.bottom;

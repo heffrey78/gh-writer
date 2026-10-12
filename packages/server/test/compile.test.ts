@@ -1,3 +1,5 @@
+import { appendFileSync, copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { strFromU8, unzipSync } from "fflate";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServer, Library, sessionCookie } from "../src/index.ts";
@@ -44,6 +46,30 @@ describe("POST /api/novels/:id/compile", () => {
       const bad = await compile(server.port, novel.id, { format: "docx", preset: "nope" });
       expect(bad.status).toBe(400);
       expect(JSON.parse(strFromU8(bad.bytes))).toMatchObject({ code: "BAD_REQUEST", error: expect.stringContaining("nope") });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("puts novel.yaml's cover on the EPUB and the PDF, not the Word file, and says when it can't", async () => {
+    const dir = novelRepo(fresh("novel"));
+    mkdirSync(join(dir, "images"));
+    copyFileSync(new URL("../../export/test/fixtures/cover.jpg", import.meta.url), join(dir, "images/cover.jpg"));
+    appendFileSync(join(dir, "novel.yaml"), "cover: images/cover.jpg\n");
+    const library = await Library.open({ configDir: fresh("config") });
+    const novel = await library.add(dir);
+    const server = await createServer({ library, token: "t", sync: false, commit: false });
+    try {
+      const epub = await compile(server.port, novel.id, { format: "epub" });
+      expect(epub.headers.get("x-cover-problem")).toBeNull();
+      expect(Object.keys(unzipSync(epub.bytes))).toContain("OEBPS/images/cover.jpg");
+      expect(Object.keys(unzipSync((await compile(server.port, novel.id, { format: "docx" })).bytes)).some((f) => f.includes("cover"))).toBe(false);
+
+      const yaml = join(dir, "novel.yaml");
+      writeFileSync(yaml, readFileSync(yaml, "utf8").replace("cover: images/cover.jpg", "cover: images/gone.jpg"));
+      const pdf = await compile(server.port, novel.id, { format: "pdf" });
+      expect(pdf.status).toBe(200);
+      expect(decodeURIComponent(pdf.headers.get("x-cover-problem")!)).toBe("The cover, images/gone.jpg, isn't there, so the book goes out without it.");
     } finally {
       await server.close();
     }

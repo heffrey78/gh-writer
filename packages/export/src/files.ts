@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { slugify, type Book } from "@gh-writer/core";
+import type { CoverImage } from "./cover.ts";
 import { toDocx } from "./docx.ts";
 import { toEpub } from "./epub.ts";
 import { toPdf, type PdfFonts } from "./pdf.ts";
@@ -27,11 +28,14 @@ export interface Rendered {
   missing: string[];
 }
 
-/** The book in one format. */
-export async function render(book: Book, format: Format, { date, fonts }: { date: Date; fonts?: PdfFonts }): Promise<Rendered> {
+/**
+ * The book in one format. A cover goes on the EPUB and the PDF; Word manuscripts go out without one,
+ * as agents and editors expect.
+ */
+export async function render(book: Book, format: Format, { date, fonts, cover }: { date: Date; fonts?: PdfFonts; cover?: CoverImage | undefined }): Promise<Rendered> {
   if (format === "docx") return { bytes: toDocx(book, { date }), missing: [] };
-  if (format === "epub") return { bytes: toEpub(book, { date }), missing: [] };
-  const { pdf, missing } = await toPdf(book, { date, ...(fonts ? { fonts } : {}) });
+  if (format === "epub") return { bytes: toEpub(book, { date, ...(cover ? { cover } : {}) }), missing: [] };
+  const { pdf, missing } = await toPdf(book, { date, ...(fonts ? { fonts } : {}), ...(cover ? { cover } : {}) });
   return { bytes: pdf, missing };
 }
 
