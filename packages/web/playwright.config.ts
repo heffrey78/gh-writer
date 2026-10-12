@@ -9,7 +9,7 @@ export default defineConfig({
   use: { trace: "retain-on-failure" },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: /performance/ },
-    // The benchmarks run alone, after the rest, so other tests don't compete for the CPU.
-    { name: "performance", use: { ...devices["Desktop Chrome"] }, testMatch: /performance/, dependencies: ["chromium"], fullyParallel: false },
+    // The benchmarks run alone, after the rest and one at a time, so nothing competes with them for the CPU.
+    { name: "performance", use: { ...devices["Desktop Chrome"] }, testMatch: /performance/, dependencies: ["chromium"], fullyParallel: false, workers: 1 },
   ],
 });
