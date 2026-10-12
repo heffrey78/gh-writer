@@ -16,8 +16,8 @@ import type { Workspace } from "../novel/workspace.ts";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
-import { PictureSlot } from "./picture.tsx";
-import { shapeForType } from "./pictures.ts";
+import { Picture, PictureSlot, usePictureUrl } from "./picture.tsx";
+import { pictureAlt, shapeForType } from "./pictures.ts";
 import { AddButton, EditorButtons, EditorFrame, FieldRows, Lead, PencilButton, readField, TextEditor, useInPlace, type InPlace } from "./profile.tsx";
 import { RelationshipArcs } from "./arcs.tsx";
 import { InTheStory } from "./strip.tsx";
@@ -53,8 +53,8 @@ export function EntryPage({
   /** A part to open for editing at once ("name" after a quick entry's Add details). */
   startEditing?: "name";
   /**
-   * How much it shows: the whole page, or the right sidebar's Entry tab (#163), which leaves out the
-   * portrait, delete, issues and the type's own sections, and links to the page instead.
+   * How much it shows: the whole page, or the right sidebar's Entry tab (#163), which shows the
+   * picture (#168) without its slot, leaves out delete, issues and the type's own sections, and links to the page instead.
    */
   size?: "page" | "tab";
 }) {
@@ -66,6 +66,8 @@ export function EntryPage({
   const mentions = useMemo(() => mentionEntities(novel), [novel]);
   const ids = { notes: useId() };
   const place = useInPlace(startEditing);
+  const shape = shapeForType(entity.type);
+  const picture = usePictureUrl(novelId, entity.image);
 
   useEffect(() => void workspace.open([entity.file]), [workspace, entity.file]);
 
@@ -136,14 +138,16 @@ export function EntryPage({
   return (
     <div className={embedded ? (tab ? "grid gap-4" : "grid gap-5") : "mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] gap-5 px-6 py-6"}>
       <div className="flex flex-wrap items-start gap-4">
-        {!tab && (
+        {tab ? (
+          picture && <Picture src={picture} alt={pictureAlt(shape, entity.name)} focus={entity.imageFocus} className={shape.key === "wide" ? "aspect-video w-32 shrink-0 rounded-md" : "h-[110px] w-[88px] shrink-0 rounded-md"} />
+        ) : (
           <PictureSlot
             novelId={novelId}
             name={entity.name}
-            shape={shapeForType(entity.type)}
+            shape={shape}
             image={entity.image}
             focus={entity.imageFocus}
-            onSave={(picture, focus) => save((b) => api.bible.setPicture(novelId, entity.id, b, picture, focus))}
+            onSave={(image, focus) => save((b) => api.bible.setPicture(novelId, entity.id, b, image, focus))}
             onRemove={() => save((b) => api.bible.removePicture(novelId, entity.id, b))}
           />
         )}

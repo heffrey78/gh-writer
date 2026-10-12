@@ -4,6 +4,8 @@ import type { Editor } from "@tiptap/core";
 import { X } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { create } from "zustand";
+import { Picture, usePictureUrl } from "../bible/picture.tsx";
+import { pictureAlt, shapeForType } from "../bible/pictures.ts";
 import { FieldRows, Lead } from "../bible/profile.tsx";
 import { RelationshipLines } from "../bible/relationship-types.tsx";
 import { typeOf } from "../bible/types.ts";
@@ -47,12 +49,12 @@ export function leaveMention(): void {
 const FIELDS = 4;
 
 /**
- * What's known about a mentioned entity, by the mention: its current name, summary, a few fields,
+ * What's known about a mentioned entity, by the mention: its picture, small and round, its current name, summary, a few fields,
  * and its relationships as they stand at the scene holding the mention. Shown on hover (it stays
  * while pointed at) or with Alt+Enter beside a mention, which moves focus into it; Escape closes
  * it and returns to the text. "Open entry" shows the whole entry in a side panel.
  */
-export function MentionCard({ novel }: { novel: Novel }) {
+export function MentionCard({ novelId, novel }: { novelId: string; novel: Novel }) {
   const card = useMentionCard((s) => s.card);
   const hide = useMentionCard((s) => s.hide);
   const openEntry = useEntryPanel((s) => s.open);
@@ -61,6 +63,7 @@ export function MentionCard({ novel }: { novel: Novel }) {
   const [place, setPlace] = useState<{ left: number; top: number }>();
 
   const entity = card && novel.entities.find((e) => e.id === card.id);
+  const picture = usePictureUrl(novelId, entity?.image);
 
   // Placed under the mention, or above it when there's no room.
   useLayoutEffect(() => {
@@ -120,7 +123,8 @@ export function MentionCard({ novel }: { novel: Novel }) {
       className="fixed z-50 grid w-80 gap-2 rounded-lg border border-rule bg-raised p-4 text-sm text-ink shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
       <div className="flex items-start justify-between gap-2">
-        <div>
+        {entity && picture && <Picture src={picture} alt={pictureAlt(shapeForType(entity.type), entity.name)} focus={entity.imageFocus} className="size-13 shrink-0 rounded-full" />}
+        <div className="flex-1">
           <p className="text-xs text-muted">{type?.label ?? "Unknown entry"}</p>
           <h2 id={headingId} className="font-semibold">
             {entity?.name ?? card.id}

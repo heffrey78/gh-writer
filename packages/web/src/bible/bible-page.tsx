@@ -3,6 +3,8 @@ import { Plus, Search } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { Button } from "../ui/button.tsx";
+import { Picture, usePictureUrl } from "./picture.tsx";
+import { pictureAlt, shapeForType } from "./pictures.ts";
 import { NewEntryDialog, NewTypeDialog } from "./new-entry.tsx";
 import { RelationshipTypes } from "./relationship-types.tsx";
 import { markWords } from "./strip.tsx";
@@ -18,7 +20,7 @@ const SORTS: { key: Sort; label: string }[] = [
 const MARK = { carries: "bg-accent", present: "bg-accent/40", mentioned: "bg-accent/15", absent: "bg-rule/60" } as const;
 
 /**
- * The story bible (#162): every entry as a card, grouped by type, with its summary, a fact or two, a
+ * The story bible (#162): every entry as a card, grouped by type, with its picture (#168), its summary, a fact or two, a
  * small strip of the scenes it's in and how many; searchable by name or other name and sorted by
  * first appearance, name or most scenes.
  */
@@ -124,8 +126,13 @@ export function BiblePage({ novelId, novel }: { novelId: string; novel: Novel })
   );
 }
 
-/** An entry in the gallery: what it is at a glance, opening its profile. */
+/**
+ * An entry in the gallery: what it is at a glance, opening its profile. A portrait sits beside the
+ * name (its initials where there's none); a place's picture is a banner across the card.
+ */
 function EntryCard({ novelId, entity, presence }: { novelId: string; entity: Entity; presence: EntryPresence | undefined }) {
+  const shape = shapeForType(entity.type);
+  const url = usePictureUrl(novelId, entity.image);
   const count = presence?.count ?? 0;
   const n = presence?.scenes.length ?? 0;
   const words = markWords(entity.type);
@@ -138,8 +145,31 @@ function EntryCard({ novelId, entity, presence }: { novelId: string; entity: Ent
   ].slice(0, 2);
   return (
     <Link to={`/novels/${novelId}/bible/${entity.id}`} className="grid content-start gap-2 rounded-lg border border-rule bg-raised px-4 py-3 hover:border-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none">
-      <span className="font-semibold">{entity.name}</span>
-      {entity.summary && <span className="line-clamp-2 font-prose leading-snug">{entity.summary}</span>}
+      {shape.key === "wide" ? (
+        <>
+          {url ? (
+            <Picture src={url} alt={pictureAlt(shape, entity.name)} focus={entity.imageFocus} className="h-24 w-full rounded-md" />
+          ) : (
+            <span className="grid h-24 place-items-center rounded-md bg-panel text-[13px] text-muted">No picture yet</span>
+          )}
+          <span className="font-semibold">{entity.name}</span>
+          {entity.summary && <span className="line-clamp-2 font-prose leading-snug">{entity.summary}</span>}
+        </>
+      ) : (
+        <span className="flex items-start gap-3">
+          {url ? (
+            <Picture src={url} alt={pictureAlt(shape, entity.name)} focus={entity.imageFocus} className="h-[70px] w-14 shrink-0 rounded-md" />
+          ) : (
+            <span aria-hidden className="grid h-[70px] w-14 shrink-0 place-items-center rounded-md bg-panel text-lg font-semibold text-muted">
+              {initials(entity.name)}
+            </span>
+          )}
+          <span className="grid min-w-0 gap-1">
+            <span className="font-semibold">{entity.name}</span>
+            {entity.summary && <span className="line-clamp-2 font-prose leading-snug">{entity.summary}</span>}
+          </span>
+        </span>
+      )}
       {facts.length > 0 && <span className="text-[13px] text-muted">{facts.join(" · ")}</span>}
       <span className="flex items-center gap-2.5">
         {n > 0 && (
@@ -153,4 +183,14 @@ function EntryCard({ novelId, entity, presence }: { novelId: string; entity: Ent
       </span>
     </Link>
   );
+}
+
+/** "AV" for Ada Varn: a card's stand-in for a portrait. */
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter((w) => /\p{L}/u.test(w))
+    .slice(0, 2)
+    .map((w) => [...w.replace(/^\P{L}+/u, "")][0]!.toUpperCase())
+    .join("");
 }

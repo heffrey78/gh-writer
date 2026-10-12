@@ -454,7 +454,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
         />
       )}
       <NameEntryDialog novel={novel} />
-      <MentionCard novel={novel} />
+      <MentionCard novelId={novelId} novel={novel} />
     </div>
   );
 }

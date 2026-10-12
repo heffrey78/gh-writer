@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import { axe, expect, test, type App } from "./fixtures.ts";
@@ -136,4 +136,47 @@ test("refuses an image over GitHub's limit, and a file that isn't an image, befo
   await expect(page.getByRole("alert")).toContainText("notes.pdf isn't an image");
   expect(novel.images()).toEqual([]);
   expect(novel.clean()).toBe("");
+});
+
+test("a portrait on the gallery card, the mention card and the Entry tab; initials and No picture yet without one", async ({ page, app }) => {
+  // Ada has a portrait already, committed with the novel.
+  const dir = app.novelRepo("varn");
+  mkdirSync(join(dir, "images"));
+  copyFileSync(new URL("../../export/test/fixtures/cover.jpg", import.meta.url), join(dir, "images/ada-varn.jpg"));
+  writeFileSync(join(dir, ADA_FILE), readFileSync(join(dir, ADA_FILE), "utf8").replace("\nname: Ada Varn\n", "\nname: Ada Varn\nimage: images/ada-varn.jpg\nimage_focus: [0.5, 0.3]\n"));
+  app.git(dir, "commit", "-qam", "A portrait");
+  app.git(dir, "add", "-A");
+  app.git(dir, "commit", "-qm", "Its file");
+  await app.restart(dir);
+  const novelPath = new URL(app.launchUrl).pathname;
+
+  await page.goto(app.launchUrl.replace(novelPath, `${novelPath}/bible`));
+  const characters = page.getByRole("region", { name: /^Characters/ });
+  const portrait = characters.getByRole("link", { name: /^Portrait of Ada Varn Ada Varn/ }).getByRole("img", { name: "Portrait of Ada Varn" });
+  await expect(portrait).toHaveAttribute("loading", "lazy");
+  await expect(portrait).toHaveCSS("object-position", "50% 30%");
+  await expect.poll(() => portrait.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBe(400);
+  // No portrait: the initials, which say nothing the name doesn't.
+  await expect(characters.getByRole("link", { name: /^Ben Varn/ })).toContainText("BV");
+  await expect(page.getByRole("region", { name: /^Locations/ }).getByRole("link", { name: /^No picture yet The Varn Bridge/ })).toBeVisible();
+  await axe(page);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await axe(page);
+  await page.emulateMedia({ colorScheme: "light" });
+
+  // Beside the text: the mention card, then the Entry tab.
+  await page.goto(app.launchUrl.replace(/\?token=.*/, ""));
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
+  await page.locator('.ghw-mention[data-mention="char_7f3k2q"]').first().hover();
+  const card = page.getByRole("dialog", { name: "Ada Varn" });
+  await expect(card.getByRole("img", { name: "Portrait of Ada Varn" })).toBeVisible();
+  await axe(page);
+  await card.getByRole("button", { name: "Open entry" }).click();
+  const tab = page.getByRole("complementary").getByRole("region", { name: "Ada Varn" });
+  await expect(tab.getByRole("img", { name: "Portrait of Ada Varn" })).toBeVisible();
+  // The tab shows it; changing it is the page's.
+  await expect(tab.getByRole("button", { name: "Change the portrait" })).toHaveCount(0);
+  await axe(page);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await axe(page);
 });

@@ -202,7 +202,7 @@ test("the bible as a gallery: cards with a summary, facts, a strip and a count; 
   const characters = page.getByRole("main").getByRole("region", { name: /^Characters/ });
   const cards = characters.getByRole("listitem").getByRole("link");
   // By first appearance: Ada at the station, Ben on the span, Tomas in his workshop, Mirela at her offer.
-  await expect(cards.locator("span.font-semibold")).toHaveText(["Ada Varn", "Ben Varn", "Tomas Hale", "Mirela Kost"]);
+  await expect(cards.locator("span.font-semibold:not([aria-hidden])")).toHaveText(["Ada Varn", "Ben Varn", "Tomas Hale", "Mirela Kost"]);
   const ada = cards.filter({ hasText: "Ada Varn" });
   await expect(ada).toContainText("Bridge engineer who comes home after twelve years");
   await expect(ada).toContainText("31 · Structural engineer");
@@ -222,9 +222,9 @@ test("the bible as a gallery: cards with a summary, facts, a strip and a count; 
   await sort.focus();
   await page.keyboard.press("ArrowDown");
   await expect(sort).toHaveValue("name");
-  await expect(cards.locator("span.font-semibold")).toHaveText(["Ada Varn", "Ben Varn", "Mirela Kost", "Tomas Hale"]);
+  await expect(cards.locator("span.font-semibold:not([aria-hidden])")).toHaveText(["Ada Varn", "Ben Varn", "Mirela Kost", "Tomas Hale"]);
   await page.keyboard.press("ArrowDown");
-  await expect(cards.locator("span.font-semibold")).toHaveText(["Ada Varn", "Ben Varn", "Tomas Hale", "Mirela Kost"]);
+  await expect(cards.locator("span.font-semibold:not([aria-hidden])")).toHaveText(["Ada Varn", "Ben Varn", "Tomas Hale", "Mirela Kost"]);
   await expect(page).toHaveURL(/sort=most/);
 
   // Search by another name keeps the sort; an entry no scene uses says so.
