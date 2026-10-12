@@ -254,7 +254,7 @@ export function EntryPage({
               markdown={file.body}
               onChange={(md) => workspace.change(entity.file, md)}
               entities={mentions}
-              className={cn("[&_.ghw-prose]:min-h-16 [&_.ghw-prose]:py-1", tab && "[&_.ghw-prose]:text-base [&_.ghw-prose]:leading-normal")}
+              className={cn("ghw-notes", tab && "[--ghw-prose-size:1rem]")}
               {...(spell ? { spell } : {})}
             />
           </div>
