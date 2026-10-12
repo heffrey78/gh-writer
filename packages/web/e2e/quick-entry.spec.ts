@@ -53,6 +53,9 @@ test("@ + a new name makes the character in place: the mention, its file, the sc
   await expect(panel.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("Mira Kostova");
   await expect(panel.getByRole("textbox", { name: "Name", exact: true })).toBeFocused();
   expect(page.url()).toBe(url);
+  // Escape leaves the name as it is, then a second returns to the text.
+  await page.keyboard.press("Escape");
+  await expect(panel.getByRole("button", { name: "Edit name" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
   await expect(saveStatus(page)).toHaveText("Saved");

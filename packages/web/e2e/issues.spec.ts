@@ -412,8 +412,9 @@ test("an entry's open issues on its page, a scene's in its details; renames foll
   await axe(page);
 
   // Renamed: her label follows on GitHub, her issues with it.
+  await page.getByRole("button", { name: "Edit name" }).click();
   await page.getByRole("textbox", { name: "Name", exact: true }).fill("Ada Kost");
-  await page.getByRole("button", { name: "Save details" }).click();
+  await page.keyboard.press("Enter");
   await expect.poll(() => repo.labels.map((l) => l.name), { timeout: 10_000 }).toContain("char/ada-kost");
   expect(repo.labels.map((l) => l.name)).not.toContain("char/ada-varn");
   expect(repo.issues.find((i) => i.title === "Where was Ada at noon?")?.labels).toEqual(["char/ada-kost"]);

@@ -151,7 +151,7 @@ export function EntryTab({
         <p id={headingId}>This entry no longer exists.</p>
       ) : editing ? (
         <>
-          <EntryPage novelId={novelId} novel={novel} entity={entity} workspace={workspace} spell={spell} embedded={{ headingId }} />
+          <EntryPage novelId={novelId} novel={novel} entity={entity} workspace={workspace} spell={spell} embedded={{ headingId }} startEditing="name" />
           <Button size="sm" variant="ghost" className="justify-self-start" onClick={() => setEditing(false)}>
             Back to the sheet
           </Button>

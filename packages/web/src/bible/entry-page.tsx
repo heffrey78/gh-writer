@@ -6,24 +6,28 @@ import { useIssueList } from "../issues/use-issues.ts";
 import { useNotice } from "../novel/notice.tsx";
 import { SceneEditor, type SpellService } from "@gh-writer/editor/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, X } from "lucide-react";
+import { Image, Trash2, X } from "lucide-react";
 import { AlertDialog } from "radix-ui";
-import { useEffect, useId, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useStore } from "zustand";
 import { api, keys } from "../api.ts";
 import type { Workspace } from "../novel/workspace.ts";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
-import { Field } from "../ui/field.tsx";
+import { AddButton, EditorButtons, EditorFrame, PencilButton, TextEditor, useInPlace, type InPlace } from "./profile.tsx";
 import { RelationshipsPanel } from "./relationships.tsx";
 import { mentionEntities, typeOf } from "./types.ts";
 
 const VIA: Record<SceneLink, string> = { pov: "point of view", characters: "present", locations: "set here", entities: "present", plotlines: "plotline", themes: "theme", mention: "mentioned" };
 
-type FieldRow = { key: string; value: string; kind: "string" | "number" | "boolean" };
+type FieldValue = string | number | boolean;
 
-/** A bible entry: its details, its notes, and everywhere the story refers to it. */
+/**
+ * A bible entry as a profile (#158), read first: its type, tags, name and other names, a portrait,
+ * the summary as a lead, its fields as rows, then its notes, issues, scenes and relationships. Each
+ * part edits in place from its pencil (or "+ Add…" while empty), saved to the entry's file at once.
+ */
 export function EntryPage({
   novelId,
   novel,
@@ -31,6 +35,7 @@ export function EntryPage({
   workspace,
   spell,
   embedded,
+  startEditing,
 }: {
   novelId: string;
   novel: Novel;
@@ -39,6 +44,8 @@ export function EntryPage({
   spell?: { service: SpellService; onAddWord: (w: string) => void } | undefined;
   /** Shown in a side panel beside the text: its name is a level-2 heading with this ID, and it takes the panel's width. */
   embedded?: { headingId: string };
+  /** A part to open for editing at once ("name" after a quick entry's Add details). */
+  startEditing?: "name";
 }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -46,25 +53,10 @@ export function EntryPage({
   const file = useStore(workspace.store, (s) => s.files[entity.file]);
   const mentions = useMemo(() => mentionEntities(novel), [novel]);
   const links = useMemo(() => backlinks(novel, entity.id), [novel, entity.id]);
-  const ids = { form: useId(), notes: useId(), links: useId() };
+  const ids = { notes: useId(), links: useId() };
+  const place = useInPlace(startEditing);
 
   useEffect(() => void workspace.open([entity.file]), [workspace, entity.file]);
-
-  // The details form, from the entry as loaded; saved together as one change.
-  const initial = useMemo(
-    () => ({
-      name: entity.name,
-      aliases: entity.aliases.join(", "),
-      summary: entity.summary ?? "",
-      image: entity.image ?? "",
-      tags: entity.tags.join(", "),
-      fields: Object.entries(entity.fields).map(([key, value]): FieldRow => ({ key, value: String(value), kind: typeof value as FieldRow["kind"] })),
-    }),
-    [entity],
-  );
-  const [form, setForm] = useState(initial);
-  useEffect(() => setForm(initial), [initial]);
-  const dirty = JSON.stringify(form) !== JSON.stringify(initial);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: keys.novel(novelId) });
   /** The file's current hash, after any notes still being saved. */
@@ -72,25 +64,12 @@ export function EntryPage({
     await workspace.autosave.flush();
     return workspace.store.getState().files[entity.file]?.hash ?? "";
   };
-
-  const save = useMutation({
-    mutationFn: async () => {
-      const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
-      const changes: EntityFields = {};
-      if (form.name.trim() !== entity.name) changes.name = form.name.trim();
-      if (form.aliases !== initial.aliases) changes.aliases = list(form.aliases);
-      if (form.summary !== initial.summary) changes.summary = form.summary.trim() || null;
-      if (form.image !== initial.image) changes.image = form.image.trim() || null;
-      if (form.tags !== initial.tags) changes.tags = list(form.tags);
-      if (JSON.stringify(form.fields) !== JSON.stringify(initial.fields)) {
-        changes.fields = Object.fromEntries(
-          form.fields.filter((f) => f.key.trim()).map((f) => [f.key.trim(), f.kind === "number" && f.value.trim() !== "" && !Number.isNaN(Number(f.value)) ? Number(f.value) : f.kind === "boolean" ? f.value === "true" : f.value]),
-        );
-      }
-      return api.bible.updateEntity(novelId, entity.id, await base(), changes);
-    },
-    onSuccess: refresh,
-  });
+  /** Save some of the entry's details, then reload the book; throws to say why it couldn't. */
+  const change = async (changes: EntityFields) => {
+    await api.bible.updateEntity(novelId, entity.id, await base(), changes);
+    await refresh();
+  };
+  const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 
   const [references, setReferences] = useState<Reference[]>();
   // On GitHub, the entry's label (if it's there): offered for removal when the entry goes.
@@ -121,86 +100,133 @@ export function EntryPage({
     },
   });
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (dirty && form.name.trim()) save.mutate();
+  const fields = Object.entries(entity.fields);
+  /** The fields with one changed, added (`at` past the end) or removed (`to` undefined), in their order. */
+  const withField = (at: number, to: [string, FieldValue] | undefined) => {
+    const next = [...fields];
+    if (to === undefined) next.splice(at, 1);
+    else next.splice(at, 1, to);
+    return Object.fromEntries(next);
   };
-  const setField = (i: number, patch: Partial<FieldRow>) => setForm((f) => ({ ...f, fields: f.fields.map((row, j) => (j === i ? { ...row, ...patch } : row)) }));
 
+  const Heading = embedded ? "h2" : "h1";
   return (
-    <div className={embedded ? "grid gap-6" : "mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] gap-6 px-6 py-6"}>
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <p className="text-sm text-muted">
-            <Link to={`/novels/${novelId}/bible`} className="underline-offset-2 hover:underline">
-              Story bible
-            </Link>{" "}
-            · {type?.label ?? entity.type}
-          </p>
-          {embedded ? (
-            <h2 id={embedded.headingId} className="text-lg font-semibold">
-              {entity.name}
-            </h2>
+    <div className={embedded ? "grid gap-5" : "mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] gap-5 px-6 py-6"}>
+      <div className="flex flex-wrap items-start gap-4">
+        <Portrait place={place} image={entity.image} name={entity.name} onSave={(image) => change({ image: image || null })} />
+        <div className="grid min-w-0 flex-1 gap-1.5">
+          <div className="flex items-center gap-2">
+            <p className="flex-1 text-sm text-muted">
+              <Link to={`/novels/${novelId}/bible`} className="underline-offset-2 hover:underline">
+                Story bible
+              </Link>{" "}
+              · {type?.label ?? entity.type}
+            </p>
+            <Button variant="ghost" size="sm" onClick={() => remove.mutate(false)} disabled={remove.isPending}>
+              <Trash2 className="size-4" aria-hidden /> Delete
+            </Button>
+          </div>
+
+          {place.editing === "name" ? (
+            <>
+              {/* Still the page's (or panel's) heading while it's edited. */}
+              <Heading id={embedded?.headingId} className="sr-only">
+                {entity.name}
+              </Heading>
+              <TextEditor place={place} label="Name" value={entity.name} required onSave={(name) => change({ name })} />
+            </>
           ) : (
-            <h1 className="text-xl font-semibold">{entity.name}</h1>
+            <div className="group flex items-center gap-1">
+              <Heading id={embedded?.headingId} className={embedded ? "text-xl font-semibold" : "text-2xl font-semibold"}>
+                {entity.name}
+              </Heading>
+              <PencilButton place={place} part="name" label="name" />
+            </div>
+          )}
+
+          {place.editing === "aliases" ? (
+            <TextEditor place={place} label="Other names" hint="Separated by commas. Recognised when suggesting mentions." value={entity.aliases.join(", ")} onSave={(v) => change({ aliases: list(v) })} />
+          ) : entity.aliases.length ? (
+            <div className="group flex items-center gap-1 text-sm text-muted">
+              <span>Also {entity.aliases.join(", ")}</span>
+              <PencilButton place={place} part="aliases" label="other names" />
+            </div>
+          ) : (
+            <AddButton place={place} part="aliases">
+              Add other names
+            </AddButton>
+          )}
+
+          {place.editing === "tags" ? (
+            <TextEditor place={place} label="Tags" hint="Separated by commas." value={entity.tags.join(", ")} onSave={(v) => change({ tags: list(v) })} />
+          ) : entity.tags.length ? (
+            <div className="group flex flex-wrap items-center gap-1.5">
+              <ul aria-label="Tags" className="flex flex-wrap gap-1.5">
+                {entity.tags.map((t) => (
+                  <li key={t} className="rounded-full border border-rule px-2 py-0.5 text-xs">
+                    {t}
+                  </li>
+                ))}
+              </ul>
+              <PencilButton place={place} part="tags" label="tags" />
+            </div>
+          ) : (
+            <AddButton place={place} part="tags">
+              Add tags
+            </AddButton>
           )}
         </div>
-        <Button variant="ghost" size="sm" onClick={() => remove.mutate(false)} disabled={remove.isPending}>
-          <Trash2 className="size-4" aria-hidden /> Delete
-        </Button>
       </div>
 
-      <form onSubmit={submit} aria-labelledby={`${ids.form}-h`} className="grid gap-3 rounded-lg border border-rule p-4">
-        <h2 id={`${ids.form}-h`} className="font-semibold">
-          Details
-        </h2>
-        <Field label="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-        <Field label="Other names" hint="Separated by commas. Recognised when suggesting mentions." value={form.aliases} onChange={(e) => setForm({ ...form, aliases: e.target.value })} />
-        <label className="grid gap-1.5 text-sm font-medium">
-          Summary
-          <textarea
-            value={form.summary}
-            onChange={(e) => setForm({ ...form, summary: e.target.value })}
-            rows={2}
-            className="rounded-md border border-rule bg-raised px-3 py-2 font-normal"
-          />
-        </label>
-        <fieldset className="grid gap-2">
-          <legend className="text-sm font-medium">Fields</legend>
-          {form.fields.map((row, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <input aria-label={`Field ${i + 1} name`} value={row.key} onChange={(e) => setField(i, { key: e.target.value })} className="h-9 w-36 rounded-md border border-rule bg-raised px-2 text-sm" />
-              {row.kind === "boolean" ? (
-                <input type="checkbox" aria-label={`${row.key || `Field ${i + 1}`} value`} checked={row.value === "true"} onChange={(e) => setField(i, { value: String(e.target.checked) })} />
-              ) : (
-                <input aria-label={`${row.key || `Field ${i + 1}`} value`} value={row.value} onChange={(e) => setField(i, { value: e.target.value })} className="h-9 min-w-0 flex-1 rounded-md border border-rule bg-raised px-2 text-sm" />
-              )}
-              <Button size="sm" variant="ghost" aria-label={`Remove ${row.key || `field ${i + 1}`}`} onClick={() => setForm((f) => ({ ...f, fields: f.fields.filter((_, j) => j !== i) }))}>
-                <X className="size-4" aria-hidden />
-              </Button>
-            </div>
-          ))}
-          <Button size="sm" className="justify-self-start" onClick={() => setForm((f) => ({ ...f, fields: [...f.fields, { key: "", value: "", kind: "string" }] }))}>
-            <Plus className="size-4" aria-hidden /> Add a field
-          </Button>
-        </fieldset>
-        <Field label="Tags" hint="Separated by commas." value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
-        <Field label="Image" hint="A path in the repository, e.g. bible/images/ada.jpg." value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} />
-        {save.isError && <ErrorAlert title="Couldn't save the details">{save.error.message}</ErrorAlert>}
-        <div className="flex gap-2">
-          <Button type="submit" variant="primary" disabled={!dirty || !form.name.trim() || save.isPending}>
-            {save.isPending ? "Saving…" : "Save details"}
-          </Button>
-          {dirty && <Button onClick={() => setForm(initial)}>Discard changes</Button>}
+      {place.editing === "summary" ? (
+        <TextEditor place={place} label="Summary" multiline value={entity.summary ?? ""} onSave={(v) => change({ summary: v || null })} />
+      ) : entity.summary ? (
+        <div className="group flex items-start gap-1">
+          <p className="flex-1 font-prose text-lg leading-normal">{entity.summary}</p>
+          <PencilButton place={place} part="summary" label="summary" />
         </div>
-      </form>
+      ) : (
+        <AddButton place={place} part="summary">
+          Add a summary
+        </AddButton>
+      )}
 
-      <section aria-labelledby={`${ids.notes}-h`} className="grid gap-2">
-        <h2 id={`${ids.notes}-h`} className="font-semibold">
+      <div className="grid gap-1">
+        {fields.length > 0 && (
+          <dl aria-label="Fields" className="grid gap-0.5">
+            {fields.map(([key, value], i) => (
+              <div key={key} className="group -mx-1.5 flex items-baseline gap-2.5 rounded-md px-1.5 py-1">
+                <dt className="w-32 shrink-0 text-[13px] text-muted capitalize">{key.replace(/_/g, " ")}</dt>
+                <dd className="flex min-w-0 flex-1 items-baseline gap-1">
+                  {place.editing === `field:${key}` ? (
+                    <FieldEditor place={place} name={key} value={value} others={fields.map(([k]) => k).filter((k) => k !== key)} onSave={(to) => change({ fields: withField(i, to) })} />
+                  ) : (
+                    <>
+                      <span className="flex-1">{typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)}</span>
+                      <PencilButton place={place} part={`field:${key}`} label={key.replace(/_/g, " ")} />
+                    </>
+                  )}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        {place.editing === "field:" ? (
+          <FieldEditor place={place} name="" value="" others={fields.map(([k]) => k)} onSave={(to) => change({ fields: withField(fields.length, to) })} />
+        ) : (
+          <AddButton place={place} part="field:">
+            Add a field
+          </AddButton>
+        )}
+      </div>
+
+      <section aria-labelledby={`${ids.notes}-h`} className="grid gap-1 border-t border-rule pt-4">
+        <h2 id={`${ids.notes}-h`} className="text-xs font-semibold tracking-wide text-muted uppercase">
           Notes
         </h2>
         {file ? (
-          <div className="rounded-lg border border-rule px-4">
+          // Prose that edits in place, as part of the page.
+          <div className="-mx-1 rounded-md px-1 focus-within:bg-panel/60">
             <SceneEditor
               key={entity.file}
               sceneId={entity.file}
@@ -209,7 +235,7 @@ export function EntryPage({
               markdown={file.body}
               onChange={(md) => workspace.change(entity.file, md)}
               entities={mentions}
-              className="[&_.ghw-prose]:min-h-24 [&_.ghw-prose]:py-3"
+              className="[&_.ghw-prose]:min-h-16 [&_.ghw-prose]:py-1"
               {...(spell ? { spell } : {})}
             />
           </div>
@@ -220,8 +246,8 @@ export function EntryPage({
 
       <EntryIssues novelId={novelId} novel={novel} entity={entity} />
 
-      <section aria-labelledby={`${ids.links}-h`} className="grid gap-3">
-        <h2 id={`${ids.links}-h`} className="font-semibold">
+      <section aria-labelledby={`${ids.links}-h`} className="grid gap-2 border-t border-rule pt-4">
+        <h2 id={`${ids.links}-h`} className="text-xs font-semibold tracking-wide text-muted uppercase">
           In the story
         </h2>
         {links.scenes.length ? (
@@ -270,6 +296,109 @@ export function EntryPage({
       </AlertDialog.Root>
       {remove.isError && <ErrorAlert title="Couldn't delete it">{remove.error.message}</ErrorAlert>}
     </div>
+  );
+}
+
+/**
+ * A field edited in place: its name and value (a number stays a number, true/false a checkbox), saved
+ * together; Remove takes it off. A name another field has is refused.
+ */
+function FieldEditor({
+  place,
+  name,
+  value,
+  others,
+  onSave,
+}: {
+  place: InPlace;
+  name: string;
+  value: FieldValue;
+  others: string[];
+  onSave: (to: [string, FieldValue] | undefined) => Promise<unknown>;
+}) {
+  const [key, setKey] = useState(name);
+  const [text, setText] = useState(String(value));
+  const [problem, setProblem] = useState<string>();
+  const [saving, setSaving] = useState(false);
+  const isNew = name === "";
+  const run = async (to: [string, FieldValue] | undefined) => {
+    setSaving(true);
+    try {
+      await onSave(to);
+      // Back to the field under its name now, or, removed, to "+ Add a field".
+      place.done(to ? `field:${to[0]}` : "field:");
+    } catch (e) {
+      setProblem(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+  const save = () => {
+    const k = key.trim();
+    if (!k) return setProblem("A field needs a name.");
+    if (others.includes(k)) return setProblem(`There's already a field “${k}”.`);
+    const v: FieldValue = typeof value === "boolean" ? text === "true" : typeof value === "number" && text.trim() !== "" && !Number.isNaN(Number(text)) ? Number(text) : text.trim();
+    if (k === name && v === value) return place.done();
+    void run([k, v]);
+  };
+  const enter = (e: KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      save();
+    }
+  };
+  return (
+    <EditorFrame place={place} className="flex-1">
+      <div className="grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        <label className="grid gap-1 text-xs font-medium">
+          Field name
+          <input value={key} onChange={(e) => setKey(e.target.value)} onKeyDown={enter} className="h-8 w-full min-w-0 rounded-md border border-rule bg-raised px-2 text-sm font-normal" />
+        </label>
+        {typeof value === "boolean" ? (
+          <label className="flex items-center gap-2 self-end pb-1.5 text-sm">
+            <input type="checkbox" checked={text === "true"} onChange={(e) => setText(String(e.target.checked))} />
+            {key || "Value"}
+          </label>
+        ) : (
+          <label className="grid gap-1 text-xs font-medium">
+            Value
+            <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={enter} inputMode={typeof value === "number" ? "decimal" : undefined} className="h-8 w-full min-w-0 rounded-md border border-rule bg-raised px-2 text-sm font-normal" />
+          </label>
+        )}
+      </div>
+      {problem && <p className="text-xs text-danger">{problem}</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        <EditorButtons onSave={save} onCancel={() => place.done()} saving={saving} hint="Enter saves · Esc cancels" />
+        {!isNew && (
+          <Button size="sm" variant="ghost" onClick={() => void run(undefined)} disabled={saving}>
+            <X className="size-4" aria-hidden /> Remove the field
+          </Button>
+        )}
+      </div>
+    </EditorFrame>
+  );
+}
+
+/** The entry's image, or a slot for one: its path in the repository, edited in place. */
+function Portrait({ place, image, name, onSave }: { place: InPlace; image: string | undefined; name: string; onSave: (image: string) => Promise<unknown> }) {
+  if (place.editing === "image") {
+    return (
+      <div className="w-full sm:w-72">
+        <TextEditor place={place} label="Portrait" hint="A path in the repository, e.g. bible/images/ada.jpg." value={image ?? ""} onSave={onSave} />
+      </div>
+    );
+  }
+  return (
+    <button
+      ref={place.trigger("image")}
+      type="button"
+      onClick={() => place.start("image")}
+      aria-label={image ? `Portrait of ${name}: ${image}. Edit the portrait` : "Add a portrait"}
+      className="grid size-24 shrink-0 place-items-center gap-1 rounded-lg border border-dashed border-rule bg-panel p-2 text-center text-[11px] text-muted hover:border-accent hover:text-ink"
+    >
+      <Image className="size-5" aria-hidden />
+      <span className={image ? "line-clamp-2 break-all" : undefined}>{image ? image.split("/").at(-1) : "Add a portrait"}</span>
+    </button>
   );
 }
 

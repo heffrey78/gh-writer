@@ -52,7 +52,7 @@ test("the Entry tab: a sheet to read, Back and Forward through names opened, a p
   // The form in place, and back to the sheet.
   await ada.getByRole("button", { name: "Edit details" }).click();
   await expect(ada.getByRole("textbox", { name: "Name", exact: true })).toBeFocused();
-  await expect(ada.getByRole("form", { name: "Details" })).toBeVisible();
+  await expect(ada.getByRole("button", { name: "Edit summary" })).toBeVisible();
   await ada.getByRole("button", { name: "Back to the sheet" }).click();
   await expect(ada.getByRole("heading", { level: 2, name: "Ada Varn" })).toBeVisible();
 

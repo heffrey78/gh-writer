@@ -23,8 +23,6 @@ async function palette(page: Page, query: string) {
   await page.keyboard.press("Enter");
 }
 
-const details = (page: Page) => page.getByRole("form", { name: "Details" });
-
 test("adds a character, fills in the details and notes, all saved to its file", async ({ page, app }) => {
   const novel = await open(page, app);
   await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Story bible" }).click();
@@ -36,16 +34,58 @@ test("adds a character, fills in the details and notes, all saved to its file", 
   expect(novel.lastCommit()).toBe("Bible: add Ilse Varn");
   const file = "bible/characters/ilse-varn.md";
 
-  await details(page).getByRole("textbox", { name: "Other names" }).fill("Ilse, the Aunt");
-  await details(page).getByRole("textbox", { name: "Summary" }).fill("Ada's aunt, who never left.");
-  await details(page).getByRole("button", { name: "Add a field" }).click();
-  await details(page).getByRole("textbox", { name: "Field 1 name" }).fill("age");
-  await details(page).getByRole("textbox", { name: "age value" }).fill("67");
-  await details(page).getByRole("button", { name: "Save details" }).click();
-  await expect.poll(() => novel.read(file)).toContain("summary: Ada's aunt, who never left.");
+  // Read first: each empty part behind "+ Add…", edited in place, saved at once; Enter saves and
+  // returns to the part.
+  await page.getByRole("button", { name: "Add other names" }).click();
+  await expect(page.getByRole("textbox", { name: "Other names" })).toBeFocused();
+  await page.keyboard.type("Ilse, the Aunt");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Also Ilse, the Aunt")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit other names" })).toBeFocused();
+  await page.getByRole("button", { name: "Add a summary" }).click();
+  await page.keyboard.type("Ada's aunt, who never left.");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Add a field" }).click();
+  await page.getByRole("textbox", { name: "Field name" }).fill("age");
+  await page.getByRole("textbox", { name: "Value" }).fill("67");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("definition").filter({ hasText: "67" })).toBeVisible();
+  await page.getByRole("button", { name: "Add tags" }).click();
+  await page.keyboard.type("family, Varn");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Add a portrait" }).click();
+  await page.keyboard.type("bible/images/ilse.jpg");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Portrait of Ilse Varn: bible/images/ilse.jpg. Edit the portrait" })).toBeFocused();
+  await expect.poll(() => novel.read(file)).toContain("image: bible/images/ilse.jpg");
+  expect(novel.read(file)).toContain("summary: Ada's aunt, who never left.");
   expect(novel.read(file)).toMatch(/aliases:\n {2}- Ilse\n {2}- the Aunt\n/);
   expect(novel.read(file)).toMatch(/fields:\n {2}age: "67"\n/);
-  await expect.poll(() => novel.lastCommit()).toBe("Bible: edit Ilse Varn");
+  expect(novel.read(file)).toMatch(/tags:\n {2}- family\n {2}- Varn\n/);
+  expect(novel.lastCommit()).toBe("Bible: edit Ilse Varn");
+
+  // Escape leaves a part as it was.
+  await page.getByRole("button", { name: "Edit summary" }).click();
+  await page.keyboard.type(" Not this.");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Edit summary" })).toBeFocused();
+  await expect(page.getByText("Ada's aunt, who never left.", { exact: true })).toBeVisible();
+
+  // A field renamed and changed, another added and removed.
+  await page.getByRole("button", { name: "Edit age" }).click();
+  await page.getByRole("textbox", { name: "Field name" }).fill("born");
+  await page.getByRole("textbox", { name: "Value" }).fill("1958");
+  await page.keyboard.press("Enter");
+  await expect.poll(() => novel.read(file)).toMatch(/fields:\n {2}born: "1958"\n/);
+  await expect(page.getByRole("button", { name: "Edit born" })).toBeFocused();
+  await page.getByRole("button", { name: "Add a field" }).click();
+  await page.getByRole("textbox", { name: "Field name" }).fill("born");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("There's already a field “born”.")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Edit born" }).click();
+  await page.getByRole("button", { name: "Remove the field" }).click();
+  await expect.poll(() => novel.read(file)).not.toContain("born");
 
   const notes = page.getByRole("textbox", { name: "Notes on Ilse Varn" });
   await notes.click();
@@ -58,8 +98,9 @@ test("renames an entry by moving its file only; every reference still resolves",
   const novel = await open(page, app);
   await palette(page, "character: ada");
   await expect(page.getByRole("heading", { level: 1, name: "Ada Varn" })).toBeVisible();
-  await details(page).getByRole("textbox", { name: "Name", exact: true }).fill("Ada Kost");
-  await details(page).getByRole("button", { name: "Save details" }).click();
+  await page.getByRole("button", { name: "Edit name" }).click();
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill("Ada Kost");
+  await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 1, name: "Ada Kost" })).toBeVisible();
   expect(novel.lastCommit()).toBe("Bible: rename Ada Varn to Ada Kost");
   expect(app.git(novel.dir, "show", "-M", "--name-status", "--format=", "HEAD").trim()).toMatch(/^R\d+\tbible\/characters\/ada\.md\tbible\/characters\/ada-kost\.md$/);

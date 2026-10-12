@@ -39,8 +39,9 @@ test("@ in the chapter suggests the bible's entries; the mention survives renami
   await expect.poll(() => novel.read(STATION), { timeout: 10_000 }).toContain("in a wound. [Tomas](#char_t0ma5h) would know.");
 
   await palette(page, "character: tomas");
-  await page.getByRole("form", { name: "Details" }).getByRole("textbox", { name: "Name", exact: true }).fill("Tomas Brand");
-  await page.getByRole("form", { name: "Details" }).getByRole("button", { name: "Save details" }).click();
+  await page.getByRole("button", { name: "Edit name" }).click();
+  await page.getByRole("textbox", { name: "Name", exact: true }).fill("Tomas Brand");
+  await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 1, name: "Tomas Brand" })).toBeVisible();
   // The words written stay; the mention still finds its entry, by ID.
   expect(novel.read(STATION)).toContain("[Tomas](#char_t0ma5h) would know.");
