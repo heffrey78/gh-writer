@@ -25,6 +25,19 @@ async function pick(page: Page, scope: ReturnType<Page["getByRole"]>, label: str
 }
 
 const panel = (page: Page) => page.getByRole("region", { name: "Relationships" });
+/** A relationship's bar, by what it says; it opens a menu of changes. */
+const bar = (page: Page, said: RegExp) => panel(page).getByRole("button", { name: said });
+async function act(page: Page, said: RegExp, action: string) {
+  await bar(page, said).click();
+  await page.getByRole("menuitem", { name: action }).click();
+}
+/** Move the marker to a scene, by keyboard. */
+async function readAt(page: Page, title: string) {
+  const marker = panel(page).getByRole("radiogroup", { name: "Read the relationships at a scene" });
+  await marker.getByRole("radio", { checked: true }).focus();
+  for (let i = 0; i < 8 && !(await marker.getByRole("radio", { name: title }).isChecked()); i++) await page.keyboard.press("ArrowRight");
+  await expect(marker.getByRole("radio", { name: title })).toBeChecked();
+}
 const dialog = (page: Page) => page.getByRole("dialog");
 
 test("allies until the betrayal, rivals after it: recorded as two spans and shown as of any scene", async ({ page, app }) => {
@@ -32,7 +45,7 @@ test("allies until the betrayal, rivals after it: recorded as two spans and show
   const before = novel.relationships().length;
 
   // Ada and Mirela are allies from the start.
-  await panel(page).getByRole("button", { name: "Add relationship" }).click();
+  await panel(page).getByRole("button", { name: "Add a relationship" }).click();
   await dialog(page).getByRole("combobox", { name: "Relationship" }).selectOption({ label: "Allied with" });
   await pick(page, dialog(page), "With", "mirela");
   await dialog(page).getByRole("button", { name: "Add relationship" }).click();
@@ -40,8 +53,7 @@ test("allies until the betrayal, rivals after it: recorded as two spans and show
   await axe(page);
 
   // From "The Betrayal" on, they're rivals.
-  const row = panel(page).getByRole("listitem").filter({ hasText: /^Allied with Mirela Kost/ });
-  await row.getByRole("button", { name: "Change at…" }).click();
+  await act(page, /^Allied with Mirela Kost/, "Change at…");
   await pick(page, dialog(page), "It changes at", "betrayal");
   await dialog(page).getByRole("combobox", { name: "From then on" }).selectOption({ label: "Rivals with" });
   await axe(page);
@@ -55,19 +67,20 @@ test("allies until the betrayal, rivals after it: recorded as two spans and show
   ]);
   expect(app.git(novel.dir, "log", "-1", "--format=%s").trim()).toBe("Bible: Ada Varn allies Mirela Kost becomes rivals at “The Betrayal”");
 
-  // As of an earlier scene they're allies; as of a later one, rivals.
-  await pick(page, panel(page), "As of", "walking the span");
-  const at = () => panel(page).getByRole("list", { name: /^Relationships at/ });
+  // Two arcs on Mirela's row, meeting at The Betrayal.
+  const mirela = panel(page).getByRole("list", { name: "All relationships" }).getByRole("listitem").filter({ hasText: "Mirela Kost" });
+  await expect(mirela.getByRole("button")).toHaveText([/^Allied with/, /^Rivals with/]);
+  // Read at an earlier scene they're allies; at a later one, rivals.
+  await readAt(page, "Walking the Span");
+  const at = () => panel(page).getByRole("region", { name: /^At “/ });
   await expect(at()).toContainText("Allied with Mirela Kost");
   await expect(at()).not.toContainText("Rivals with Mirela Kost");
-  await pick(page, panel(page), "As of", "the flood");
+  await readAt(page, "The Flood");
   await expect(at()).toContainText("Rivals with Mirela Kost");
   await expect(at()).not.toContainText("Allied with Mirela Kost");
-  await pick(page, panel(page), "As of", "whole book");
 
   // It ends at the last scene.
-  const rivals = panel(page).getByRole("listitem").filter({ hasText: /^Rivals with Mirela Kost/ });
-  await rivals.getByRole("button", { name: "End at…" }).click();
+  await act(page, /^Rivals with Mirela Kost/, "End at…");
   await pick(page, dialog(page), "It no longer holds from", "last rivet");
   await dialog(page).getByRole("button", { name: "End it" }).click();
   await expect(panel(page)).toContainText("Rivals with Mirela Kost, from “The Betrayal”, until “The Last Rivet”");
@@ -75,8 +88,7 @@ test("allies until the betrayal, rivals after it: recorded as two spans and show
 
 test("refuses a change before the relationship starts, saying why", async ({ page, app }) => {
   await openEntry(page, app, ADA);
-  const rivals = panel(page).getByRole("listitem").filter({ hasText: /^Rivals with Ben Varn, from “The Betrayal”/ });
-  await rivals.getByRole("button", { name: "Change at…" }).click();
+  await act(page, /^Rivals with Ben Varn, from “The Betrayal”/, "Change at…");
   await pick(page, dialog(page), "It changes at", "the station");
   await dialog(page).getByRole("button", { name: "Change it" }).click();
   await expect(dialog(page).getByRole("alert")).toContainText("The change must come after the relationship starts.");
@@ -94,7 +106,7 @@ test("a new kind of relationship, one-way, is used at once from either side", as
   await axe(page);
 
   await page.goBack();
-  await panel(page).getByRole("button", { name: "Add relationship" }).click();
+  await panel(page).getByRole("button", { name: "Add a relationship" }).click();
   await dialog(page).getByRole("combobox", { name: "Relationship" }).selectOption({ label: "Is owed a favour by" });
   await pick(page, dialog(page), "With", "tomas");
   await dialog(page).getByRole("button", { name: "Add relationship" }).click();
@@ -139,4 +151,39 @@ test("a kind of relationship's colour and line are chosen by keyboard, saved in 
   for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
   const rivals = page.locator('.react-flow__edge[aria-label="Ada Varn, Rivals with, Ben Varn"] path.react-flow__edge-path');
   await expect.poll(() => rivals.evaluate((p) => [getComputedStyle(p).stroke, getComputedStyle(p).strokeDasharray])).toEqual(["rgb(98, 80, 214)", "2px, 4px"]);
+});
+
+test("relationships as arcs over the scenes, in their kinds' colours and lines, read at a scene and removed from their bar", async ({ page, app }) => {
+  const novel = await openEntry(page, app, ADA);
+  const list = panel(page).getByRole("list", { name: "All relationships" });
+  // By who they're with; Ben's row holds sibling throughout, allied until The Betrayal, rivals from it to The Last Rivet, allied again.
+  await expect(list.getByRole("listitem").getByRole("link")).toHaveText(["Ben Varn", "Tomas Hale"]);
+  const ben = list.getByRole("listitem").filter({ hasText: "Ben Varn" });
+  await expect(ben.getByRole("button")).toHaveCount(4);
+  const span = async (said: RegExp) =>
+    bar(page, said).evaluate((b) => [getComputedStyle(b).gridColumnStart, getComputedStyle(b).gridColumnEnd, getComputedStyle(b).borderTopStyle, getComputedStyle(b).borderTopColor]);
+  expect(await span(/^Sibling of Ben Varn/)).toEqual(["1", "9", "solid", "rgb(42, 120, 214)"]);
+  expect(await span(/^Allied with Ben Varn, until/)).toEqual(["1", "5", "solid", "rgb(0, 131, 0)"]);
+  expect(await span(/^Rivals with Ben Varn/)).toEqual(["5", "8", "dashed", "rgb(227, 73, 72)"]);
+  expect(await span(/^Allied with Ben Varn, from/)).toEqual(["8", "9", "solid", "rgb(0, 131, 0)"]);
+  // Each bar names its kind and the note: colour is never the only difference.
+  await expect(bar(page, /^Rivals with Ben Varn/)).toContainText("Rivals with · After the bridge betrayal.");
+  await axe(page);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await axe(page);
+  await page.emulateMedia({ colorScheme: "light" });
+
+  await readAt(page, "The Betrayal");
+  await expect(panel(page).getByRole("region", { name: "At “The Betrayal”" }).getByRole("listitem")).toHaveText([
+    "Sibling of Ben Varn",
+    "Rivals with Ben Varn, from “The Betrayal”, until “The Last Rivet” (After the bridge betrayal.)",
+    "Mentee of Tomas Hale",
+  ]);
+
+  // Removed from its bar, after asking.
+  const before = novel.relationships().length;
+  await act(page, /^Mentee of Tomas Hale/, "Remove…");
+  await page.getByRole("alertdialog").getByRole("button", { name: "Remove" }).click();
+  await expect(list.getByRole("listitem").getByRole("link")).toHaveText(["Ben Varn"]);
+  expect(novel.relationships()).toHaveLength(before - 1);
 });

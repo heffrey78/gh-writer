@@ -16,7 +16,7 @@ import type { Workspace } from "../novel/workspace.ts";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { AddButton, EditorButtons, EditorFrame, PencilButton, TextEditor, useInPlace, type InPlace } from "./profile.tsx";
-import { RelationshipsPanel } from "./relationships.tsx";
+import { RelationshipArcs } from "./arcs.tsx";
 import { InTheStory } from "./strip.tsx";
 import { mentionEntities, typeOf } from "./types.ts";
 
@@ -259,7 +259,7 @@ export function EntryPage({
 
       <InTheStory novelId={novelId} novel={novel} entity={entity} />
 
-      <RelationshipsPanel novelId={novelId} novel={novel} entity={entity} />
+      <RelationshipArcs novelId={novelId} novel={novel} entity={entity} />
 
       <AlertDialog.Root open={references !== undefined} onOpenChange={(o) => !o && setReferences(undefined)}>
         <AlertDialog.Portal>

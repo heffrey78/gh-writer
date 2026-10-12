@@ -184,13 +184,16 @@ export function EditorButtons({ onSave, onCancel, saving, hint }: { onSave?: () 
 }
 
 /** A profile's section: a small capitals heading and what's under it. */
-export function ProfileSection({ title, children, className }: { title: string; children: ReactNode; className?: string }) {
+export function ProfileSection({ title, children, className, action }: { title: string; children: ReactNode; className?: string; action?: ReactNode }) {
   const id = useId();
   return (
     <section aria-labelledby={id} className={cn("grid gap-2 border-t border-rule pt-4", className)}>
-      <h2 id={id} className="text-xs font-semibold tracking-wide text-muted uppercase">
-        {title}
-      </h2>
+      <div className="flex items-center gap-2">
+        <h2 id={id} className="flex-1 text-xs font-semibold tracking-wide text-muted uppercase">
+          {title}
+        </h2>
+        {action}
+      </div>
       {children}
     </section>
   );

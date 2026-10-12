@@ -1,15 +1,13 @@
-import { relationshipsAt, type Entity, type Novel, type Relationship } from "@gh-writer/core";
+import type { Entity, Novel, Relationship } from "@gh-writer/core";
+import { describeRelationship as describe } from "@gh-writer/core/diagrams";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
 import { Dialog } from "radix-ui";
-import { useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useId, useState, type FormEvent, type ReactNode } from "react";
 import { api, keys } from "../api.ts";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
-import { Confirm } from "../ui/confirm.tsx";
 import { Field } from "../ui/field.tsx";
 import { Picker } from "../ui/picker.tsx";
-import { describe } from "./entry-page.tsx";
 import { entityItems, sceneItems } from "./pickers.ts";
 
 /** A way to relate this entry to another: a type, read from this entry's side. */
@@ -49,83 +47,6 @@ function Frame({ open, onOpenChange, title, children }: { open: boolean; onOpenC
   );
 }
 
-const sceneTitle = (novel: Novel, id: string | undefined) => novel.allScenes.find((s) => s.id === id)?.title;
-
-/**
- * An entry's relationships through the story: all of them with when they hold, or those holding at a
- * chosen scene; add one, change one from a scene on, end one at a scene, remove one.
- */
-export function RelationshipsPanel({ novelId, novel, entity }: { novelId: string; novel: Novel; entity: Entity }) {
-  const queryClient = useQueryClient();
-  const headingId = useId();
-  const [asOf, setAsOf] = useState<string>();
-  const [dialog, setDialog] = useState<{ kind: "add" } | { kind: "change" | "end"; relationship: Relationship }>();
-  const mine = useMemo(
-    () =>
-      novel.relationships
-        .filter((r) => r.from === entity.id || r.to === entity.id)
-        .sort((a, b) => (novel.allScenes.find((s) => s.id === a.since)?.position ?? -1) - (novel.allScenes.find((s) => s.id === b.since)?.position ?? -1)),
-    [novel, entity.id],
-  );
-  const shown = asOf ? relationshipsAt(novel, asOf).filter((r) => r.from === entity.id || r.to === entity.id) : mine;
-  const refresh = () => queryClient.invalidateQueries({ queryKey: keys.novel(novelId) });
-  const remove = useMutation({ mutationFn: (id: string) => api.bible.deleteRelationship(novelId, id), onSuccess: refresh });
-
-  return (
-    <section aria-labelledby={headingId} className="grid gap-3">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <h2 id={headingId} className="font-semibold">
-          Relationships
-        </h2>
-        <Button size="sm" onClick={() => setDialog({ kind: "add" })}>
-          <Plus className="size-4" aria-hidden /> Add relationship
-        </Button>
-      </div>
-      <Picker label="As of" items={sceneItems(novel)} value={asOf} onChange={setAsOf} placeholder="The whole book" allowNone className="max-w-sm" />
-      {asOf && (
-        <p role="status" className="text-sm text-muted">
-          At “{sceneTitle(novel, asOf)}”, {shown.length === 1 ? "1 relationship holds" : `${shown.length} relationships hold`}.
-        </p>
-      )}
-      {shown.length ? (
-        <ul aria-label={asOf ? `Relationships at ${sceneTitle(novel, asOf)}` : "All relationships"} className="grid gap-2">
-          {shown.map((r) => (
-            <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-rule px-3 py-2 text-sm">
-              <span>{describe(novel, entity.id, r)}</span>
-              {!asOf && (
-                <span className="flex gap-1">
-                  <Button size="sm" variant="ghost" onClick={() => setDialog({ kind: "change", relationship: r })}>
-                    Change at…
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setDialog({ kind: "end", relationship: r })}>
-                    End at…
-                  </Button>
-                  <Confirm
-                    title="Remove this relationship?"
-                    description={`“${describe(novel, entity.id, r)}” will no longer be in the bible.`}
-                    action="Remove"
-                    danger
-                    onConfirm={() => remove.mutate(r.id)}
-                    trigger={
-                      <Button size="sm" variant="ghost">
-                        Remove
-                      </Button>
-                    }
-                  />
-                </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-sm text-muted">{asOf ? "None hold at that point." : "No relationships yet."}</p>
-      )}
-      {remove.isError && <ErrorAlert title="Couldn't remove it">{remove.error.message}</ErrorAlert>}
-      {dialog?.kind === "add" && <AddRelationshipDialog novelId={novelId} novel={novel} entity={entity} onClose={() => setDialog(undefined)} />}
-      {dialog && dialog.kind !== "add" && <RelationshipAtSceneDialog novelId={novelId} novel={novel} entity={entity} kind={dialog.kind} relationship={dialog.relationship} onClose={() => setDialog(undefined)} />}
-    </section>
-  );
-}
 
 /** A new relationship for `entity`, with `other` and a starting scene (`since`) filled in when given. */
 export function AddRelationshipDialog({
