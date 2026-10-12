@@ -17,7 +17,7 @@ import {
   type Manuscript,
   type MentionTarget,
 } from "@gh-writer/editor";
-import { ChapterEditor, FindReplace, SceneEditor, WordCount, type SpellService } from "@gh-writer/editor/react";
+import { ChapterEditor, FindReplace, SceneEditor, useWritingModes, WordCount, type SpellService } from "@gh-writer/editor/react";
 import type { Editor } from "@tiptap/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
@@ -36,10 +36,11 @@ import { useIssueList } from "../issues/use-issues.ts";
 import { useQuickEntry } from "../bible/quick-entry.ts";
 import { mentionEntities } from "../bible/types.ts";
 import { useCurrentScene } from "./current.ts";
-import { EntryPanel, leaveMention, MentionCard, useEntryPanel, useMentionCard } from "./mention-card.tsx";
+import { EntryTab, leaveMention, MentionCard, useMentionCard } from "./mention-card.tsx";
 import { mentionEdits } from "./mention-sync.ts";
 import { useNotice } from "./notice.tsx";
-import { SceneDetails, useSceneDetails } from "./scene-details.tsx";
+import { RightSidebar, useRightSidebar } from "./right-sidebar.tsx";
+import { SceneDetails } from "./scene-details.tsx";
 import { TodayCount } from "./today-count.tsx";
 import { useStructure } from "./structure.ts";
 import { TitleDialog } from "./structure-dialogs.tsx";
@@ -128,13 +129,28 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
     };
   }, [editor, view, scenes, setCurrent]);
 
-  // The details panel follows the scene the author is in.
+  // The right sidebar: the Scene tab follows the scene the author is in.
   const current = useCurrentScene((s) => s.scene);
-  const details = useSceneDetails();
+  const sidebar = useRightSidebar();
+  const focusMode = useWritingModes((m) => m.focus);
   useCommands(
-    () => [{ id: "writing.details", title: details.open ? "Hide scene details" : "Show scene details", group: "Writing", keywords: ["scene details", "panel"], run: details.toggle }],
-    [details.open, details.toggle],
+    () => [
+      {
+        id: "writing.sidebar",
+        title: sidebar.open ? "Hide the right sidebar" : "Show the right sidebar",
+        group: "Writing",
+        keys: "Mod-Shift-\\",
+        keywords: ["scene details", "entry", "panel"],
+        run: sidebar.toggle,
+      },
+      { id: "writing.sceneTab", title: "Show the scene's details", group: "Writing", keywords: ["sidebar", "panel"], run: () => sidebar.show("scene") },
+      { id: "writing.entryTab", title: "Show the open entry", group: "Writing", keywords: ["sidebar", "story bible", "panel"], run: () => sidebar.show("entry") },
+    ],
+    [sidebar.open, sidebar.toggle, sidebar.show],
   );
+  const toText = () => {
+    if (editor && !editor.isDestroyed) editor.commands.focus(null, { scrollIntoView: false });
+  };
 
   // A new mention of someone or somewhere adds them to the scene's characters or locations.
   const latestNovel = useRef(novel);
@@ -151,12 +167,10 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
     [workspace],
   );
 
-  // Mentions: a card on hover or Alt+Enter, and the entry beside the text.
-  const entryOpen = useEntryPanel((s) => s.entry !== null);
+  // Mentions: a card on hover or Alt+Enter, and the entry on the sidebar's Entry tab.
   useEffect(
     () => () => {
       useMentionCard.getState().hide();
-      useEntryPanel.setState({ entry: null });
       useRaise.setState({ passage: undefined, editor: undefined });
       useIssuePanel.setState({ numbers: [], editor: undefined });
     },
@@ -184,7 +198,6 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
     issues: anchored,
     onOpen: (numbers: number[]) => {
       if (!editor || editor.isDestroyed) return;
-      useEntryPanel.setState({ entry: null });
       useRaise.setState({ passage: undefined, editor: undefined });
       useIssuePanel.getState().open(numbers, editor);
     },
@@ -197,7 +210,6 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
       useNotice.getState().show({ message: "Select the passage the issue is about first." });
       return;
     }
-    useEntryPanel.setState({ entry: null });
     useIssuePanel.setState({ numbers: [], editor: undefined });
     useRaise.getState().open(passage, editor);
   };
@@ -302,10 +314,11 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
   const heading = "scene" in view ? view.scene.title : chapterTitle(novel, view.chapter);
 
   const detailsScene = current && scenes.find((s) => s.id === current.id);
-  const showDetails = !entryOpen && !raising && !issueOpen && details.open && loaded && detailsScene !== undefined;
 
+  // The text scrolls on its own, so the sidebar beside it stays put.
   return (
-    <div className={entryOpen || raising || issueOpen ? "grid min-h-full lg:grid-cols-[minmax(0,1fr)_28rem]" : showDetails ? "grid min-h-full lg:grid-cols-[minmax(0,1fr)_20rem]" : "min-h-full"}>
+    <div className="flex min-h-full flex-col lg:h-full lg:min-h-0 lg:flex-row">
+      <div className="min-w-0 flex-1 lg:overflow-y-auto">
       <div
         className="mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] content-start gap-3 px-6 py-6"
         onContextMenu={(e) => {
@@ -368,19 +381,37 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
           />
         )}
       </div>
-      {showDetails && detailsScene && <SceneDetails
-          key={detailsScene.file}
-          novel={novel}
-          workspace={workspace}
-          path={detailsScene.file}
-          title={detailsScene.title}
-          newEntry={newEntry.create}
-          issues={repo ? anchored.filter((a) => a.scene === detailsScene.file).map(({ number, title }) => ({ number, title })) : undefined}
-          onOpenIssue={(n) => issueMarks.onOpen([n])}
-        />}
-      <EntryPanel novelId={novelId} novel={novel} workspace={workspace} spell={spell} />
-      {!entryOpen && <RaisePanel novelId={novelId} novel={novel} />}
-      {!entryOpen && !raising && <IssuePanel novelId={novelId} />}
+      </div>
+      {raising || issueOpen ? (
+        // An issue being raised or read takes the sidebar's place until it's closed.
+        <div className="shrink-0 border-rule bg-panel lg:w-[28rem] lg:overflow-y-auto lg:border-l">
+          <RaisePanel novelId={novelId} novel={novel} />
+          {!raising && <IssuePanel novelId={novelId} />}
+        </div>
+      ) : (
+        !focusMode && (
+          <RightSidebar
+            toText={toText}
+            content={{
+              scene: detailsScene ? (
+                <SceneDetails
+                  key={detailsScene.file}
+                  novel={novel}
+                  workspace={workspace}
+                  path={detailsScene.file}
+                  title={detailsScene.title}
+                  newEntry={newEntry.create}
+                  issues={repo ? anchored.filter((a) => a.scene === detailsScene.file).map(({ number, title }) => ({ number, title })) : undefined}
+                  onOpenIssue={(n) => issueMarks.onOpen([n])}
+                />
+              ) : (
+                <p className="p-4 text-sm text-muted">{loaded ? "A scene’s details show here once the chapter has one." : "Opening…"}</p>
+              ),
+              entry: <EntryTab novelId={novelId} novel={novel} workspace={workspace} spell={spell} />,
+            }}
+          />
+        )
+      )}
       {menu && (
         <SelectionMenu
           at={menu}

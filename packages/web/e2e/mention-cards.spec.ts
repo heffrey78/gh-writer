@@ -58,13 +58,15 @@ test("Alt+Enter beside a mention opens its card; Escape and the entry panel retu
   await expect(card(page)).toBeFocused();
 
   await card(page).getByRole("button", { name: "Open entry" }).click();
-  const panel = page.getByRole("complementary", { name: "Ada Varn" });
+  // On the right sidebar's Entry tab; Escape goes back to the text and leaves it there.
+  const panel = page.getByRole("region", { name: "Ada Varn" });
   await expect(panel).toBeFocused();
+  await expect(page.getByRole("tab", { name: "Entry" })).toHaveAttribute("aria-selected", "true");
   await expect(panel.getByRole("form", { name: "Details" })).toBeVisible();
   await axe(page);
-  await panel.getByRole("button", { name: "Back to the text" }).click();
-  await expect(panel).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await expect(text).toBeFocused();
+  await expect(panel).toBeVisible();
   await page.keyboard.press("Alt+Enter");
   await expect(card(page)).toBeVisible();
 });

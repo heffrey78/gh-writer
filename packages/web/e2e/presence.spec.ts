@@ -112,9 +112,9 @@ test("the matrix and the scene details panel agree after an edit in either", asy
   // The scene opens with its text focused: open the palette after that, or the focus moves out of it.
   await expect(page.getByRole("textbox", { name: "Scene text" })).toBeFocused();
   await page.keyboard.press("ControlOrMeta+k");
-  await page.keyboard.type("show scene details");
+  await page.keyboard.type("show the scene's details");
   await page.keyboard.press("Enter");
-  const panel = page.getByRole("complementary", { name: "Details of “The Station”" });
+  const panel = page.getByRole("region", { name: "Details of “The Station”" });
   await expect(panel.getByRole("list").first()).toContainText("Tomas Hale");
   await openView(page, "Presence");
   await expect(cell).toHaveAccessibleName("The Station: Tomas Hale present");

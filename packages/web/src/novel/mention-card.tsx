@@ -8,6 +8,7 @@ import { create } from "zustand";
 import { describe, EntryPage } from "../bible/entry-page.tsx";
 import { typeOf } from "../bible/types.ts";
 import { Button } from "../ui/button.tsx";
+import { useRightSidebar } from "./right-sidebar.tsx";
 import type { Workspace } from "./workspace.ts";
 
 interface Card extends MentionTarget {
@@ -45,19 +46,20 @@ export function leaveMention(): void {
 }
 
 interface PanelState {
-  /** The entry shown beside the text, and the editor to return to. */
-  entry: { id: string; editor: Editor } | null;
-  open: (id: string, editor: Editor) => void;
-  close: () => void;
+  /** The entry on the right sidebar's Entry tab. */
+  entry: string | null;
+  /** The tab should take the focus when it next shows the entry: it was opened to be read. */
+  focus: boolean;
+  /** Show the entry on the Entry tab and move the focus to it. */
+  open: (id: string) => void;
 }
 
-export const useEntryPanel = create<PanelState>((set, get) => ({
+export const useEntryPanel = create<PanelState>((set) => ({
   entry: null,
-  open: (id, editor) => set({ entry: { id, editor } }),
-  close: () => {
-    const editor = get().entry?.editor;
-    set({ entry: null });
-    if (editor && !editor.isDestroyed) editor.commands.focus(null, { scrollIntoView: false });
+  focus: false,
+  open: (id) => {
+    set({ entry: id, focus: true });
+    useRightSidebar.getState().show("entry");
   },
 }));
 
@@ -180,9 +182,8 @@ export function MentionCard({ novel }: { novel: Novel }) {
             <Button
               size="sm"
               onClick={() => {
-                const editor = card.editor;
                 useMentionCard.setState({ card: null });
-                openEntry(entity.id, editor);
+                openEntry(entity.id);
               }}
             >
               Open entry
@@ -194,8 +195,11 @@ export function MentionCard({ novel }: { novel: Novel }) {
   );
 }
 
-/** A bible entry beside the text, opened from a mention's card. Closing it returns to the text, caret where it was. */
-export function EntryPanel({
+/**
+ * The right sidebar's Entry tab: the bible entry opened from a mention's card (or just made from
+ * the @ menu), whole and editable. Escape or F6 returns to the text, caret where it was.
+ */
+export function EntryTab({
   novelId,
   novel,
   workspace,
@@ -206,35 +210,32 @@ export function EntryPanel({
   workspace: Workspace;
   spell: { service: SpellService; onAddWord: (w: string) => void } | undefined;
 }) {
-  const entry = useEntryPanel((s) => s.entry);
-  const close = useEntryPanel((s) => s.close);
+  const id = useEntryPanel((s) => s.entry);
+  const focus = useEntryPanel((s) => s.focus);
   const headingId = useId();
   const ref = useRef<HTMLElement>(null);
-  const entity = entry && novel.entities.find((e) => e.id === entry.id);
+  const entity = id ? novel.entities.find((e) => e.id === id) : undefined;
 
   useEffect(() => {
-    if (entry) ref.current?.focus();
-  }, [entry?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!focus) return;
+    useEntryPanel.setState({ focus: false });
+    ref.current?.focus();
+  }, [focus, id]);
 
-  if (!entry) return null;
+  if (!id) {
+    return (
+      <p className="p-4 text-sm text-muted">
+        No entry open. Point at a name in the text (or put the caret on it and press Alt+Enter), then choose “Open entry”.
+      </p>
+    );
+  }
   return (
-    <aside
-      ref={ref}
-      tabIndex={-1}
-      aria-labelledby={headingId}
-      onKeyDown={(e) => {
-        if (e.key === "Escape" && !e.defaultPrevented && e.target === e.currentTarget) close();
-      }}
-      className="relative grid content-start gap-3 border-rule bg-panel p-4 outline-none lg:overflow-y-auto lg:border-l"
-    >
-      <Button size="sm" variant="ghost" onClick={close} className="justify-self-end">
-        <X className="size-4" aria-hidden /> Back to the text
-      </Button>
+    <section ref={ref} tabIndex={-1} aria-labelledby={headingId} className="grid content-start gap-3 p-4 outline-none">
       {entity ? (
         <EntryPage novelId={novelId} novel={novel} entity={entity} workspace={workspace} spell={spell} embedded={{ headingId }} />
       ) : (
         <p id={headingId}>This entry no longer exists.</p>
       )}
-    </aside>
+    </section>
   );
 }

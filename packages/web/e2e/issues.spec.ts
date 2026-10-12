@@ -424,9 +424,9 @@ test("an entry's open issues on its page, a scene's in its details; renames foll
   await page.getByRole("tree", { name: "Manuscript" }).getByRole("treeitem", { name: /^The Station,/ }).click();
   await expect(page.getByRole("textbox", { name: "Scene text" })).toBeFocused();
   await page.keyboard.press("ControlOrMeta+k");
-  await page.keyboard.type("show scene details");
+  await page.keyboard.type("show the scene's details");
   await page.keyboard.press("Enter");
-  const details = page.getByRole("complementary", { name: "Details of “The Station”" });
+  const details = page.getByRole("region", { name: "Details of “The Station”" });
   await details.getByRole("group", { name: "Open issues" }).getByRole("button", { name: "Who counted the flags?" }).click();
   await expect(page.getByRole("complementary", { name: /Who counted the flags\?/ })).toBeVisible();
 

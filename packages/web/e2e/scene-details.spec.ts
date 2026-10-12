@@ -33,8 +33,8 @@ test("edits every detail of a scene, changing only those lines of its front matt
   const before = novel.read(BETRAYAL);
   await page.getByRole("tree", { name: "Manuscript" }).getByRole("treeitem", { name: /^The Betrayal,/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "The Betrayal" })).toBeVisible();
-  await palette(page, "show scene details");
-  const panel = page.getByRole("complementary", { name: "Details of “The Betrayal”" });
+  await palette(page, "show the scene's details");
+  const panel = page.getByRole("region", { name: "Details of “The Betrayal”" });
   await expect(panel).toBeVisible();
   await axe(page);
   await page.emulateMedia({ colorScheme: "dark" });
@@ -103,27 +103,27 @@ test("edits every detail of a scene, changing only those lines of its front matt
   expect(body(novel.read(BETRAYAL))).toBe(body(before));
   await expect(panel.getByRole("list").first()).toContainText("Mirela Kost");
 
-  await palette(page, "hide scene details");
+  await palette(page, "hide the right sidebar");
   await expect(panel).toHaveCount(0);
 });
 
 test("in a chapter, follows the scene the caret is in", async ({ page, app }) => {
   await open(page, app);
-  await palette(page, "show scene details");
-  await expect(page.getByRole("complementary", { name: "Details of “The Station”" })).toBeVisible();
+  await palette(page, "show the scene's details");
+  await expect(page.getByRole("region", { name: "Details of “The Station”" })).toBeVisible();
   await page.getByRole("textbox", { name: "Chapter text" }).getByText(/met her at the toll house/).click();
-  await expect(page.getByRole("complementary", { name: "Details of “Walking the Span”" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Details of “Walking the Span”" })).toBeVisible();
   // Remembered across a reload.
   await page.reload();
-  await expect(page.getByRole("complementary", { name: /^Details of/ })).toBeVisible();
+  await expect(page.getByRole("region", { name: /^Details of/ })).toBeVisible();
 });
 
 test("makes a new entry from a picker, and lists custom types in groups of their own", async ({ page, app }) => {
   const novel = await open(page, app);
   await page.getByRole("tree", { name: "Manuscript" }).getByRole("treeitem", { name: /^The Betrayal,/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "The Betrayal" })).toBeVisible();
-  await palette(page, "show scene details");
-  const panel = page.getByRole("complementary", { name: "Details of “The Betrayal”" });
+  await palette(page, "show the scene's details");
+  const panel = page.getByRole("region", { name: "Details of “The Betrayal”" });
   const url = page.url();
 
   // Someone new, from the characters picker: made, and in the scene at once.
@@ -162,7 +162,7 @@ test("lists the built-in groups first, then custom types by name", async ({ page
   expect(r.status()).toBe(201);
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
-  await palette(page, "show scene details");
-  const panel = page.getByRole("complementary", { name: /^Details of/ });
+  await palette(page, "show the scene's details");
+  const panel = page.getByRole("region", { name: /^Details of/ });
   await expect(panel.locator("fieldset > legend")).toHaveText(["Characters", "Locations", "Plotlines", "Themes", "Artifacts", "Prizes", "Story time"]);
 });

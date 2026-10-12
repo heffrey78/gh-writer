@@ -48,10 +48,11 @@ test("@ + a new name makes the character in place: the mention, its file, the sc
   await expect(notice(page)).toContainText("Added character “Mira Kostova” to the story bible.");
   await axe(page);
   await notice(page).getByRole("button", { name: "Add details" }).click();
-  const panel = page.getByRole("complementary", { name: "Mira Kostova" });
+  const panel = page.getByRole("region", { name: "Mira Kostova" });
   await expect(panel.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("Mira Kostova");
+  await expect(panel).toBeFocused();
   expect(page.url()).toBe(url);
-  await panel.getByRole("button", { name: "Back to the text" }).click();
+  await page.keyboard.press("Escape");
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
   await expect(saveStatus(page)).toHaveText("Saved");
 });

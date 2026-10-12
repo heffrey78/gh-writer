@@ -81,9 +81,9 @@ test("the swimlanes and the scene details panel agree after an edit in either", 
   // The scene opens with its text focused: open the palette after that, or the focus moves out of it.
   await expect(page.getByRole("textbox", { name: "Scene text" })).toBeFocused();
   await page.keyboard.press("ControlOrMeta+k");
-  await page.keyboard.type("show scene details");
+  await page.keyboard.type("show the scene's details");
   await page.keyboard.press("Enter");
-  const panel = page.getByRole("complementary", { name: "Details of “The Station”" });
+  const panel = page.getByRole("region", { name: "Details of “The Station”" });
   await panel.getByRole("combobox", { name: "Weight of “The Sale”" }).selectOption("major");
   await openView(page, "Plotlines");
   await expect(grid(page).getByRole("gridcell", { name: /^The Station: major beat in The Sale/ })).toBeVisible();

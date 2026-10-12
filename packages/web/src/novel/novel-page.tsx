@@ -1,5 +1,6 @@
 import type { SyncStatus } from "@gh-writer/client";
 import type { Novel } from "@gh-writer/core";
+import { writingModes } from "@gh-writer/editor";
 import { useWritingModes } from "@gh-writer/editor/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
@@ -84,9 +85,9 @@ export function NovelPage() {
           action: {
             label: "Add details",
             run: () => {
-              // Beside the text when writing; otherwise its page.
+              // On the right sidebar's Entry tab when writing; otherwise its page.
               const editor = useWritingEditor.getState().editor;
-              if (editor && !editor.isDestroyed) useEntryPanel.getState().open(e.id, editor);
+              if (editor && !editor.isDestroyed && !writingModes.getState().focus) useEntryPanel.getState().open(e.id);
               else latest.current.navigate(`/novels/${novelId}/bible/${e.id}`);
             },
           },

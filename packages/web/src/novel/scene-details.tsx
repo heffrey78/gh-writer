@@ -2,34 +2,12 @@ import { readFrontMatter, type Novel, type YamlEdit } from "@gh-writer/core";
 import { joinSceneFile } from "@gh-writer/editor";
 import { X } from "lucide-react";
 import { useId, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
-import { create, useStore } from "zustand";
+import { useStore } from "zustand";
 import { plural } from "../bible/types.ts";
 import { Picker, type PickerItem, type PickerProps } from "../ui/picker.tsx";
 import { useNotice } from "./notice.tsx";
 import { STATUSES } from "./outline.tsx";
 import type { Workspace } from "./workspace.ts";
-
-const KEY = "ghw.sceneDetails";
-
-/** Whether the scene details panel is open: remembered in this browser. */
-export const useSceneDetails = create<{ open: boolean; toggle: () => void }>((set, get) => ({
-  open: (() => {
-    try {
-      return localStorage.getItem(KEY) === "open";
-    } catch {
-      return false;
-    }
-  })(),
-  toggle: () => {
-    const open = !get().open;
-    try {
-      localStorage.setItem(KEY, open ? "open" : "closed");
-    } catch {
-      // Not remembered; it still opens.
-    }
-    set({ open });
-  },
-}));
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DURATION = /^P(?!$)(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+(\.\d+)?S)?)?$/;
@@ -39,7 +17,7 @@ type Ref = string | { id: string; [key: string]: unknown };
 const refId = (r: Ref) => (typeof r === "string" ? r : r.id);
 
 /**
- * A scene's planning details beside its text: synopsis, status, point of view, the people, places,
+ * A scene's planning details, on the right sidebar's Scene tab: synopsis, status, point of view, the people, places,
  * plotlines and themes in it, when it happens, how long it takes, and tags. Each change rewrites only
  * the front-matter lines it touches, through the workspace (so it autosaves and merges like typing).
  */
@@ -64,7 +42,6 @@ export function SceneDetails({
 }) {
   const file = useStore(workspace.store, (s) => s.files[path]);
   const show = useNotice((s) => s.show);
-  const toggle = useSceneDetails((s) => s.toggle);
   const fm = useMemo(() => (file ? (readFrontMatter(joinSceneFile(file)) ?? {}) : {}), [file?.frontMatter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const edit = (edits: YamlEdit[]) =>
@@ -116,15 +93,10 @@ export function SceneDetails({
   const tags = Array.isArray(fm.tags) ? (fm.tags as string[]) : [];
 
   return (
-    <aside aria-labelledby="scene-details-heading" className="grid content-start gap-4 border-rule bg-panel p-4 text-sm lg:overflow-y-auto lg:border-l">
-      <div className="flex items-start justify-between gap-2">
-        <h2 id="scene-details-heading" className="font-semibold">
-          Details of “{title}”
-        </h2>
-        <button type="button" onClick={toggle} aria-label="Close scene details" className="rounded p-1 text-muted hover:bg-paper">
-          <X className="size-4" aria-hidden />
-        </button>
-      </div>
+    <section aria-labelledby="scene-details-heading" className="grid content-start gap-4 p-4 text-sm">
+      <h2 id="scene-details-heading" className="font-semibold">
+        Details of “{title}”
+      </h2>
 
       <TextField label="Synopsis" multiline value={str(fm.synopsis)} onSave={(v) => set("synopsis", v)} />
       <SelectField label="Status" value={str(fm.status) || "idea"} options={STATUSES.map((s) => [s, s])} onChange={(v) => set("status", v)} />
@@ -336,7 +308,7 @@ export function SceneDetails({
           if (next.join("\n") !== tags.join("\n")) set("tags", next.length ? next : undefined);
         }}
       />
-    </aside>
+    </section>
   );
 }
 

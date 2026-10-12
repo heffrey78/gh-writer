@@ -33,8 +33,8 @@ test("a new mention lists its character or place in the scene; removing one stic
   expect(read()).toContain("[Ben](#char_b3n0vs) waved.");
 
   // Taken off in the details panel, he stays off; the mention stays too.
-  await palette(page, "show scene details");
-  const panel = page.getByRole("complementary", { name: "Details of “The Station”" });
+  await palette(page, "show the scene's details");
+  const panel = page.getByRole("region", { name: "Details of “The Station”" });
   await panel.getByRole("button", { name: "Remove “Ben Varn”" }).click();
   await expect.poll(read).toContain("characters: [char_7f3k2q]\n");
   await text.getByText(/Ben waved\./).click();
