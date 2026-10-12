@@ -112,8 +112,15 @@ export function EntryTab({
   const type = entity && typeOf(novel, entity);
   const relationships = entity && current ? relationshipsAt(novel, current.id).filter((r) => r.from === entity.id || r.to === entity.id) : [];
   const fields = entity ? Object.entries(entity.fields) : [];
-  // Mentions in the notes read as their words.
-  const notes = entity?.body.replace(MENTION, "$1").trim().split(/\n{2,}/).filter(Boolean) ?? [];
+  // The notes as plain text: mentions as their words, without Markdown's emphasis marks.
+  const notes =
+    entity?.body
+      .replace(MENTION, "$1")
+      .replace(/(\*\*|__)(.+?)\1/g, "$2")
+      .replace(/(\*|_)(\S(?:.*?\S)?)\1/g, "$2")
+      .trim()
+      .split(/\n{2,}/)
+      .filter(Boolean) ?? [];
 
   const toolbar = (
     <div className="flex items-center gap-1">
