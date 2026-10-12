@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "yaml";
 import type { Page } from "@playwright/test";
-import { axe, expect, test, type App } from "./fixtures.ts";
+import { axe, expect, openView, test, type App } from "./fixtures.ts";
 
 const ADA = "char_7f3k2q";
 const MIRELA = "char_m1re1a";
@@ -101,4 +101,42 @@ test("a new kind of relationship, one-way, is used at once from either side", as
   await expect(panel(page)).toContainText("Is owed a favour by Tomas Hale");
   // Read from Tomas's side, Ben's record reads the other way.
   expect(novel.relationships().at(-1)).toMatchObject({ from: "char_t0ma5h", to: "char_b3n0vs", type: "owes-a-favour-to" });
+});
+
+test("a kind of relationship's colour and line are chosen by keyboard, saved in novel.yaml, and drawn in the graph", async ({ page, app }) => {
+  const { dir } = await openEntry(page, app, ADA);
+  const yaml = () => readFileSync(join(dir, "novel.yaml"), "utf8");
+  const before = yaml();
+  await page.getByRole("link", { name: "Story bible" }).first().click();
+  const kinds = page.getByRole("region", { name: "Kinds of relationship" });
+  await kinds.getByRole("button", { name: "Edit “Rivals with”" }).click();
+  const colour = dialog(page).getByRole("group", { name: "Colour" });
+  await expect(colour.getByRole("radio", { name: "Red" })).toBeChecked();
+  await expect(dialog(page).getByRole("group", { name: "Line" }).getByRole("radio", { name: "Dashed" })).toBeChecked();
+  await axe(page);
+  // Arrow keys move through a radio group.
+  await colour.getByRole("radio", { name: "Red" }).focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(colour.getByRole("radio", { name: "Violet" })).toBeChecked();
+  await dialog(page).getByRole("group", { name: "Line" }).getByRole("radio", { name: "Dashed" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await dialog(page).getByRole("button", { name: "Save" }).click();
+  await expect(dialog(page)).toHaveCount(0);
+  // Only its style's lines changed.
+  await expect.poll(yaml).toBe(before.replace("style: { color: series-8, line: dashed }", "style: { color: series-7, line: dotted }"));
+
+  // A new kind takes the first colour no kind uses; the others keep theirs.
+  await page.getByRole("button", { name: "New kind" }).click();
+  await dialog(page).getByRole("textbox", { name: "Name" }).fill("Loves");
+  await expect(dialog(page).getByRole("group", { name: "Colour" }).getByRole("radio", { name: "Orange" })).toBeChecked();
+  await dialog(page).getByRole("button", { name: "Add" }).click();
+  await expect(kinds).toContainText("Loves");
+  expect(yaml()).toContain("  - key: loves\n    label: Loves\n    symmetric: true\n    style:\n      color: series-2\n      line: solid\n");
+
+  // The graph draws Rivals with in violet, dotted.
+  await openView(page, "Relationships");
+  await page.getByRole("slider", { name: "Story position" }).focus();
+  for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
+  const rivals = page.locator('.react-flow__edge[aria-label="Ada Varn, Rivals with, Ben Varn"] path.react-flow__edge-path');
+  await expect.poll(() => rivals.evaluate((p) => [getComputedStyle(p).stroke, getComputedStyle(p).strokeDasharray])).toEqual(["rgb(98, 80, 214)", "2px, 4px"]);
 });

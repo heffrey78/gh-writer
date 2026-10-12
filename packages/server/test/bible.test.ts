@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadNovel, relationshipsAt, validateNovel } from "@gh-writer/core";
+import { loadNovel, relationshipsAt, relationshipStyle, validateNovel } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { BibleOperations, createServer, hashText, Library, sessionCookie, transaction } from "../src/index.ts";
@@ -175,6 +175,29 @@ describe("types", () => {
     await valid();
     await bible.updateRelationshipType("owes-favour", { label: "Owes one to" });
     expect((await model()).relationshipTypes.find((t) => t.key === "owes-favour")?.label).toBe("Owes one to");
+  });
+
+  it("gives a new relationship type the first colour no type uses, and changes only its style's lines", async () => {
+    const model0 = await model();
+    const before = model0.relationshipTypes.map((t) => [t.key, relationshipStyle(model0, t.key)]);
+    // Used in the sample: series-1, 4, 5, 6, 7 and 8 (some by their place in the list); 2 is free.
+    await bible.createRelationshipType({ key: "loves", label: "Loves" });
+    const novel = await model();
+    expect(novel.relationshipTypes.find((t) => t.key === "loves")?.style).toEqual({ color: "series-2", line: "solid" });
+    // Nobody else repainted.
+    expect(novel.relationshipTypes.filter((t) => t.key !== "loves").map((t) => [t.key, relationshipStyle(novel, t.key)])).toEqual(before);
+
+    const yaml = read("novel.yaml");
+    await bible.updateRelationshipType("rivals", { style: { color: "series-7", line: "dotted" } });
+    expect(read("novel.yaml")).toBe(yaml.replace("style: { color: series-8, line: dashed }", "style: { color: series-7, line: dotted }"));
+    await bible.updateRelationshipType("sibling", { style: { color: "series-3" } });
+    expect(relationshipStyle(await model(), "sibling")).toEqual({ slot: "series-3", line: "solid" });
+    await valid();
+
+    // Only the palette: never the status colours, nor a colour of its own.
+    await expect(bible.updateRelationshipType("rivals", { style: { color: "danger" as never } })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(bible.createRelationshipType({ key: "hates", label: "Hates", style: { color: "#ff0000" as never } })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(bible.updateRelationshipType("rivals", { style: { line: "wavy" as never } })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });
 

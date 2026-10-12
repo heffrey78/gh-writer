@@ -6,6 +6,8 @@ import {
   editYaml,
   indexById,
   loadNovel,
+  nextSeriesSlot,
+  SERIES,
   ID_PATTERN,
   RESERVED_PREFIXES,
   slugify,
@@ -13,6 +15,7 @@ import {
   uniqueId,
   type Novel,
   type Relationship,
+  type SeriesSlot,
 } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
 import { parse, stringify } from "yaml";
@@ -64,6 +67,17 @@ export interface RelationshipTypeFields {
   symmetric?: boolean;
   from_types?: string[];
   to_types?: string[];
+  /** How it's drawn: a palette slot and a line. */
+  style?: { color?: SeriesSlot; line?: "solid" | "dashed" | "dotted" };
+}
+
+const LINES = ["solid", "dashed", "dotted"];
+
+/** A style as the app may save it: only palette slots (never the status colours) and the three lines. */
+function checkStyle(style: RelationshipTypeFields["style"]): void {
+  if (!style) return;
+  if (style.color !== undefined && !SERIES.some((s) => s.slot === style.color)) throw new OperationError("BAD_REQUEST", `“${style.color}” isn't one of the palette's colours.`);
+  if (style.line !== undefined && !LINES.includes(style.line)) throw new OperationError("BAD_REQUEST", `A line is solid, dashed or dotted.`);
 }
 
 const RELATIONSHIPS = "bible/relationships.yaml";
@@ -319,7 +333,10 @@ export class BibleOperations {
       for (const t of [...(fields.from_types ?? []), ...(fields.to_types ?? [])]) {
         if (!novel.entityTypes.some((e) => e.key === t)) throw new OperationError("BAD_REQUEST", `No entity type “${t}”.`);
       }
-      const content = await this.#appendToList(NOVEL, "relationship_types", clean({ ...fields, label: required(fields.label, "label") }));
+      checkStyle(fields.style);
+      // Its own colour from the start, the first no type uses, so adding a type never repaints the others.
+      const style = { color: fields.style?.color ?? nextSeriesSlot(novel), line: fields.style?.line ?? "solid" };
+      const content = await this.#appendToList(NOVEL, "relationship_types", clean({ ...fields, label: required(fields.label, "label"), style }));
       return transaction(this.root, [{ path: NOVEL, content }], `Bible: add the “${fields.label}” relationship`);
     });
   }
@@ -328,7 +345,11 @@ export class BibleOperations {
     return this.#run(async (novel) => {
       const index = novel.relationshipTypes.findIndex((t) => t.key === key);
       if (index < 0) throw new OperationError("NOT_FOUND", `No relationship type “${key}”.`);
-      const content = editYaml(await this.#read(NOVEL), editsAt(["relationship_types", index], changes));
+      const { style, ...rest } = changes;
+      checkStyle(style);
+      // The style's own lines, so the rest of the type is left as written.
+      const styleEdits = Object.entries(style ?? {}).map(([k, value]) => ({ path: ["relationship_types", index, "style", k], value }));
+      const content = editYaml(await this.#read(NOVEL), [...editsAt(["relationship_types", index], rest), ...styleEdits]);
       return transaction(this.root, [{ path: NOVEL, content }], `Bible: edit the “${key}” relationship`);
     });
   }
