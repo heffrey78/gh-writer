@@ -7,9 +7,9 @@ import { writeBigNovel } from "./big-novel.ts";
  * stays within the editor's budget (50 ms at the 95th percentile). Runs alone, after the other tests.
  */
 
-function bigNovel(app: App): string {
+function bigNovel(app: App, options?: Parameters<typeof writeBigNovel>[1]): string {
   const dir = join(app.home, "novels", "long-crossing");
-  const { words } = writeBigNovel(dir);
+  const { words } = writeBigNovel(dir, options);
   expect(words).toBeGreaterThanOrEqual(150_000);
   app.git(dir, "init", "-q");
   app.git(dir, "add", "-A");
@@ -62,10 +62,13 @@ test("a 150,000-word novel opens on a first launch, nothing cached, in under 2 s
 });
 
 test("typing in a chapter of the 150,000-word novel stays under 50 ms at the 95th percentile", async ({ page, app }) => {
-  await app.restart(bigNovel(app));
+  await app.restart(bigNovel(app, { plotlines: 12 }));
+  // With details pinned under each scene's title (#153), and the right sidebar open.
+  await page.addInitScript(() => localStorage.setItem("ghw.pinnedDetails", JSON.stringify(["pov", "when", "plotlines"])));
   await page.goto(app.launchUrl);
   const text = page.getByRole("textbox", { name: "Chapter text" });
   await expect(text).toBeFocused({ timeout: 10_000 });
+  await expect(page.locator(".ghw-pinned").first()).toBeVisible();
   await page.evaluate(() => {
     const w = window as unknown as { latencies: number[] };
     w.latencies = [];

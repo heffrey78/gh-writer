@@ -1,4 +1,4 @@
-import { readAnchor, type Chapter, type Novel, type Scene } from "@gh-writer/core";
+import { readAnchor, readFrontMatter, type Chapter, type Novel, type Scene } from "@gh-writer/core";
 import { countWords } from "@gh-writer/core";
 import {
   caretBlock,
@@ -40,7 +40,7 @@ import { EntryTab, leaveMention, MentionCard, useMentionCard } from "./mention-c
 import { mentionEdits } from "./mention-sync.ts";
 import { useNotice } from "./notice.tsx";
 import { RightSidebar, useRightSidebar } from "./right-sidebar.tsx";
-import { SceneDetails } from "./scene-details.tsx";
+import { pinnedLine, SceneDetails, usePins } from "./scene-details.tsx";
 import { TodayCount } from "./today-count.tsx";
 import { useStructure } from "./structure.ts";
 import { TitleDialog } from "./structure-dialogs.tsx";
@@ -313,6 +313,21 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
 
   const heading = "scene" in view ? view.scene.title : chapterTitle(novel, view.chapter);
 
+  // The pinned details under each scene's title, following the details as they change (not the text).
+  const pinKeys = usePins((p) => p.keys);
+  const frontMatters = scenes.map((s) => files[s.file]?.frontMatter ?? "").join("\0");
+  const pinned = useMemo(
+    () =>
+      Object.fromEntries(
+        scenes.flatMap((s) => {
+          const f = files[s.file];
+          const line = f && pinKeys.length ? pinnedLine(novel, readFrontMatter(joinSceneFile({ ...f, body: "" })) ?? {}, pinKeys) : "";
+          return line ? [[s.file, line]] : [];
+        }),
+      ),
+    [frontMatters, pinKeys, novel], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
   // The Scene tab shows the scene the caret is in, or one stepped to from it (◀ ▶) until the caret moves.
   const [stepped, setStepped] = useState<{ from: string; to: string }>();
   const atCaret = current && scenes.find((s) => s.id === current.id);
@@ -345,6 +360,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
             <TodayCount novelId={novelId} workspace={workspace} />
           </div>
         </div>
+        {"scene" in view && pinned[view.scene.file] && <p className="ghw-pinned -mt-2 text-[13px] text-muted">{pinned[view.scene.file]}</p>}
         {splitting && (
           <TitleDialog
             title="Split the scene here"
@@ -379,6 +395,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
           <ChapterEditor
             key={view.chapter.id}
             scenes={scenes.map((s) => ({ id: s.file, title: s.title, markdown: files[s.file]!.body }))}
+            pinned={pinned}
             onChange={(changed) => changed.forEach((c) => workspace.change(c.id, c.markdown))}
             onReady={setEditor}
             autofocus={autofocus}

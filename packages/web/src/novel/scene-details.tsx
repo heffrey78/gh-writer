@@ -1,10 +1,10 @@
 import { readFrontMatter, type Novel, type YamlEdit } from "@gh-writer/core";
 import { chapterTitle } from "@gh-writer/core/diagrams";
 import { joinSceneFile } from "@gh-writer/editor";
-import { ChevronLeft, ChevronRight, Pencil, Plus, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, Pin, Plus, X } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { useStore } from "zustand";
+import { create, useStore } from "zustand";
 import { plural } from "../bible/types.ts";
 import { MENU_ITEM } from "../layout.tsx";
 import { Button } from "../ui/button.tsx";
@@ -21,6 +21,70 @@ const AT = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?)?$/;
 
 type Ref = string | { id: string; [key: string]: unknown };
 const refId = (r: Ref) => (typeof r === "string" ? r : r.id);
+
+const PINS = "ghw.pinnedDetails";
+
+/** The details pinned under each scene's title in the text (#153), by row key: remembered in this browser. */
+export const usePins = create<{ keys: string[]; toggle: (key: string) => void }>((set, get) => ({
+  keys: (() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(PINS) ?? "[]") as unknown;
+      return Array.isArray(saved) ? saved.filter((k): k is string => typeof k === "string") : [];
+    } catch {
+      return [];
+    }
+  })(),
+  toggle: (key) => {
+    const keys = get().keys.includes(key) ? get().keys.filter((k) => k !== key) : [...get().keys, key];
+    set({ keys });
+    try {
+      localStorage.setItem(PINS, JSON.stringify(keys));
+    } catch {
+      // Not remembered where storage is blocked.
+    }
+  },
+}));
+
+const listOf = (fm: Record<string, unknown>, key: string): Ref[] => (Array.isArray(fm[key]) ? (fm[key] as Ref[]) : []);
+
+/** When a scene happens, as read: "Day 3, 18:30", a date, or nothing; and how long, as "45 min". */
+function whenOf(fm: Record<string, unknown>): { when: string; duration: string } {
+  const w = fm.when && typeof fm.when === "object" ? (fm.when as { at?: string; day?: number; time?: string }) : undefined;
+  const when = w?.at !== undefined ? w.at.replace("T", " ") : w?.day !== undefined ? `Day ${w.day}${w.time ? `, ${w.time}` : ""}` : "";
+  return { when, duration: str(fm.duration) && readableDuration(str(fm.duration)) };
+}
+
+/**
+ * Each detail a scene has, as a few words for its pinned line, by row key in the card's order:
+ * names for entries, "Day 3, 18:30 · 45 min" for when, the tags as written.
+ */
+export function detailTexts(novel: Novel, fm: Record<string, unknown>): Record<string, string> {
+  const name = (id: string) => novel.entities.find((e) => e.id === id)?.name ?? id;
+  const names = (ids: string[]) => ids.map(name).join(", ");
+  const typeOf = (id: string) => novel.entities.find((e) => e.id === id)?.type ?? novel.entityTypes.find((t) => id.startsWith(`${t.prefix}_`))?.key;
+  const { when, duration } = whenOf(fm);
+  const texts: Record<string, string> = {
+    pov: str(fm.pov) && name(str(fm.pov)),
+    locations: names(listOf(fm, "locations").map(refId)),
+    characters: names(listOf(fm, "characters").map(refId)),
+    when: [when, duration].filter(Boolean).join(" · "),
+    plotlines: names(listOf(fm, "plotlines").map(refId)),
+  };
+  for (const t of novel.entityTypes.filter((t) => !t.builtin).sort((a, b) => a.label.localeCompare(b.label))) {
+    texts[`type:${t.key}`] = names(listOf(fm, "entities").map(refId).filter((id) => typeOf(id) === t.key));
+  }
+  texts.themes = names(listOf(fm, "themes").map(refId));
+  texts.tags = (Array.isArray(fm.tags) ? (fm.tags as unknown[]) : []).map(String).join(", ");
+  return texts;
+}
+
+/** A scene's pinned line: its pinned details that it has, in the card's order. */
+export function pinnedLine(novel: Novel, fm: Record<string, unknown>, keys: readonly string[]): string {
+  return Object.entries(detailTexts(novel, fm))
+    .filter(([k, v]) => v && keys.includes(k))
+    .map(([, v]) => v)
+    .join(" · ");
+}
 
 /**
  * A scene's planning details as a card on the right sidebar's Scene tab (#150): its title and place
@@ -57,6 +121,7 @@ export function SceneDetails({
   const show = useNotice((s) => s.show);
   const fm = useMemo(() => (file ? (readFrontMatter(joinSceneFile(file)) ?? {}) : {}), [file?.frontMatter]); // eslint-disable-line react-hooks/exhaustive-deps
   const headingId = useId();
+  const pins = usePins();
   const [editing, setEditing] = useState<string | null>(null);
   const pencils = useRef(new Map<string, HTMLButtonElement | null>());
   const editor = useRef<HTMLDivElement>(null);
@@ -198,8 +263,8 @@ export function SceneDetails({
       filled: whenKind !== "" || !!str(fm.duration),
       view: (
         <>
-          {whenKind === "day" ? `Day ${when!.day}${when!.time ? `, ${when!.time}` : ""}` : whenKind === "date" ? when!.at!.replace("T", " ") : "Not set"}
-          {str(fm.duration) && <span className="text-muted"> · {readableDuration(str(fm.duration))}</span>}
+          {whenOf(fm).when || "Not set"}
+          {whenOf(fm).duration && <span className="text-muted"> · {whenOf(fm).duration}</span>}
         </>
       ),
       edit: (
@@ -405,6 +470,23 @@ export function SceneDetails({
     </div>
   );
 
+  const pin = (key: string, label: string) => {
+    const on = pins.keys.includes(key);
+    return (
+      <button
+        type="button"
+        onClick={() => pins.toggle(key)}
+        aria-pressed={on}
+        aria-label={`Pin ${label.toLowerCase()} under the scene titles`}
+        title={on ? "Pinned under the scene titles" : "Pin under the scene titles"}
+        className={cn("shrink-0 rounded p-1 hover:bg-paper hover:text-ink", on ? "text-accent" : "text-muted opacity-60 group-hover:opacity-100 focus-visible:opacity-100")}
+      >
+        <Pin className="size-3.5" fill={on ? "currentColor" : "none"} aria-hidden />
+      </button>
+    );
+  };
+  const pinnedHere = rows.filter((r) => pins.keys.includes(r.key));
+
   const pencil = (key: string, label: string) => (
     <button
       ref={(el) => void pencils.current.set(key, el)}
@@ -478,6 +560,7 @@ export function SceneDetails({
                   {editing === r.key ? editorOf(r.edit) : r.view}
                 </div>
                 {editing !== r.key && pencil(r.key, r.label)}
+                {editing !== r.key && pin(r.key, r.label)}
               </dd>
             </div>
           ))}
@@ -501,6 +584,12 @@ export function SceneDetails({
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
+      )}
+
+      {pinnedHere.length > 0 && (
+        <p className="text-xs text-muted">
+          Pinned under each scene's title: {pinnedHere.map((r) => r.label.toLowerCase()).join(", ")}.
+        </p>
       )}
 
       {issues && (

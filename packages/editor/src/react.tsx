@@ -11,6 +11,7 @@ import { FindExtension } from "./find.ts";
 import { SearchHighlightExtension } from "./search.ts";
 import { SelectFocusExtension } from "./select-focus.ts";
 import { IssueMarksExtension, refreshIssueMarks, type AnchoredIssue } from "./issue-marks.ts";
+import { PinnedLinesExtension, refreshPinnedLines } from "./pinned-lines.ts";
 import { LinkSuggestExtension } from "./link-suggest.ts";
 import { MentionInfoExtension, type MentionTarget } from "./mention-info.ts";
 import { MentionSuggestExtension, type MentionEntity, type MentionType } from "./mention-suggest.ts";
@@ -256,6 +257,8 @@ export interface ChapterEditorProps {
   issueMarks?: IssueMarksProps;
   /** A mention was hovered, or Alt+Enter pressed beside one: for a card about its entity. */
   onMention?: MentionCallbacks;
+  /** A line of pinned details under each scene's title, by scene ID; display only. */
+  pinned?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -275,8 +278,12 @@ export function ChapterEditor({
   newEntry,
   issueMarks,
   onMention,
+  pinned,
 }: ChapterEditorProps) {
   const spellExtension = useSpellExtension(spell);
+  const latestPinned = useRef(pinned);
+  latestPinned.current = pinned;
+  const pinnedLines = useRef(PinnedLinesExtension.configure({ lines: () => latestPinned.current ?? {} })).current;
   const mentionExtension = useMentionExtension(entities, newEntry);
   const issueMarksExtension = useIssueMarksExtension(issueMarks);
   const mentionInfo = useMentionInfoExtension(onMention);
@@ -312,7 +319,7 @@ export function ChapterEditor({
   }).current;
 
   const editor = useEditor({
-    extensions: [...chapterContent, UndoRedo, SelectFocusExtension, issueMarksExtension, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, ...mentionExtension, mentionInfo],
+    extensions: [...chapterContent, UndoRedo, SelectFocusExtension, issueMarksExtension, pinnedLines, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, ...mentionExtension, mentionInfo],
     editorProps: {
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": label, class: "ghw-prose ghw-chapter" },
     },
@@ -360,6 +367,10 @@ export function ChapterEditor({
   }, [editor, scenes]);
 
   useIssueMarksRefresh(editor, issueMarks);
+  const pinnedKey = JSON.stringify(pinned ?? {});
+  useEffect(() => {
+    if (editor) refreshPinnedLines(editor);
+  }, [editor, pinnedKey]);
   useFlushOnLeave(flush);
 
   return <EditorContent editor={editor} className={className} />;

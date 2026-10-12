@@ -701,3 +701,11 @@
 .ghw-issue-passage.is-active {
   background: var(--ghw-accent-soft);
 }
+
+/* Pinned details under a scene's title (chapter view): display only, not part of the text. */
+.ghw-prose .ghw-pinned {
+  margin: -0.5em 0 1em;
+  font: 0.8125rem/1.4 system-ui, sans-serif;
+  color: var(--ghw-muted);
+  user-select: none;
+}

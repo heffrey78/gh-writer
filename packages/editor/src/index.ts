@@ -81,4 +81,5 @@ export { mentionSuggestKey, MentionSuggestExtension, suggestMentions, type Menti
 export { MENTION_INFO_KEYS, mentionAtCaret, MentionInfoExtension, type MentionInfoOptions, type MentionTarget } from "./mention-info.ts";
 export { SelectFocusExtension } from "./select-focus.ts";
 export { linkCommands, linkNameAtCaret, linkSuggestKey, LinkSuggestExtension, type LinkSuggestOptions } from "./link-suggest.ts";
+export { decoratePinned, PinnedLinesExtension, pinnedLinesKey, refreshPinnedLines, type PinnedLinesOptions } from "./pinned-lines.ts";
 export { IssueMarksExtension, issueMarksKey, ISSUE_MARKS_KEY, refreshIssueMarks, sceneText, sceneTextAt, type AnchoredIssue, type IssueMarksOptions } from "./issue-marks.ts";
