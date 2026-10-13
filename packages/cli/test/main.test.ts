@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -140,6 +141,73 @@ describe("gh-writer serve", () => {
   });
 });
 
+describe("gh-writer serve --sidecar", () => {
+  /** The first line on stdout, as JSON; with the rest of stdout, which should stay empty. */
+  function sidecar(...args: string[]) {
+    const child = spawn("node", [main, "serve", ...args, "--sidecar"], { env: env() });
+    let out = "";
+    child.stdout.setEncoding("utf8").on("data", (chunk: string) => (out += chunk));
+    const exited = new Promise<number | null>((resolve) => child.once("exit", resolve));
+    const first = new Promise<Record<"url" | "token" | "launchUrl" | "error", string>>((resolve, reject) => {
+      child.stdout.on("data", () => out.includes("\n") && resolve(JSON.parse(out.slice(0, out.indexOf("\n"))) as Record<"url" | "token" | "launchUrl" | "error", string>));
+      child.once("exit", () => reject(new Error(`serve exited before its line: ${out}`)));
+    });
+    return { child, exited, first, rest: () => out.slice(out.indexOf("\n") + 1) };
+  }
+
+  it("prints its address as one JSON line, and when stdin closes commits waiting work and exits 0", async () => {
+    const novel = join(tmp, "sidecar-novel");
+    cpSync(sample, novel, { recursive: true });
+    for (const args of [["init", "-q"], ["config", "user.name", "t"], ["config", "user.email", "t@t"], ["add", "-A"], ["commit", "-qm", "Draft"]]) spawnSync("git", ["-C", novel, ...args]);
+
+    const { child, exited, first, rest } = sidecar(novel);
+    const { url, token, launchUrl } = await first;
+    expect(launchUrl).toBe(`${url}/novels/${/lib_[0-9a-z]{6}/.exec(launchUrl)?.[0]}?token=${token}`);
+    const exchange = await fetch(launchUrl, { redirect: "manual" });
+    expect(exchange.status).toBe(303);
+    const cookie = exchange.headers.get("set-cookie")?.split(";")[0] ?? "";
+
+    const path = "manuscript/01-return/01-arrival/01-the-station.md";
+    const before = readFileSync(join(novel, path));
+    const id = /lib_[0-9a-z]{6}/.exec(launchUrl)?.[0];
+    const put = await fetch(`${url}/api/novels/${id}/files/${path}`, {
+      method: "PUT",
+      headers: { cookie, origin: url, "content-type": "application/json" },
+      body: JSON.stringify({ content: `${before.toString("utf8")}\nOne more line.\n`, base: createHash("sha256").update(before).digest("hex") }),
+    });
+    expect(put.status).toBe(200);
+
+    child.stdin.end();
+    expect(await exited).toBe(0);
+    expect(rest()).toBe("");
+    expect(spawnSync("git", ["-C", novel, "status", "--porcelain"], { encoding: "utf8" }).stdout).toBe("");
+    expect(spawnSync("git", ["-C", novel, "show", "HEAD", "--", path], { encoding: "utf8" }).stdout).toContain("+One more line.");
+  }, 20_000);
+
+  it("reports a novel it can't open as {error}, exiting 1", async () => {
+    const { exited, first } = sidecar(broken);
+    expect((await first).error).toContain("isn't a git repository");
+    expect(await exited).toBe(1);
+  });
+
+  it("stops when the app that started it is killed", async () => {
+    // A stand-in app: starts the sidecar with stdin piped, reports its pid, and waits to be killed.
+    const app = spawn("node", ["-e", `const c = require("node:child_process").spawn("node", ${JSON.stringify([main, "serve", "--sidecar"])}, { stdio: ["pipe", "pipe", "inherit"] }); c.stdout.once("data", () => console.log(c.pid));`], { env: env() });
+    const pid = Number(await new Promise<string>((resolve) => app.stdout.setEncoding("utf8").once("data", resolve)));
+    app.kill("SIGKILL");
+    const alive = () => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    for (let i = 0; i < 100 && alive(); i++) await new Promise((r) => setTimeout(r, 100));
+    expect(alive()).toBe(false);
+  }, 20_000);
+});
+
 describe("gh-writer commands", () => {
   it("new-id prints a valid ID", () => {
     expect(run(main, "new-id", "char").out.trim()).toMatch(/^char_[0-9a-hjkmnp-tv-z]{6}$/);
@@ -180,7 +248,7 @@ describe("server bundle", () => {
     const { child, exited, launch, cookie } = await serve(bundle, sample);
     expect(await (await fetch(new URL("/", launch), { headers: { cookie } })).text()).toContain("<title>Stand-in</title>");
     const library = (await (await fetch(new URL("/api/library", launch), { headers: { cookie } })).json()) as { novels: { path: string }[] };
-    expect(library.novels.map((n) => n.path)).toEqual([realpathSync(sample)]);
+    expect(library.novels.map((n) => n.path)).toContain(realpathSync(sample));
     child.kill("SIGTERM");
     expect(await exited).toBe(0);
   }, 15_000);

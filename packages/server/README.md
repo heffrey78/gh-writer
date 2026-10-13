@@ -319,3 +319,5 @@ GET and HEAD must not change state: the server doesn't require `Origin` on them,
 ## Shutdown
 
 `close()` stops accepting connections, lets in-flight requests finish (a write in progress completes), then resolves. Idle keep-alive connections are closed at once, and busy ones as soon as their response is sent. After `shutdownTimeout` (10 s by default), any remaining connections are cut. `gh-writer serve` calls it on SIGINT or SIGTERM. A second signal exits at once.
+
+`gh-writer serve --sidecar` is for the desktop app, which starts the server as a child process. It opens no browser and prints one JSON line on stdout: `{ url, token, launchUrl }` once listening, or `{ error }` (exit 1) if it can't start. Its messages go to stderr. It also calls `close()` when stdin reaches its end, so a server whose app quits, crashes or is killed stops too (Windows has no SIGTERM to send). The app keeps stdin open as a pipe for as long as it wants the server.
