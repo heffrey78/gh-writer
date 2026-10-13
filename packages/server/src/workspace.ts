@@ -4,6 +4,7 @@ import { loadNovel, type FileSource, type Novel } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
 import { watch, type FSWatcher } from "chokidar";
 import { BibleOperations } from "./bible.ts";
+import { BoardStore } from "./board.ts";
 import { Checkpoints } from "./checkpoints.ts";
 import { ManuscriptOperations } from "./manuscript.ts";
 import { Committer, type CommitStatus, type CommitterOptions } from "./committer.ts";
@@ -59,6 +60,8 @@ export class NovelWorkspace {
   readonly manuscript: ManuscriptOperations;
   /** The novel's GitHub issues, cached in the clone (with a GitHub connection; empty unless the novel is on GitHub). */
   readonly issues: IssueStore | undefined;
+  /** The drafting board on GitHub (with a GitHub connection; inert until set up, D8). */
+  readonly board: BoardStore | undefined;
   /** Resolves when the workspace stops: event streams end then. */
   readonly stopped: Promise<void>;
   #stop!: () => void;
@@ -102,6 +105,14 @@ export class NovelWorkspace {
     this.bible = new BibleOperations(root, (fn) => this.exclusive(fn));
     this.manuscript = new ManuscriptOperations(root, (fn) => this.exclusive(fn));
     this.issues = github ? new IssueStore(root, github, () => this.githubRepo(), async () => (await this.loadModel()).novel) : undefined;
+    this.board = github
+      ? new BoardStore(root, github, () => this.githubRepo(), {
+          novel: async () => (await this.loadModel()).novel,
+          onMain: async () => (await this.versions.current()) === "main",
+          read: (path) => this.read(path),
+          write: (path, content, base) => this.write(path, content, base, undefined, { announce: true }),
+        })
+      : undefined;
     // Issues are brought up to date with each sync with GitHub, so a change on github.com shows within one cycle.
     let lastSync: string | null | undefined;
     this.syncer?.onChange(() => {
@@ -189,9 +200,10 @@ export class NovelWorkspace {
   /**
    * Write `content` to `path` if the file on disk is still the one the client read: `base` is the hash
    * it read, or null for a file it expects not to exist. Otherwise nothing is written and the current
-   * file comes back. Writes to one path run one at a time.
+   * file comes back. Writes to one path run one at a time. `announce`: subscribers hear of it as of a
+   * change made outside the app (one the server makes for GitHub, which open editors must take in).
    */
-  write(path: string, content: string, base: string | null, hooks?: WriteHooks): Promise<WriteResult> {
+  write(path: string, content: string, base: string | null, hooks?: WriteHooks, { announce = false } = {}): Promise<WriteResult> {
     return this.#locked(path, () => this.#shared(async () => {
       const full = await writablePath(this.root, path, content);
       const current = await readText(this.root, path);
@@ -199,7 +211,8 @@ export class NovelWorkspace {
       const hash = hashText(content);
       if (current?.hash === hash) return { ok: true, hash };
       // Recorded before the write, since the watcher may see the file before atomicWrite returns.
-      this.#written.set(path, hash);
+      if (announce) this.#written.delete(path);
+      else this.#written.set(path, hash);
       try {
         await atomicWrite(full, content, hooks);
       } catch (e) {

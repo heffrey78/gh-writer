@@ -63,6 +63,8 @@ export interface FakeProjects {
   remove(project: FakeProject): void;
   /** Requests answered, each the operation's mutations or top-level query fields. */
   operations: string[][];
+  /** Refuse changes to a project's own Status field, as GitHub might. */
+  lockStatus: boolean;
 }
 
 const SDL = /* GraphQL */ `
@@ -582,6 +584,7 @@ export function fakeProjects({ webUrl, now }: { webUrl: () => string; now: () =>
         const p = all.find((x) => x.owner === login && x.fields.some((f) => f.id === input.fieldId));
         if (!p) throw notFound(input.fieldId);
         const f = fieldOf(p, input.fieldId);
+        if (self.lockStatus && f.name === "Status") throw new TypedError("UNPROCESSABLE", "The Status field can't be changed");
         if (input.name !== undefined) f.name = input.name;
         if (input.singleSelectOptions) {
           if (f.dataType !== "SINGLE_SELECT") throw new TypedError("UNPROCESSABLE", "Only single select fields have options");
@@ -668,9 +671,10 @@ export function fakeProjects({ webUrl, now }: { webUrl: () => string; now: () =>
     return f;
   };
 
-  return {
+  const self: FakeProjects = {
     all,
     operations,
+    lockStatus: false,
     execute,
     value: (p, i, name) => {
       const f = field(p, name);
@@ -699,6 +703,7 @@ export function fakeProjects({ webUrl, now }: { webUrl: () => string; now: () =>
       if (at >= 0) all.splice(at, 1);
     },
   };
+  return self;
 }
 
 /** The top-level fields of a request (its mutations, or what it queries), for tests that count requests. */
