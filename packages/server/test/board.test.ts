@@ -256,7 +256,7 @@ describe("syncing", () => {
     const status = gitIn(dir, "status", "--porcelain");
     fake.projects.remove(project());
     const gone = await ws.board!.sync();
-    expect(gone).toMatchObject({ project: null, gone: true, error: { code: "GONE" } });
+    expect(gone).toMatchObject({ project: null, gone: true, syncedAt: null, last: null, error: { code: "GONE" } });
     expect(gitIn(dir, "rev-parse", "HEAD")).toBe(head);
     expect(gitIn(dir, "status", "--porcelain")).toBe(status);
 

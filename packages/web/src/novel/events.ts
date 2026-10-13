@@ -7,6 +7,8 @@ export interface NovelEventHandlers {
   sync?: (status: SyncStatus) => void;
   /** The novel's cached GitHub issues changed. */
   issues?: () => void;
+  /** The drafting board's status on GitHub changed. */
+  board?: () => void;
 }
 
 /**
@@ -23,6 +25,7 @@ export function useNovelEvents(novelId: string, handlers: NovelEventHandlers): b
     source.addEventListener("file", (e) => latest.current.file?.(JSON.parse((e as MessageEvent<string>).data) as FileEvent));
     source.addEventListener("sync", (e) => latest.current.sync?.(JSON.parse((e as MessageEvent<string>).data) as SyncStatus));
     source.addEventListener("issues", () => latest.current.issues?.());
+    source.addEventListener("board", () => latest.current.board?.());
     source.onerror = () => setConnected(false);
     return () => source.close();
   }, [novelId]);

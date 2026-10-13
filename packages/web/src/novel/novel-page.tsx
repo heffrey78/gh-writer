@@ -127,6 +127,7 @@ export function NovelPage() {
     },
     sync: (status) => queryClient.setQueryData(keys.sync(novelId), status),
     issues: () => void queryClient.invalidateQueries({ queryKey: keys.issues(novelId) }),
+    board: () => void queryClient.invalidateQueries({ queryKey: keys.board(novelId) }),
   });
 
   const syncNow = useMutation({

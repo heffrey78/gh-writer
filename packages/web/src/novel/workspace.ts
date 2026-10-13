@@ -45,8 +45,9 @@ export interface WorkspaceOptions {
   interval?: number;
   storage?: StorageLike | null;
   /**
-   * A save changed a file's front matter (a scene's details, an entry's fields): the story model,
-   * which other views read, needs loading again. Changes on disk from elsewhere come as file events.
+   * A save changed a file's front matter (a scene's details, an entry's fields), or a change on disk
+   * changed an open file's: the story model, which other views read, needs loading again. Changes on
+   * disk to files that aren't open come as file events.
    */
   onFrontMatterSaved?: (path: string) => void;
 }
@@ -241,7 +242,11 @@ export function createWorkspace({ api, novelId, interval, storage, onFrontMatter
       }
       const current = await api.readFile(novelId, e.path).catch(() => undefined);
       const now = file(e.path);
-      if (current && now && !dirty(now)) load(e.path, current.content, current.hash);
+      if (current && now && !dirty(now)) {
+        load(e.path, current.content, current.hash);
+        // A status set from GitHub's board, say: the model must follow, as after a save of it here.
+        if (splitSceneFile(now.disk).frontMatter !== splitSceneFile(current.content).frontMatter) onFrontMatterSaved?.(e.path);
+      }
       return true;
     },
 

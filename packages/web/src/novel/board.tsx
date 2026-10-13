@@ -1,9 +1,10 @@
 import { countWords, type Novel, type Scene, type SceneStatus } from "@gh-writer/core";
 import { GripVertical } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
+import { BoardOnGitHub, ConflictNote, useBoardStatus } from "./board-github.tsx";
 import { FilterSelect, STATUS_TONE } from "./corkboard.tsx";
 import { chapterTitle } from "./navigation.tsx";
 import { STATUSES } from "./outline.tsx";
@@ -13,7 +14,8 @@ import type { Workspace } from "./workspace.ts";
 /*
  * The drafting board (#11): every scene in a column for its status, in reading order, as GitHub's
  * board shows them. Dragging a card to another column, or Alt+Left and Alt+Right on its handle,
- * changes the scene's status in its file, autosaved like any edit. Works with or without GitHub.
+ * changes the scene's status in its file, autosaved like any edit. Works with or without GitHub;
+ * on GitHub, it can be mirrored to a project there (board-github.tsx).
  */
 
 export const STATUS_LABEL: Record<SceneStatus, string> = { idea: "Idea", outlined: "Outlined", drafted: "Drafted", revised: "Revised", final: "Final" };
@@ -24,8 +26,9 @@ const number = new Intl.NumberFormat();
 const words = (n: number) => `${number.format(n)} ${n === 1 ? "word" : "words"}`;
 const scenes = (n: number) => `${number.format(n)} ${n === 1 ? "scene" : "scenes"}`;
 
-export function OutlineBoard({ novelId, novel, workspace, cardExtra }: { novelId: string; novel: Novel; workspace: Workspace; cardExtra?: (scene: Scene) => ReactNode }) {
+export function OutlineBoard({ novelId, novel, workspace }: { novelId: string; novel: Novel; workspace: Workspace }) {
   const edit = useSceneEdit(novelId, workspace);
+  const conflicts = useBoardStatus(novelId)?.conflicts ?? [];
   const [params, setParams] = useSearchParams();
   const filter: BoardFilter = Object.fromEntries(["pov", "part", "chapter"].flatMap((k) => (params.get(k) ? [[k, params.get(k)!]] : [])));
   const filtered = Object.keys(filter).length > 0;
@@ -85,6 +88,7 @@ export function OutlineBoard({ novelId, novel, workspace, cardExtra }: { novelId
 
   return (
     <div className="grid gap-4">
+      <BoardOnGitHub novelId={novelId} />
       <div role="group" aria-label="Filters" className="flex flex-wrap items-end gap-3">
         <FilterSelect label="Point of view" value={filter.pov} onChange={(v) => setFilter("pov", v)} options={characters.map((c) => [c.id, c.name])} />
         {novel.parts.length > 0 && <FilterSelect label="Part" value={filter.part} onChange={(v) => setFilter("part", v)} options={novel.parts.map((p, i) => [p.id, p.title || `Part ${i + 1}`])} />}
@@ -155,7 +159,7 @@ export function OutlineBoard({ novelId, novel, workspace, cardExtra }: { novelId
                           {scene.pov && ` · ${name(scene.pov)}`}
                           {` · ${words(counts.get(scene.id) ?? 0)}`}
                         </p>
-                        {cardExtra?.(scene)}
+                        <ConflictNote conflict={conflicts.find((c) => c.scene === scene.id)} />
                       </li>
                     );
                   })}

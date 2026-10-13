@@ -301,6 +301,8 @@ export class BoardStore {
         state.gone = false;
         state.base = {};
         state.conflicts = [];
+        state.syncedAt = null;
+        state.last = null;
         await this.#save();
       }
     });
@@ -386,6 +388,8 @@ export class BoardStore {
       state.gone = true;
       state.base = {};
       state.conflicts = [];
+      state.syncedAt = null;
+      state.last = null;
       await this.#save();
       throw new BoardError("GONE", "The novel's board has been deleted on GitHub. Make a new one to carry on.");
     }

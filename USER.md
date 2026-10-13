@@ -23,7 +23,7 @@ Each book stands on the shelf in a cover of its own design, or with your cover: 
 **The sidebar** groups everything by what you're doing:
 
 - **Write**: the manuscript, as a tree of parts, chapters and scenes.
-- **Plan**: the **Outline**, as a table or as cards, the **Story map** (plotlines, presence and the timeline), and your **Progress**.
+- **Plan**: the **Outline**, as a table, as cards or as a drafting board, the **Story map** (plotlines, presence and the timeline), and your **Progress**.
 - **World**: the **Story bible** and the **Relationships** between its entries.
 - **Revise**: **Compare** two drafts, and **Issues** for a novel on GitHub.
 
@@ -52,10 +52,11 @@ Beside the text, the right sidebar has two tabs: **Scene** and **Entry**. **Ctrl
 
 The tree on the left holds the book. **Scene**, **Chapter** and **Part** add one after the selection; F2 renames, Alt+↑ / Alt+↓ move, Delete deletes (deleted things wait in **Recently deleted**). You can drag in the tree, too. In the command palette, *Split the scene at the caret*, *Merge scene with the next* and *Move scene to chapter…* reshape scenes.
 
-**Outline** shows every scene in reading order, two ways; switch with **Table** and **Cards** at its top, and it remembers which you like:
+**Outline** shows every scene in reading order, three ways; switch with **Table**, **Cards** and **Board** at its top, and it remembers which you like:
 
 - **Table**: each scene's synopsis, status, point of view, characters, plotlines and word count; edit the synopsis and status in place, and drag to reorder.
 - **Cards**: scenes as index cards by chapter, filtered by point of view, character, plotline or status; drag cards to reorder.
+- **Board**: your drafting progress, a column for each status (Idea, Outlined, Drafted, Revised, Final) with its scenes and words. Drag a card to another column, or press Alt+← / Alt+→ on its handle, to change a scene's status. Filter by point of view, part or chapter. For a novel on GitHub, the board can be on GitHub too (see [The board on GitHub](#the-board-on-github)).
 
 ![The outline as cards](docs/screenshots/outline-cards.png)
 
@@ -148,6 +149,17 @@ With a novel on GitHub, versions sync like everything else, so your other comput
 A novel that's only on this computer says **Local only** in the top bar; choose it to **put it on GitHub** as a new private or public repository. From then on it syncs, and the GitHub features below appear; for a local-only novel they stay out of the way.
 
 On github.com, the novel's repository shows the book as files, keeps every version, and runs a few automatic workflows: **Validate** checks the files on every push, **Diagrams** redraws the diagram snapshots into `diagrams/`, and **Compile** makes a Release for each named checkpoint (see [Compiling](#compiling)).
+
+### The board on GitHub
+
+On the **Board**, **Put this board on GitHub** makes a GitHub project for the novel, linked to its repository: every scene a card, with its status, point of view, part, chapter, words and place in the book. GitHub shows it as a board, a table or a roadmap, on github.com and in GitHub's phone app; choose the layout there (for a board, *Board* in the view's menu, grouped by Status).
+
+- **Status goes both ways.** Move a card to another column on GitHub and the scene's status changes here at the next sync, as if you'd changed it yourself. Change it here and the card moves there.
+- **Everything else comes from your novel.** Change a card's point of view, chapter or words on GitHub and gh-writer puts it back, and says so above the board. Cards you add yourself on GitHub are left alone.
+- **When both changed.** If a scene's status was changed here and on GitHub, to different things, before they synced, neither is overwritten: the board lists the scene with both statuses, and you choose **Keep** yours or **Use GitHub's**. A computer that has never synced the board before treats every difference this way.
+- **When.** The board syncs with each sync with GitHub, and with **Sync board now**. It follows the main version: while another version is open, it waits.
+- **Nothing to lose.** Your novel's files are what count. Delete the project on GitHub and nothing in the novel changes; the board says so and offers to make a new one.
+- If you signed in before the board existed, GitHub may ask you to **reconnect** once, to let gh-writer use Projects.
 
 ## Issues
 

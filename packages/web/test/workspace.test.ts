@@ -72,6 +72,22 @@ describe("workspace", () => {
     expect(file().body).toContain("Changed in another editor.");
   });
 
+  it("says when a change on disk changed an open scene's front matter, so the model follows (a status from GitHub's board)", async () => {
+    const changed: string[] = [];
+    ws.dispose();
+    ws = createWorkspace({ api, novelId, interval: 30, storage: null, onFrontMatterSaved: (path) => changed.push(path) });
+    await ws.open([SCENE]);
+    const prose = replaceParagraph(disk(), 1, "Only the prose changed.");
+    writeFileSync(join(root, SCENE), prose);
+    await ws.fileChanged({ type: "change", path: SCENE, hash: hashText(prose) });
+    expect(changed).toEqual([]);
+    const status = disk().replace(/^status: \w+$/m, "status: final");
+    writeFileSync(join(root, SCENE), status);
+    await ws.fileChanged({ type: "change", path: SCENE, hash: hashText(status) });
+    expect(changed).toEqual([SCENE]);
+    expect(file().frontMatter).toContain("status: final");
+  });
+
   it("leaves a scene with text being typed alone, and merges the change into its next save", async () => {
     const typed = replaceParagraph(file().body, 0, "Typed here, not reported yet.");
     const off = ws.live(SCENE, () => typed);
