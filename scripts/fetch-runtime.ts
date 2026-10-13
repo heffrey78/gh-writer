@@ -11,7 +11,7 @@
 // Usage: node scripts/fetch-runtime.ts [target] [--out <dir>]   (targets below; default: this machine's)
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -152,7 +152,17 @@ mkdirSync(join(out, "licenses"), { recursive: true });
     dropped += sizeOf(join(unpacked, path));
     rmSync(join(unpacked, path));
   }
-  cpSync(unpacked, join(out, "git"), { recursive: true, verbatimSymlinks: true });
+  // No links: app bundlers copy what they point to, which would make each of the dashed built-ins
+  // (git-add → git, and 140 more) a 4 MB copy. git runs its built-ins itself, so those go, as Git for
+  // Windows leaves them out, except the ones a transport runs by name (a local clone runs
+  // git-upload-pack); those, and git-remote-https, become copies of what they name, and the ftp ones go.
+  for (const path of filesIn(unpacked).filter((p) => lstatSync(join(unpacked, p)).isSymbolicLink())) {
+    const link = join(unpacked, path);
+    const pointsTo = readlinkSync(link);
+    rmSync(link);
+    if (/\/git-(upload-pack|receive-pack|upload-archive|remote-https)$/.test(path)) cpSync(join(dirname(link), pointsTo), link);
+  }
+  cpSync(unpacked, join(out, "git"), { recursive: true });
   rmSync(unpacked, { recursive: true, force: true });
 
   const kept = filesIn(join(out, "git"));
