@@ -7,6 +7,7 @@ import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "rea
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router";
 import { api, keys } from "../api.ts";
 import { useCommands, type Command } from "../commands.ts";
+import { flushOnQuit } from "../desktop.ts";
 import { FileDown, History } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import { MENU_ITEM, Shell } from "../layout.tsx";
@@ -73,6 +74,7 @@ export function NovelPage() {
   useEffect(() => {
     const ws = createWorkspace({ api, novelId, onFrontMatterSaved: () => void queryClient.invalidateQueries({ queryKey: keys.novel(novelId) }) });
     const detach = ws.autosave.attach(window);
+    const unflush = flushOnQuit(() => ws.flush());
     const show = useNotice.getState().show;
     const label = (type: string) => latest.current.novel?.entityTypes.find((t) => t.key === type)?.label.toLowerCase() ?? "entry";
     const made = createQuickEntries({
@@ -110,6 +112,7 @@ export function NovelPage() {
     setEntries(made);
     return () => {
       detach();
+      unflush();
       made.dispose();
       ws.dispose();
     };

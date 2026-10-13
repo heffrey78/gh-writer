@@ -61,6 +61,8 @@ export interface Workspace {
   change(path: string, body: string): void;
   /** An open file's body as it stands, with text typed but not reported yet. */
   current(path: string): string | undefined;
+  /** Report text typed but not reported yet, then save everything now: before the desktop app quits. */
+  flush(): Promise<void>;
   /** Hear of the author's edits to a body (not reloads from disk). Returns a function that stops it. */
   onEdit(listener: (path: string, before: string, after: string) => void): () => void;
   /**
@@ -189,6 +191,14 @@ export function createWorkspace({ api, novelId, interval, storage, onFrontMatter
     current(path) {
       const f = file(path);
       return f && (live.get(path)?.() ?? f.body);
+    },
+
+    async flush() {
+      for (const path of Object.keys(store.getState().files)) {
+        const typed = live.get(path)?.();
+        if (typed !== undefined) this.change(path, typed);
+      }
+      await autosave.flush();
     },
 
     onEdit(listener) {

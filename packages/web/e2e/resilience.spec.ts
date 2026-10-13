@@ -48,6 +48,16 @@ async function palette(page: Page, query: string) {
   await expect(page.getByRole("dialog", { name: "Command palette" })).toHaveCount(0);
 }
 
+test("the desktop app quitting: flushAll() has what was just typed on disk when it resolves", async ({ page, app }) => {
+  const { here } = machines(app);
+  await app.restart(here);
+  await openNovel(page, app.launchUrl);
+  await typeAtEnd(page, " Typed as the app quits.");
+  // Well inside the editor's pause and the autosave interval, as when the author quits mid-sentence.
+  await page.evaluate(() => (window as unknown as { ghWriter: { flushAll(): Promise<void> } }).ghWriter.flushAll());
+  expect(read(here, BRIDGE)).toMatch(/ Typed as the app quits\.\n$/);
+});
+
 test("draft, close the tab and quit, reopen: all the work is there and committed", async ({ page, app, context }) => {
   const { here } = machines(app);
   await app.restart(here);
