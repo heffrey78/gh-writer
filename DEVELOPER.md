@@ -39,6 +39,7 @@ The novel itself is the source of truth: plain Markdown and YAML files ([format 
 | [`web`](packages/web) | The app: library, writing view, story bible, diagrams, issues, command palette. React, react-query, zustand, Radix, cmdk and Tailwind. |
 | [`export`](packages/export) | DOCX (hand-written WordprocessingML), EPUB 3 and PDF (pdfkit, with Liberation Serif) from a compiled book; zipped with fflate. |
 | [`cli`](packages/cli) | `gh-writer serve`, `validate`, `snapshots`, `compile` and `new-id`, and the entry points bundled into novel repositories. |
+| [`desktop`](packages/desktop) | The desktop app: a Tauri shell that runs the server bundle on its own Node and git, and opens a window on it. |
 
 Other folders:
 
@@ -75,6 +76,19 @@ The compiled files must be the same bytes in the app, on the command line and in
 The desktop app runs the server on Node's official binary, as one script ([D9](https://github.com/heffrey78/gh-writer/issues/170)). `npm run build:server` builds the web app, then bundles the `gh-writer` command into `dist/server/gh-writer.mjs` with what it reads at run time beside it: the keychain's native module (`node_modules/@napi-rs/keyring*`, for this platform), the web app (`web/`), the novel template (`template/`) and the compiler's type (`fonts/`). The bundle's entry point (`packages/cli/src/bundle.ts`) points `GH_WRITER_WEB`, `GH_WRITER_TEMPLATE` and `GH_WRITER_FONTS` at those folders, unless they're already set; from the source tree, each falls back to its place in the checkout. A test builds the bundle and checks it serves, and compiles the same bytes as the source.
 
 `npm run fetch:runtime [target]` fetches what the bundle runs on for one platform (`linux-x64`, `darwin-arm64`, `darwin-x64` or `win32-x64`; by default this machine's) into `dist/runtime/<target>/`. That's Node's official binary and GitHub's portable git (dugite-native), each checked against a checksum pinned in `scripts/fetch-runtime.ts`, plus their licences and where git's source is. Git Credential Manager, Git LFS, Perl, gitweb and translations are left out, which takes git from about 150 MB to about 40 MB. It has no symbolic links, since app bundlers copy what a link points to. git runs its built-ins itself, so their dashed links are dropped, as Git for Windows does. The transport commands git runs by name (`git-upload-pack` and friends) and `git-remote-https` become copies. The app answers git's credential prompts itself, and reads git's messages in English. This portable git doesn't find its own parts unaided: it needs `GIT_EXEC_PATH` (`libexec/git-core`) and `GIT_TEMPLATE_DIR` (`share/git-core/templates`), and on Linux `GIT_SSL_CAINFO` (`ssl/cacert.pem`). On Linux, its https helper uses the system's `libcurl.so.4`. To bump Node or git, change the version and its checksums at the top of the script. For this machine's own target, the script checks that node and git run with nothing else on PATH.
+
+## The desktop app
+
+`packages/desktop` is a Tauri 2 app ([D2](https://github.com/heffrey78/gh-writer/issues/22), [D9](https://github.com/heffrey78/gh-writer/issues/170)) around the same server and web app. Building it needs Rust, and on Linux WebKitGTK 4.1 (see [Tauri's prerequisites](https://v2.tauri.app/start/prerequisites/)). `npm run desktop` builds the server bundle, fetches this machine's runtime, then runs the app in development. The bundle and runtime are its resources (`server/` and `runtime/`, from `tauri.conf.json` and `tauri.linux.conf.json`).
+
+The shell (`src-tauri/src`) does the following:
+- It opens a window on a loading page and starts the server: `runtime/node/node server/gh-writer.mjs serve --sidecar`, with `GH_WRITER_GIT` set to `runtime/git` and `GH_WRITER_ASKPASS` set to its own executable.
+- Once the server prints its JSON line, the shell sends the window to the launch URL. The window stays on the server's pages; other links open in the writer's browser.
+- Closing a window, quitting, or SIGTERM, SIGINT or SIGHUP (logging out) has each page save what's typed: the shell calls `window.ghWriter.flushAll()`, and the page answers with the `flushed` command, the only one its capability grants. Then the shell closes the server's stdin and waits for it to commit and exit, killing it after 15 seconds.
+- If the app itself dies, the closed pipe stops the server.
+- If the server stops on its own, the app offers to restart it.
+
+The server's messages go to `server.log` in the app's log folder (`~/.local/share/io.github.heffrey78.ghwriter/logs` on Linux). The previous run's are in `server.previous.log`. `cargo test` in `src-tauri` runs the shell's unit tests.
 
 ## Conventions
 

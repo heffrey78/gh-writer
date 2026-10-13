@@ -5,3 +5,5 @@ dist/
 test-results/
 playwright-report/
 *.tsbuildinfo
+packages/desktop/src-tauri/target/
+packages/desktop/src-tauri/gen/

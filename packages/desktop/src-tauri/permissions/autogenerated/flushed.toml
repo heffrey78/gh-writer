@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-flushed"
+description = "Enables the flushed command without any pre-configured scope."
+commands.allow = ["flushed"]
+
+[[permission]]
+identifier = "deny-flushed"
+description = "Denies the flushed command without any pre-configured scope."
+commands.deny = ["flushed"]
