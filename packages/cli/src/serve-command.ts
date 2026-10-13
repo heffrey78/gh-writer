@@ -57,9 +57,9 @@ export async function runServe(dir: string | undefined, { port = 0, open = true,
   return 0;
 }
 
-/** The built web app (packages/web/dist), if it has been built. */
+/** The built web app (packages/web/dist, or beside the server bundle: GH_WRITER_WEB), if it has been built. */
 function webApp(): string | undefined {
-  const dir = fileURLToPath(new URL("../../web/dist", import.meta.url));
+  const dir = process.env.GH_WRITER_WEB || fileURLToPath(new URL("../../web/dist", import.meta.url));
   return existsSync(join(dir, "index.html")) ? dir : undefined;
 }
 

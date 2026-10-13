@@ -70,6 +70,10 @@ The compiled files must be the same bytes in the app, on the command line and in
 
 `npm run screenshots -w @gh-writer/web` retakes the README's screenshots (`docs/screenshots/`) from the sample novel.
 
+## The server bundle
+
+The desktop app runs the server on Node's official binary, as one script ([D9](https://github.com/heffrey78/gh-writer/issues/170)). `npm run build:server` builds the web app, then bundles the `gh-writer` command into `dist/server/gh-writer.mjs` with what it reads at run time beside it: the keychain's native module (`node_modules/@napi-rs/keyring*`, for this platform), the web app (`web/`), the novel template (`template/`) and the compiler's type (`fonts/`). The bundle's entry point (`packages/cli/src/bundle.ts`) points `GH_WRITER_WEB`, `GH_WRITER_TEMPLATE` and `GH_WRITER_FONTS` at those folders, unless they're already set; from the source tree, each falls back to its place in the checkout. A test builds the bundle and checks it serves, and compiles the same bytes as the source.
+
 ## Conventions
 
 - **Writers, not developers, use the app.** No git terms in the UI: "checkpoint", not "tag"; "sync", not "push". Messages say what happened and what to do next.

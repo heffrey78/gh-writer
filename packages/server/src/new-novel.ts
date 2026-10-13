@@ -7,8 +7,11 @@ import { snapshots } from "@gh-writer/core/snapshots";
 import { hasGitIdentity } from "./committer.ts";
 import { git } from "./git.ts";
 
-/** The novel template in this checkout of gh-writer: the same files a "Use this template" repository gets. */
-export const DEFAULT_TEMPLATE = fileURLToPath(new URL("../../../templates/novel", import.meta.url));
+/**
+ * The novel template in this checkout of gh-writer (or beside the server bundle: GH_WRITER_TEMPLATE):
+ * the same files a "Use this template" repository gets.
+ */
+export const DEFAULT_TEMPLATE = process.env.GH_WRITER_TEMPLATE || fileURLToPath(new URL("../../../templates/novel", import.meta.url));
 
 /** The template's placeholder IDs, replaced with fresh ones in every new novel (as its init.mjs does on GitHub). */
 const TEMPLATE_IDS = ["nv_temp1a", "ch_temp1a", "sc_temp1a"];

@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import nodeZlib from "node:zlib";
 import { numberWords, type Block, type Book, type Run } from "@gh-writer/core";
 import { zlibSync } from "fflate";
@@ -53,9 +55,10 @@ export function readFonts(dir: URL): PdfFonts {
 }
 
 let bundled: PdfFonts | undefined;
-/** Liberation Serif, from gh-writer's fonts folder. */
+/** Liberation Serif, from gh-writer's fonts folder (or beside the server bundle: GH_WRITER_FONTS). */
 export function defaultFonts(): PdfFonts {
-  bundled ??= readFonts(new URL("../fonts/", import.meta.url));
+  const dir = process.env.GH_WRITER_FONTS;
+  bundled ??= readFonts(dir ? pathToFileURL(join(dir, "/")) : new URL("../fonts/", import.meta.url));
   return bundled;
 }
 

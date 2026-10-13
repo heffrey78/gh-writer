@@ -1,7 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -99,32 +99,37 @@ describe("gh-writer snapshots", () => {
   });
 });
 
+/** `serve` from `file` (the source or the bundle), once it has printed its launch URL. */
+async function serve(file: string, ...args: string[]) {
+  const child = spawn("node", [file, "serve", ...args, "--no-open"], { env: env() });
+  let out = "";
+  child.stdout.setEncoding("utf8").on("data", (chunk: string) => (out += chunk));
+  const exited = new Promise<number | null>((resolve) => child.once("exit", resolve));
+  const launch = await new Promise<string>((resolve, reject) => {
+    child.stdout.on("data", () => {
+      const url = /http:\/\/127\.0\.0\.1:\d+\/novels\/lib_[0-9a-z]{6}\?token=[\w-]{43}/.exec(out)?.[0];
+      if (url) resolve(url);
+    });
+    child.once("exit", () => reject(new Error(`serve exited early:\n${out}`)));
+  });
+  const exchange = await fetch(launch, { redirect: "manual" });
+  const cookie = exchange.headers.get("set-cookie")?.split(";")[0] ?? "";
+  return { child, exited, launch, exchange, cookie, out: () => out };
+}
+
 describe("gh-writer serve", () => {
   it("opens the novel, prints a launch URL with a token, serves it, and exits cleanly on SIGTERM", async () => {
-    const child = spawn("node", [main, "serve", sample, "--no-open"], { env: env() });
-    let out = "";
-    child.stdout.setEncoding("utf8").on("data", (chunk: string) => (out += chunk));
-    const exited = new Promise<number | null>((resolve) => child.once("exit", resolve));
+    const { child, exited, launch, exchange, cookie, out } = await serve(main, sample);
+    expect(out()).toContain(`gh-writer is serving The Bridge at Varn (${realpathSync(sample)})`);
 
-    const launch = await new Promise<string>((resolve, reject) => {
-      child.stdout.on("data", () => {
-        const url = /http:\/\/127\.0\.0\.1:\d+\/novels\/lib_[0-9a-z]{6}\?token=[\w-]{43}/.exec(out)?.[0];
-        if (url) resolve(url);
-      });
-      child.once("exit", () => reject(new Error(`serve exited early:\n${out}`)));
-    });
-    expect(out).toContain(`gh-writer is serving The Bridge at Varn (${realpathSync(sample)})`);
-
-    const exchange = await fetch(launch, { redirect: "manual" });
     expect(exchange.status).toBe(303);
-    const cookie = exchange.headers.get("set-cookie")?.split(";")[0] ?? "";
     const library = (await (await fetch(new URL("/api/library", launch), { headers: { cookie } })).json()) as { novels: { path: string }[] };
     expect(library.novels.map((n) => n.path)).toEqual([realpathSync(sample)]);
     expect((await fetch(new URL("/api/library", launch))).status).toBe(403);
 
     child.kill("SIGTERM");
     expect(await exited).toBe(0);
-    expect(out).toContain("SIGTERM: stopping…\nStopped.");
+    expect(out()).toContain("SIGTERM: stopping…\nStopped.");
   }, 15_000);
 
   it("refuses a folder that isn't a novel repository, a missing folder and a bad port", () => {
@@ -156,6 +161,47 @@ describe("standalone validator bundle", () => {
     expect(run(out, sample)).toMatchObject({ code: 0 });
     expect(run(out, broken)).toMatchObject({ code: 1 });
   }, 30_000);
+});
+
+describe("server bundle", () => {
+  let bundle: string;
+  beforeAll(() => {
+    // A stand-in web app, so the test needn't build the real one.
+    const web = join(tmp, "web");
+    mkdirSync(web);
+    writeFileSync(join(web, "index.html"), "<!doctype html><title>Stand-in</title>");
+    const out = join(tmp, "server");
+    const build = spawnSync("node", [join(repo, "scripts/build-server.ts"), out, "--web", web], { encoding: "utf8", cwd: repo });
+    expect(build.status, build.stderr).toBe(0);
+    bundle = join(out, "gh-writer.mjs");
+  }, 60_000);
+
+  it("serves the web app beside it and the API, away from the repository's node_modules", async () => {
+    const { child, exited, launch, cookie } = await serve(bundle, sample);
+    expect(await (await fetch(new URL("/", launch), { headers: { cookie } })).text()).toContain("<title>Stand-in</title>");
+    const library = (await (await fetch(new URL("/api/library", launch), { headers: { cookie } })).json()) as { novels: { path: string }[] };
+    expect(library.novels.map((n) => n.path)).toEqual([realpathSync(sample)]);
+    child.kill("SIGTERM");
+    expect(await exited).toBe(0);
+  }, 15_000);
+
+  it("compiles the same bytes as the source, with the type beside it", () => {
+    const novel = join(tmp, "compile-bundled");
+    cpSync(sample, novel, { recursive: true });
+    for (const args of [["init", "-q"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "Draft"]]) spawnSync("git", ["-C", novel, ...args]);
+    for (const [file, out] of [[main, "from-source"], [bundle, "from-bundle"]] as const) {
+      const r = run(file, "compile", novel, "--format", "epub,pdf", "--out", join(tmp, out));
+      expect(r.code, r.out + r.err).toBe(0);
+    }
+    for (const name of ["the-bridge-at-varn.epub", "the-bridge-at-varn.pdf"]) {
+      expect(readFileSync(join(tmp, "from-bundle", name)).equals(readFileSync(join(tmp, "from-source", name))), name).toBe(true);
+    }
+  });
+
+  it("loads the keychain's native module from beside it", () => {
+    const r = spawnSync("node", ["-e", "process.stdout.write(typeof require('@napi-rs/keyring').AsyncEntry)"], { cwd: dirname(bundle), encoding: "utf8" });
+    expect(r.stdout, r.stderr).toBe("function");
+  });
 });
 
 describe("gh-writer compile", () => {
