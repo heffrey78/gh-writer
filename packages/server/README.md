@@ -110,7 +110,7 @@ Reading serves any such file that is UTF-8 (`415 NOT_TEXT` otherwise). Writing t
 
 **Atomic writes.** The text goes to a temp file in the same folder (`.<name>.<random>.ghw-tmp`) and is fsynced. The temp file is renamed over the target, then the folder is fsynced so the rename itself is durable (Windows skips the folder fsync). A crash leaves the old file or the new one, never a truncated one. A crash between the two steps can leave the temp file behind; it's hidden from the API and the watcher. The file keeps its permissions, and missing folders are created.
 
-**Live changes.** `GET /api/novels/:id/events` starts a chokidar watcher on the novel (one per novel, shared, closed when the last stream ends). It sends `ready` once the watcher is live. Read anything you need after `ready`, so no change can slip between the read and the stream. Each change to a visible file is then a `file` event: `{ type: "add" | "change" | "unlink", path, hash }`, with `hash` null once the file is gone. The server's own writes aren't echoed: a change whose content matches what the server last wrote to that path is dropped. A `sync` event carries the [sync status](#sync), right after `ready` and whenever it changes. A comment line every 25 s keeps the stream open. Closing the server ends every stream.
+**Live changes.** `GET /api/novels/:id/events` starts a chokidar watcher on the novel (one per novel, shared, closed when the last stream ends). It sends `ready` once the watcher is live. Read anything you need after `ready`, so no change can slip between the read and the stream. Each change to a visible file is then a `file` event: `{ type: "add" | "change" | "unlink", path, hash }`, with `hash` null once the file is gone. The server's own writes aren't echoed: a change whose content matches what the server last wrote to that path is dropped, except a scene status written from the [drafting board](#drafting-board), which open editors must take in. A `sync` event carries the [sync status](#sync), right after `ready` and whenever it changes. `issues` and `board` events (with no data) say the issue cache or the board's status changed. A comment line every 25 s keeps the stream open. Closing the server ends every stream.
 
 ## Background commits
 
@@ -273,6 +273,25 @@ IDs never change, so references never break. Order files are edited in place. Af
 | `PUT /diagrams/:name/layout` `{ positions: { <id>: { x, y } } }` | Saves hand-placed positions for diagram `:name` in `diagrams/layouts.yaml`, rounded to whole pixels. Each node is one line (`char_7f3k2q: { x: 120, y: 40 }`), so moving one changes one line; a new node or diagram is added the same way, and the file is created if it isn't there. |
 
 Unlike the operations above, a layout is saved like typing: through the workspace's ordinary writes (retrying if another write got there first), and committed with the next autosave, so dragging nodes around doesn't add a commit per drag.
+
+## Drafting board
+
+The novel's scenes on a GitHub Project (#11, decision [D8](https://github.com/heffrey78/gh-writer/issues/177)), for GitHub's board, table and roadmap views of drafting progress. `BoardStore` (in `board.ts`) keeps it; the scene files stay authoritative.
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/novels/:id/board` | the status: `{ repo, project: { number, title, url } \| null, syncedAt, last, conflicts, error?, gone? }` |
+| `POST /api/novels/:id/board` | makes the novel's project, or adopts the one it has, and syncs: the status |
+| `POST /api/novels/:id/board/sync` | syncs now: the status, with why it couldn't in `error` |
+| `POST /api/novels/:id/board/conflicts/:scene` | `{ keep: "file" \| "board" }` → settles a status conflict and syncs: the status |
+
+Refusals: `400 BAD_REQUEST`, `403 NO_SIGN_IN` / `NEEDS_SCOPE` (the sign-in lacks `project`), `404 NOT_ON_GITHUB` / `NOT_SET_UP` / `NOT_FOUND`, `409 NOT_MAIN`, `410 GONE`, `429 RATE_LIMITED { resetAt }`, `503 OFFLINE`, `502 GITHUB`.
+
+- **The project** belongs to the repository's owner, is linked to the repository, and is marked as the novel's by `<!-- gh-writer-board: nv_… -->` in its README, so another clone finds it (it looks once a session). Each scene of the main version is a draft item with Status, POV, Part, Chapter, Words, Order and Scene ID. The project's own Status field gets the scene statuses as options (GitHub's stock ones go, the author's own stay); where GitHub won't change it, a field of gh-writer's, `Scene status`, holds them.
+- **Status flows both ways**, merged three ways against what was last synced from this clone: a change on one side is copied to the other. A change on both, to different values, is a conflict: neither side is written until the author keeps one. A fresh clone knows no last-synced status, so every difference is a conflict there. A status from the board is written with the workspace's conflict-checked write and announced on the event stream as an outside change, so an open editor takes it in; it's committed like any other save.
+- **Everything else comes from the files.** Board edits to POV, part, chapter, words, order or a card's title are put back, and `last.putBack` says which. Cards for deleted scenes are removed; cards gh-writer didn't make are left alone.
+- **When**: after every sync with GitHub once the board is set up, and on demand. The board follows the main version: on another, sync waits (`NOT_MAIN`). Mutations go twenty to a GraphQL request.
+- **What's kept**: the project, the last-synced values and the conflicts, in `.git/gh-writer/board.json` (never committed). Deleting it, or the project, loses no story data; a deleted project is reported (`gone`, `GONE`) and setting up again makes a new one.
 
 ## Security model
 

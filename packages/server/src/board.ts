@@ -42,7 +42,7 @@ const FIELD_NAMES: Record<Mirrored, string> = { title: "Title", pov: FIELD.pov, 
 const BATCH = 20;
 const MARKER = /<!--\s*gh-writer-board:\s*(\S+)\s*-->/;
 
-export type BoardErrorCode = "NOT_ON_GITHUB" | "NOT_SET_UP" | "NOT_MAIN" | "GONE" | "NO_SIGN_IN" | "NEEDS_SCOPE" | "OFFLINE" | "RATE_LIMITED" | "NOT_FOUND" | "GITHUB";
+export type BoardErrorCode = "BAD_REQUEST" | "NOT_ON_GITHUB" | "NOT_SET_UP" | "NOT_MAIN" | "GONE" | "NO_SIGN_IN" | "NEEDS_SCOPE" | "OFFLINE" | "RATE_LIMITED" | "NOT_FOUND" | "GITHUB";
 
 export class BoardError extends Error {
   readonly code: BoardErrorCode;
@@ -366,9 +366,9 @@ export class BoardStore {
     if (!(await this.#deps.onMain())) throw new BoardError("NOT_MAIN", "The board follows the main version: open it to sync the board.");
     const novel = await this.#deps.novel();
     if (!state.project && !state.gone && !this.#searched) {
-      // Another clone may have made it: the repository's linked projects say.
-      this.#searched = true;
+      // Another clone may have made it: the repository's linked projects say (asked once a session).
       const found = await this.#find(repo, novel);
+      this.#searched = true;
       if (found.project) {
         state.project = found.project;
         state.base = {};

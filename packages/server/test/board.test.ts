@@ -1,13 +1,15 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { countWords } from "@gh-writer/core";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { GitHub, memoryStore } from "../src/index.ts";
+import { createServer, GitHub, Library, memoryStore, sessionCookie } from "../src/index.ts";
 import type { BoardStatus } from "../src/board.ts";
 import { NovelWorkspace } from "../src/workspace.ts";
 import { fakeGitHub, type FakeGitHub } from "./fake-github.ts";
 import type { FakeProject } from "./fake-projects.ts";
 import { gitIn, novelRepo, scratch } from "./fixtures.ts";
+import { send } from "./http.ts";
 
 const TOKEN = "gho_board";
 const BRIDGE = "manuscript/01-return/01-arrival/02-the-bridge.md";
@@ -15,6 +17,7 @@ const STATION = "manuscript/01-return/01-arrival/01-the-station.md";
 let fake: FakeGitHub;
 let fresh: (name: string) => string;
 let cleanUp: () => void;
+let tmp: string;
 let dir: string;
 let name: string;
 let github: GitHub;
@@ -22,8 +25,8 @@ let offline = false;
 const open: NovelWorkspace[] = [];
 
 beforeAll(async () => {
-  ({ fresh, cleanUp } = scratch("board"));
-  fake = await fakeGitHub();
+  ({ tmp, fresh, cleanUp } = scratch("board"));
+  fake = await fakeGitHub({ gitRoot: join(tmp, "github") });
   fake.users.set(TOKEN, { login: "ada" });
 });
 afterAll(async () => {
@@ -281,5 +284,49 @@ describe("syncing", () => {
     // Find, create, describe, the Status options, five fields, read, the cards, then their values.
     expect(fake.projects.operations.length - before).toBeLessThan(20);
     expect(fake.projects.operations.slice(before).some((ops) => ops.length > 10)).toBe(true);
+  });
+});
+
+describe("through the server", () => {
+  it("sets up, syncs and settles conflicts over HTTP, with refusals as codes", async () => {
+    const library = await Library.open({ configDir: fresh("config") });
+    const novel = await library.add(dir);
+    const server = await createServer({ library, token: "t", github, sync: false, commit: false });
+    const headers = { cookie: `${sessionCookie(server.port)}=t`, origin: server.url, "content-type": "application/json" };
+    const call = async (method: string, path: string, body?: unknown) => {
+      const r = await send(server.port, `/api/novels/${novel.id}/board${path}`, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}) });
+      return { status: r.status, body: JSON.parse(r.body) as BoardStatus & { code?: string } };
+    };
+    try {
+      expect(await call("GET", "")).toMatchObject({ status: 200, body: { project: null, conflicts: [] } });
+      expect((await call("POST", "/sync")).body.error?.code).toBe("NOT_SET_UP");
+      const made = await call("POST", "");
+      expect(made).toMatchObject({ status: 200, body: { project: { number: project().number }, last: { added: 8 } } });
+
+      setStatusIn(BRIDGE, "final");
+      fake.projects.set(project(), item("sc_br1dg3"), "Status", "Idea");
+      expect((await call("POST", "/sync")).body.conflicts).toEqual([{ scene: "sc_br1dg3", title: "Walking the Span", file: "final", board: "idea" }]);
+      expect(await call("POST", "/conflicts/sc_br1dg3", { keep: "neither" })).toMatchObject({ status: 400, body: { code: "BAD_REQUEST" } });
+      expect((await call("POST", "/conflicts/sc_br1dg3", { keep: "file" })).body.conflicts).toEqual([]);
+      expect(value("sc_br1dg3", "Status")).toBe("Final");
+      expect(await call("POST", "/conflicts/sc_br1dg3", { keep: "file" })).toMatchObject({ status: 404, body: { code: "NOT_FOUND" } });
+    } finally {
+      await server.close();
+    }
+  });
+});
+
+describe("timing", () => {
+  it("syncs the board after each sync with GitHub, so a card moved there reaches the file within one cycle", async () => {
+    execFileSync("git", ["clone", "--quiet", "--bare", dir, fake.repoPath("ada", name)]);
+    // Its upstream, without fetching here: the fake GitHub's git wants the sign-in, which the syncer has.
+    gitIn(dir, "config", "branch.main.remote", "origin");
+    gitIn(dir, "config", "branch.main.merge", "refs/heads/main");
+    const ws = new NovelWorkspace(dir, { commit: false, sync: { intervalMs: 0 }, github });
+    open.push(ws);
+    ok(await ws.board!.setUp());
+    fake.projects.set(project(), item("sc_br1dg3"), "Status", "Revised");
+    await ws.syncer!.sync();
+    await expect.poll(() => statusIn(BRIDGE), { timeout: 5000 }).toBe("revised");
   });
 });
