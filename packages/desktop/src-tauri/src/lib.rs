@@ -4,6 +4,7 @@
 //! the writer's browser), and on closing a window or quitting has each page save what's typed, then
 //! stops the server, which commits waiting work.
 
+pub mod askpass;
 mod sidecar;
 
 use std::collections::HashMap;

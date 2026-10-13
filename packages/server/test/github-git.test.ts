@@ -201,6 +201,22 @@ describe("git with gh-writer's GitHub connection", () => {
       }
       expect(prompts().length).toBeGreaterThanOrEqual(2);
     });
+
+    const app = join(fileURLToPath(new URL("../../../", import.meta.url)), "packages/desktop/src-tauri/target/debug/gh-writer");
+    it.skipIf(!existsSync(runtime) || !existsSync(app))("clones and syncs with the portable git asking the desktop app's own executable (npm run desktop)", async () => {
+      process.env.GH_WRITER_ASKPASS = app;
+      process.env.GH_WRITER_GIT = runtime;
+      const github = await connection();
+      const novel = await (await openLibrary()).clone(`${fake.url}/ada/varn.git`, { auth: (u) => github.gitAuth(u) });
+      const syncer = new Syncer(novel.path, { intervalMs: 0 }, { auth: (u) => github.gitAuth(u) });
+      try {
+        gitIn(novel.path, "commit", "-q", "--allow-empty", "-m", "Answered by the app");
+        expect(await syncer.sync()).toMatchObject({ state: "synced", ahead: 0 });
+        expect(execFileSync("git", ["-C", fake.repoPath("ada", "varn"), "log", "-1", "--format=%s"], { encoding: "utf8" }).trim()).toBe("Answered by the app");
+      } finally {
+        await syncer.close();
+      }
+    });
   });
 
   it("gives the token only to http(s) remotes on GitHub", async () => {

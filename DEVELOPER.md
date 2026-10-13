@@ -85,6 +85,7 @@ The shell (`src-tauri/src`) does the following:
 - It opens a window on a loading page and starts the server: `runtime/node/node server/gh-writer.mjs serve --sidecar`, with `GH_WRITER_GIT` set to `runtime/git` and `GH_WRITER_ASKPASS` set to its own executable.
 - Once the server prints its JSON line, the shell sends the window to the launch URL. The window stays on the server's pages; other links open in the writer's browser.
 - Closing a window, quitting, or SIGTERM, SIGINT or SIGHUP (logging out) has each page save what's typed: the shell calls `window.ghWriter.flushAll()`, and the page answers with the `flushed` command, the only one its capability grants. Then the shell closes the server's stdin and waits for it to commit and exit, killing it after 15 seconds.
+- The executable doubles as git's askpass program (`src/askpass.rs`). Started with one of git's username or password prompts as its only argument, it prints `x-access-token` or the token from `GH_WRITER_GIT_TOKEN` and exits before opening any window.
 - If the app itself dies, the closed pipe stops the server.
 - If the server stops on its own, the app offers to restart it.
 
