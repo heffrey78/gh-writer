@@ -35,7 +35,7 @@ describe("GitHub", () => {
     const code = await github.startDevice();
     results.push(code);
     expect(code).toEqual({ userCode: fake.userCode, verificationUri: `${fake.url}/login/device`, expiresIn: 900, interval: 0 });
-    expect(fake.requests.at(-1)?.body).toContain("scope=repo+workflow+read%3Auser");
+    expect(fake.requests.at(-1)?.body).toContain("scope=repo+workflow+read%3Auser+project");
 
     results.push(await github.pollDevice());
     expect(results.at(-1)).toEqual({ status: "pending", interval: 0 });
@@ -135,7 +135,66 @@ describe("scopes", () => {
     fake.users.set(token, { login: "ada", scopes: ["repo", "read:user"] });
     const store = memoryStore();
     await store.set(token);
-    expect(await connect({ store }).github.status()).toEqual({ signedIn: true, deviceFlow: true, account: { login: "ada", avatarUrl: `${fake.url}/avatars/ada.png` }, missingScopes: ["workflow"] });
+    expect(await connect({ store }).github.status()).toEqual({
+      signedIn: true,
+      deviceFlow: true,
+      account: { login: "ada", avatarUrl: `${fake.url}/avatars/ada.png` },
+      missingScopes: ["workflow"],
+      missingBoardScopes: ["project"],
+    });
+  });
+
+  it("says apart when only the drafting board's permission is missing, so publishing and sync aren't flagged", async () => {
+    const token = "gho_without_project";
+    fake.users.set(token, { login: "ada", scopes: ["repo", "workflow", "read:user"] });
+    const store = memoryStore();
+    await store.set(token);
+    const status = await connect({ store }).github.status();
+    expect(status.missingScopes).toBeUndefined();
+    expect(status.missingBoardScopes).toEqual(["project"]);
+  });
+});
+
+describe("GitHub.graphql", () => {
+  const signedIn = async (token: string, scopes?: string[]) => {
+    fake.users.set(token, { login: "ada", ...(scopes ? { scopes } : {}) });
+    const store = memoryStore();
+    await store.set(token);
+    return connect({ store }).github;
+  };
+
+  it("answers with the data", async () => {
+    const github = await signedIn("gho_graphql");
+    expect(await github.graphql<{ viewer: { login: string } }>("query { viewer { login } }")).toEqual({ viewer: { login: "ada" } });
+  });
+
+  it("throws a typed error for a missing scope, a missing node, and a malformed query", async () => {
+    const github = await signedIn("gho_graphql_noproject", ["repo", "workflow", "read:user"]);
+    const create = "mutation($owner: ID!) { createProjectV2(input: { ownerId: $owner, title: \"Board\" }) { projectV2 { id } } }";
+    await expect(github.graphql(create, { owner: "U_ada" })).rejects.toMatchObject({ code: "NEEDS_SCOPE" });
+    const full = await signedIn("gho_graphql_full");
+    await expect(full.graphql(create, { owner: "U_someone_else" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(full.graphql("query { nonsense }")).rejects.toMatchObject({ code: "GITHUB" });
+  });
+
+  it("forgets a refused token, and says when GitHub can't be reached or is rate limited", async () => {
+    const github = await signedIn("gho_graphql_revoked");
+    fake.revoke("gho_graphql_revoked");
+    await expect(github.graphql("query { viewer { login } }")).rejects.toMatchObject({ code: "NO_SIGN_IN" });
+    expect(await github.token()).toBeUndefined();
+
+    const store = memoryStore();
+    await store.set("gho_anything");
+    const offline = new GitHub({ clientId: "", webUrl: "http://127.0.0.1:9", apiUrl: "http://127.0.0.1:9", store, gh: async () => undefined });
+    await expect(offline.graphql("query { viewer { login } }")).rejects.toMatchObject({ code: "OFFLINE" });
+
+    const limited = await signedIn("gho_graphql_limited");
+    fake.rateLimitedUntil = Date.now() / 1000 + 60;
+    try {
+      await expect(limited.graphql("query { viewer { login } }")).rejects.toMatchObject({ code: "RATE_LIMITED" });
+    } finally {
+      fake.rateLimitedUntil = undefined;
+    }
   });
 });
 

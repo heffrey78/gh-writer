@@ -12,11 +12,14 @@ export const GITHUB_CLIENT_ID: string | undefined = "Ov23lidsTX79zar9Gxxv";
 
 /**
  * Classic OAuth scopes: private repositories (contents, issues, creating them); the novel's GitHub
- * workflows, which GitHub won't let a push add or change without `workflow`; and who the author is.
+ * workflows, which GitHub won't let a push add or change without `workflow`; who the author is; and
+ * Projects, for the drafting board (#11).
  */
-export const SCOPES = ["repo", "workflow", "read:user"];
+export const SCOPES = ["repo", "workflow", "read:user", "project"];
 /** What a push of a novel needs: a token without them can't publish or sync it. */
 const NEEDED = ["repo", "workflow"];
+/** What the drafting board needs as well: without it, only the board asks for a reconnect. */
+const BOARD = ["project"];
 
 const SERVICE = "gh-writer";
 /** A request to GitHub that takes longer is given up (as offline). */
@@ -30,15 +33,18 @@ export interface TokenStore {
   delete(): Promise<void>;
 }
 
-export type GitHubErrorCode = "NO_CLIENT_ID" | "NO_KEYCHAIN" | "NO_SIGN_IN" | "NO_GH" | "GITHUB";
+export type GitHubErrorCode = "NO_CLIENT_ID" | "NO_KEYCHAIN" | "NO_SIGN_IN" | "NO_GH" | "NEEDS_SCOPE" | "NOT_FOUND" | "RATE_LIMITED" | "OFFLINE" | "GITHUB";
 
 export class GitHubError extends Error {
   readonly code: GitHubErrorCode;
+  /** For RATE_LIMITED: when GitHub will answer again (ISO), when it says. */
+  readonly resetAt: string | undefined;
 
-  constructor(code: GitHubErrorCode, message: string) {
+  constructor(code: GitHubErrorCode, message: string, resetAt?: string) {
     super(message);
     this.name = "GitHubError";
     this.code = code;
+    this.resetAt = resetAt;
   }
 }
 
@@ -84,7 +90,8 @@ const noKeychain = () =>
 /** The status of a signed-in account: who, and any permission gh-writer needs that the token lacks. */
 function signedInStatus({ scopes, ...account }: GitHubAccount, deviceFlow: boolean): AccountStatus {
   const missing = scopes ? NEEDED.filter((s) => !scopes.includes(s)) : [];
-  return { signedIn: true, account, deviceFlow, ...(missing.length ? { missingScopes: missing } : {}) };
+  const board = scopes ? BOARD.filter((s) => !scopes.includes(s)) : [];
+  return { signedIn: true, account, deviceFlow, ...(missing.length ? { missingScopes: missing } : {}), ...(board.length ? { missingBoardScopes: board } : {}) };
 }
 
 /** Whether `e` is fetch failing to reach GitHub (no network, refused, timed out) rather than a bug. */
@@ -136,6 +143,8 @@ export interface AccountStatus {
   keychain?: string;
   /** Signed in, but without permissions gh-writer needs (e.g. an older sign-in without `workflow`): reconnect. */
   missingScopes?: string[];
+  /** Signed in, but without what the drafting board needs (`project`): only the board asks for a reconnect. */
+  missingBoardScopes?: string[];
 }
 
 export interface DeviceCode {
@@ -352,6 +361,35 @@ export class GitHub {
       throw new GitHubError("NO_SIGN_IN", "GitHub no longer accepts gh-writer's sign-in (it was revoked or has expired). Connect to GitHub again.");
     }
     return res;
+  }
+
+  /**
+   * A GraphQL request as the author (Projects have no REST API). Resolves to its data; any error in
+   * the answer is thrown as a GitHubError: NEEDS_SCOPE (the token lacks a scope), NOT_FOUND,
+   * RATE_LIMITED, OFFLINE (unreachable), NO_SIGN_IN (401, and the token is forgotten), else GITHUB.
+   */
+  async graphql<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
+    let res: Response;
+    try {
+      res = await this.api("/graphql", { method: "POST", body: { query, variables } });
+    } catch (e) {
+      if (unreachable(e)) throw new GitHubError("OFFLINE", "GitHub can't be reached right now.");
+      throw e;
+    }
+    const body = (await res.json().catch(() => ({}))) as { data?: T; errors?: { type?: string; message?: string }[]; message?: string };
+    const limited = res.status === 429 || (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0");
+    const error = body.errors?.[0];
+    if (limited || error?.type === "RATE_LIMITED") {
+      const reset = Number(res.headers.get("x-ratelimit-reset"));
+      throw new GitHubError("RATE_LIMITED", "GitHub has had enough requests from gh-writer for now.", Number.isFinite(reset) && reset > 0 ? new Date(reset * 1000).toISOString() : undefined);
+    }
+    if (error?.type === "INSUFFICIENT_SCOPES") throw new GitHubError("NEEDS_SCOPE", "This GitHub sign-in doesn't allow gh-writer to use Projects. Reconnect GitHub to grant it.");
+    if (error?.type === "NOT_FOUND") throw new GitHubError("NOT_FOUND", error.message ?? "GitHub doesn't have that (or doesn't let this sign-in see it).");
+    if (error || !res.ok || body.data === undefined) {
+      const message = error?.message ?? body.message ?? res.statusText;
+      throw new GitHubError("GITHUB", `GitHub answered${res.ok ? "" : ` ${res.status}`}: ${message}`);
+    }
+    return body.data;
   }
 
   async #signIn(token: string, known?: GitHubAccount): Promise<AccountStatus> {

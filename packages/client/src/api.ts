@@ -37,6 +37,8 @@ export interface GitHubStatus {
   offline?: boolean;
   /** Signed in, but without permissions gh-writer needs: reconnect to grant them. */
   missingScopes?: string[];
+  /** Signed in, but without what the drafting board needs (`project`): only the board asks for a reconnect. */
+  missingBoardScopes?: string[];
   /** Why the system keychain couldn't be read. */
   keychain?: string;
 }

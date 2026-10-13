@@ -4,6 +4,7 @@ import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
+import { fakeProjects, type FakeProjects } from "./fake-projects.ts";
 
 export interface FakeUser {
   login: string;
@@ -89,6 +90,8 @@ export interface FakeGitHub {
   comment(issue: FakeIssue, body: string, user?: string): FakeComment;
   /** The API refuses every repository request as rate limited until this time (epoch seconds), when set. */
   rateLimitedUntil: number | undefined;
+  /** GitHub Projects (v2), served at POST /graphql. */
+  projects: FakeProjects;
   /** The fake's clock: each change happens one second after the last. */
   now(): string;
   close(): Promise<void>;
@@ -144,13 +147,14 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
     expire: () => void (expired = true),
     revoke: (token) => void fake.users.delete(token),
     repoPath: (owner, name) => join(gitRoot ?? "", owner, `${name}.git`),
+    projects: fakeProjects({ webUrl: () => fake.url, now: () => fake.now() }),
     close: () => new Promise((resolve) => server.close(() => resolve())),
   };
 
   const issueData = new Map<string, FakeIssues>();
   let clock = 0;
   let commentIds = 1000;
-  const scopesOf = (user: FakeUser) => user.scopes ?? ["repo", "workflow", "read:user"];
+  const scopesOf = (user: FakeUser) => user.scopes ?? ["repo", "workflow", "read:user", "project"];
   const json = (res: ServerResponse, status: number, body: unknown) => res.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify(body));
   const read = (req: IncomingMessage) =>
     new Promise<string>((resolve) => {
@@ -172,6 +176,12 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
     if (repoApi) return serveIssues(req, res, url, body, user, repoApi[1]!, repoApi[2]!, repoApi[3]!);
 
     switch (`${req.method} ${url.pathname}`) {
+      case "POST /graphql": {
+        if (!user) return json(res, 401, { message: "Bad credentials" });
+        if (fake.rateLimitedUntil !== undefined && Date.now() / 1000 < fake.rateLimitedUntil) return json(res, 200, { errors: [{ type: "RATE_LIMITED", message: "API rate limit exceeded" }] });
+        const exists = (owner: string, name: string) => fake.repos.some((r) => r.owner === owner && r.name === name);
+        return json(res, 200, await fake.projects.execute(body, user.login, scopesOf(user), exists));
+      }
       case "POST /login/device/code":
         if (form.get("client_id") !== clientId) return json(res, 401, { error: "incorrect_client_credentials", error_description: "The client_id is not valid." });
         deviceStarted = true;
