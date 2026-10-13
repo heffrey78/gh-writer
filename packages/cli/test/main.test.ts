@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -33,7 +33,13 @@ beforeAll(() => {
   writeFileSync(scene, readFileSync(scene, "utf8").replace("pov: char_7f3k2q", "pov: char_zzzzzz"));
 });
 
-afterAll(() => rmSync(tmp, { recursive: true, force: true }));
+// Servers the tests start, stopped even when a test fails before stopping its own.
+const servers: ChildProcess[] = [];
+
+afterAll(() => {
+  for (const server of servers) server.kill("SIGKILL");
+  rmSync(tmp, { recursive: true, force: true });
+});
 
 describe("gh-writer validate", () => {
   it("exits 0 and summarises a valid novel", () => {
@@ -103,6 +109,7 @@ describe("gh-writer snapshots", () => {
 /** `serve` from `file` (the source or the bundle), once it has printed its launch URL. */
 async function serve(file: string, ...args: string[]) {
   const child = spawn("node", [file, "serve", ...args, "--no-open"], { env: env() });
+  servers.push(child);
   let out = "";
   child.stdout.setEncoding("utf8").on("data", (chunk: string) => (out += chunk));
   const exited = new Promise<number | null>((resolve) => child.once("exit", resolve));
@@ -145,6 +152,7 @@ describe("gh-writer serve --sidecar", () => {
   /** The first line on stdout, as JSON; with the rest of stdout, which should stay empty. */
   function sidecar(...args: string[]) {
     const child = spawn("node", [main, "serve", ...args, "--sidecar"], { env: env() });
+    servers.push(child);
     let out = "";
     child.stdout.setEncoding("utf8").on("data", (chunk: string) => (out += chunk));
     const exited = new Promise<number | null>((resolve) => child.once("exit", resolve));
