@@ -113,20 +113,19 @@ export class NovelWorkspace {
           write: (path, content, base) => this.write(path, content, base, undefined, { announce: true }),
         })
       : undefined;
-    // Issues and the board are brought up to date with each sync with GitHub, so a change on github.com
-    // shows within one cycle. The board looks once a session for a project another clone made.
+    // Issues and a board that's set up are brought up to date with each sync with GitHub, so a change on
+    // github.com shows within one cycle. (A board another clone made is looked for when the board is opened.)
     let lastSync: string | null | undefined;
-    let looked = false;
     this.syncer?.onChange(() => {
-      void this.syncer?.status().then(async (s) => {
-        if (s.lastSync === lastSync || !s.lastSync) return;
-        lastSync = s.lastSync;
-        void this.issues?.refresh().catch(() => {});
-        if (this.board && (!looked || (await this.board.isSetUp()))) {
-          looked = true;
-          void this.board.sync();
-        }
-      });
+      void this.syncer
+        ?.status()
+        .then(async (s) => {
+          if (s.lastSync === lastSync || !s.lastSync) return;
+          lastSync = s.lastSync;
+          void this.issues?.refresh().catch(() => {});
+          if (await this.board?.isSetUp()) await this.board!.sync();
+        })
+        .catch(() => {});
     });
     this.stopped = new Promise((resolve) => (this.#stop = resolve));
     this.syncer?.start();
