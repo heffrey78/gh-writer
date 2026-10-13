@@ -76,7 +76,7 @@ describe("session", () => {
   it("serves a valid session", async () => {
     const r = await send(server.port, "/api/health", { headers: session });
     expect(r.status).toBe(200);
-    expect(JSON.parse(r.body)).toEqual({ status: "ok" });
+    expect(JSON.parse(r.body)).toEqual({ status: "ok", git: "system" });
   });
 
   it("rejects a missing or wrong session cookie", async () => {

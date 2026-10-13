@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { gitInstall } from "./git.ts";
 import { githubRoutes } from "./github-routes.ts";
 import type { GitHub } from "./github.ts";
 import { libraryRoutes } from "./library-routes.ts";
@@ -24,7 +25,8 @@ export function createApp({ token, port, library, workspaces, github, web }: App
   const app = new Hono();
   app.use(security({ token, port, publicPaths: new Set(["/api/session"]) }));
 
-  app.get("/api/health", (c) => c.json({ status: "ok" }));
+  // Which git runs (D9): the desktop app's own, or the system's.
+  app.get("/api/health", (c) => c.json({ status: "ok", git: gitInstall().bundled ? "bundled" : "system" }));
   app.get("/api/session", (c) => c.json({ authenticated: hasSession(c, token, port()) }));
   app.route("/api/library", libraryRoutes(library, github));
   app.route("/api/novels", novelRoutes(library, workspaces, github));

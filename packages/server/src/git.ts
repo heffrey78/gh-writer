@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { join } from "node:path";
 import { simpleGit, type SimpleGit, type SimpleGitProgressEvent } from "simple-git";
 
 /** Stable codes for what went wrong, so the UI can say what to do. */
@@ -36,7 +37,7 @@ const GUIDANCE: Record<Exclude<GitErrorCode, "GIT">, string> = {
 // Checked in order: a 403 "unable to access" is AUTH, not NETWORK. A push refused because the remote
 // moved is REJECTED; one refused by the remote itself ("[remote rejected]", e.g. a protected branch) is GIT.
 const PATTERNS: [GitErrorCode, RegExp][] = [
-  ["GIT_MISSING", /spawn git ENOENT|git: (command )?not found/i],
+  ["GIT_MISSING", /spawn \S*git(\.exe)? ENOENT|git: (command )?not found/i],
   // GitHub refusing an OAuth token without the workflow scope a push that touches .github/workflows.
   ["SCOPE", /without `?workflow`? scope/i],
   [
@@ -111,14 +112,46 @@ export type GitAuthSource = (url: string) => Promise<GitAuth | undefined>;
 const TOKEN_VAR = "GH_WRITER_GIT_TOKEN";
 
 /**
+ * Which git runs: the system's, on the PATH, or the portable git the desktop app ships (D9), whose
+ * folder is GH_WRITER_GIT. That git doesn't find its own parts unaided, so its environment says where
+ * they are, and on Linux where its certificates are.
+ */
+export function gitInstall(): { binary: string; bundled: boolean; env: Record<string, string> } {
+  const root = process.env.GH_WRITER_GIT;
+  if (!root) return { binary: "git", bundled: false, env: {} };
+  const windows = process.platform === "win32";
+  const prefix = windows ? join(root, "mingw64") : root;
+  return {
+    binary: join(root, windows ? "cmd/git.exe" : "bin/git"),
+    bundled: true,
+    env: {
+      GIT_EXEC_PATH: join(prefix, "libexec/git-core"),
+      GIT_TEMPLATE_DIR: join(prefix, "share/git-core/templates"),
+      ...(process.platform === "linux" ? { GIT_SSL_CAINFO: join(root, "ssl/cacert.pem") } : {}),
+    },
+  };
+}
+
+/**
  * Configuration for one command (git -c) that answers for `origin` with the token in the command's
  * environment, as x-access-token, and with nothing else: the empty helper first clears the author's
  * own helpers for that host, so a stale stored credential can't win. Nothing is written to any git
  * config file, and the token never appears in git's arguments.
+ *
+ * With an askpass program (GH_WRITER_ASKPASS: the desktop app's own executable), git, finding no
+ * helper, asks it instead (`askpassEnv`). Otherwise a helper written in shell answers, which git
+ * runs through sh: fine where git is installed, but MinGit may have no shell.
  */
 function credentialConfig(origin: string): string[] {
+  if (process.env.GH_WRITER_ASKPASS) return [`credential.${origin}.helper=`];
   const helper = `!f() { test "$1" = get && echo username=x-access-token && echo "password=$${TOKEN_VAR}"; }; f`;
   return [`credential.${origin}.helper=`, `credential.${origin}.helper=${helper}`];
+}
+
+/** For a command with gh-writer's credentials: the token, and the askpass program that answers with it. */
+function credentialEnv(auth: GitAuth): Record<string, string> {
+  const askpass = process.env.GH_WRITER_ASKPASS;
+  return { [TOKEN_VAR]: auth.token, ...(askpass ? { GIT_ASKPASS: askpass } : {}) };
 }
 
 /**
@@ -128,9 +161,10 @@ function credentialConfig(origin: string): string[] {
  * GitHub remote from gh-writer's own sign-in (`auth`).
  */
 export function git(dir?: string, onProgress?: (e: SimpleGitProgressEvent) => void, signal?: AbortSignal, auth?: GitAuth): SimpleGit {
-  const env = { ...gitEnv(), ...(auth ? { [TOKEN_VAR]: auth.token } : {}) };
+  const env = { ...gitEnv(), ...(auth ? credentialEnv(auth) : {}) };
   return simpleGit({
     ...(dir ? { baseDir: dir } : {}),
+    binary: gitInstall().binary,
     ...(auth ? { config: credentialConfig(auth.origin) } : {}),
     ...(onProgress ? { progress: onProgress } : {}),
     ...(signal ? { abort: signal } : {}),
@@ -151,12 +185,14 @@ export function git(dir?: string, onProgress?: (e: SimpleGitProgressEvent) => vo
       allowUnsafeTemplateDir: true,
       allowUnsafeExec: true,
       allowUnsafeDiffExternal: true,
+      // The portable git's path may have spaces or other characters simple-git doesn't expect.
+      allowUnsafeCustomBinary: true,
     },
   }).env(env);
 }
 
 function gitEnv(): Record<string, string | undefined> {
-  const env: Record<string, string | undefined> = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
+  const env: Record<string, string | undefined> = { ...process.env, ...gitInstall().env, GIT_TERMINAL_PROMPT: "0" };
   if (!env.GIT_SSH_COMMAND && !env.GIT_SSH) env.GIT_SSH_COMMAND = "ssh -o BatchMode=yes";
   return env;
 }
@@ -168,7 +204,7 @@ function gitEnv(): Record<string, string | undefined> {
 export function gitPlumbing(dir: string, args: string[], { input, env }: { input?: string | Buffer; env?: Record<string, string> } = {}): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const child = execFile(
-      "git",
+      gitInstall().binary,
       args,
       { cwd: dir, env: { ...gitEnv(), ...env }, encoding: "buffer", maxBuffer: 64 * 1024 * 1024 },
       (error, stdout, stderr) => (error ? reject(Object.assign(new Error(`${error.message}\n${stderr.toString()}`.trim()), { stdout })) : resolve(stdout)),
