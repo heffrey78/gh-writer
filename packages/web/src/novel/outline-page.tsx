@@ -2,25 +2,31 @@ import type { Novel } from "@gh-writer/core";
 import { useEffect, useRef } from "react";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router";
 import { cn } from "../ui/cn.ts";
+import { OutlineBoard } from "./board.tsx";
 import { OutlineCards } from "./corkboard.tsx";
 import { OutlineTable } from "./outline.tsx";
 import type { Workspace } from "./workspace.ts";
 
 /*
- * The outline (#136): every scene in reading order, as a table or as cards (the corkboard), switched
- * in place. The choice is in the address (/outline/table, /outline/cards) and remembered for /outline.
+ * The outline (#136): every scene in reading order, as a table, as cards (the corkboard), or on the
+ * drafting board by status (#11), switched in place. The choice is in the address (/outline/table,
+ * /outline/cards, /outline/board) and remembered for /outline.
  */
 
 const VIEWS = [
   { key: "table", label: "Table" },
   { key: "cards", label: "Cards" },
+  { key: "board", label: "Board" },
 ] as const;
 type View = (typeof VIEWS)[number]["key"];
 const KEY = "ghw.outlineView";
 
+const isView = (v: string | null | undefined): v is View => VIEWS.some((x) => x.key === v);
+
 function remembered(): View {
   try {
-    return localStorage.getItem(KEY) === "cards" ? "cards" : "table";
+    const saved = localStorage.getItem(KEY);
+    return isView(saved) ? saved : "table";
   } catch {
     return "table";
   }
@@ -43,7 +49,7 @@ export function OutlinePage({ novelId, novel, workspace }: { novelId: string; no
   useEffect(() => {
     if (state?.focusSwitch) group.current?.querySelector<HTMLInputElement>("input:checked")?.focus();
   }, [state, view]);
-  if (view !== "table" && view !== "cards") return <Navigate to={`/novels/${novelId}/outline/${remembered()}`} replace />;
+  if (!isView(view)) return <Navigate to={`/novels/${novelId}/outline/${remembered()}`} replace />;
   const choose = (next: View) => {
     remember(next);
     void navigate(`/novels/${novelId}/outline/${next}`, { replace: true, state: { focusSwitch: true } });
@@ -61,7 +67,13 @@ export function OutlinePage({ novelId, novel, workspace }: { novelId: string; no
           ))}
         </div>
       </div>
-      {view === "cards" ? <OutlineCards novelId={novelId} novel={novel} workspace={workspace} /> : <OutlineTable novelId={novelId} novel={novel} workspace={workspace} />}
+      {view === "board" ? (
+        <OutlineBoard novelId={novelId} novel={novel} workspace={workspace} />
+      ) : view === "cards" ? (
+        <OutlineCards novelId={novelId} novel={novel} workspace={workspace} />
+      ) : (
+        <OutlineTable novelId={novelId} novel={novel} workspace={workspace} />
+      )}
     </div>
   );
 }

@@ -158,6 +158,7 @@ export function NovelPage() {
       { id: "novel.bible", title: "Story bible", group: "Go to", run: () => void navigate(`/novels/${novelId}/bible`) },
       { id: "novel.outline", title: "Outline", group: "Go to", keywords: ["table"], run: () => void navigate(`/novels/${novelId}/outline/table`) },
       { id: "novel.outlineCards", title: "Outline: cards", group: "Go to", keywords: ["corkboard", "index cards"], run: () => void navigate(`/novels/${novelId}/outline/cards`) },
+      { id: "novel.outlineBoard", title: "Outline: drafting board", group: "Go to", keywords: ["board", "kanban", "status", "progress", "projects"], run: () => void navigate(`/novels/${novelId}/outline/board`) },
       { id: "novel.timeline", title: "Story map: Timeline", group: "Go to", keywords: ["chronology", "story time", "flashback", "diagram"], run: () => void navigate(`/novels/${novelId}/story-map/timeline`) },
       { id: "novel.presence", title: "Story map: Presence", group: "Go to", keywords: ["diagram", "characters", "themes", "locations", "matrix"], run: () => void navigate(`/novels/${novelId}/story-map/presence`) },
       { id: "novel.swimlanes", title: "Story map: Plotlines", group: "Go to", keywords: ["diagram", "plotlines", "swimlanes"], run: () => void navigate(`/novels/${novelId}/story-map/plotlines`) },

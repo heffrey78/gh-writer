@@ -10,7 +10,7 @@ import { STATUSES } from "./outline.tsx";
 import { dropMove, useStructure } from "./structure.ts";
 import type { Workspace } from "./workspace.ts";
 
-const STATUS_TONE: Record<string, string> = {
+export const STATUS_TONE: Record<string, string> = {
   idea: "border-l-rule",
   outlined: "border-l-warn",
   drafted: "border-l-accent",
@@ -165,7 +165,7 @@ export function OutlineCards({ novelId, novel, workspace }: { novelId: string; n
   );
 }
 
-function FilterSelect({ label, value, onChange, options }: { label: string; value: string | undefined; onChange: (v: string) => void; options: string[][] }) {
+export function FilterSelect({ label, value, onChange, options }: { label: string; value: string | undefined; onChange: (v: string) => void; options: string[][] }) {
   const id = useId();
   return (
     <div className="grid gap-1">
