@@ -39,8 +39,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install Chromium and WebKit
+        run: npx playwright install --with-deps chromium webkit
         working-directory: packages/editor
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4

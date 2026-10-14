@@ -57,7 +57,7 @@ Other folders:
 | `npm run test:e2e` | Playwright: the editor playground, then the built web app against real servers |
 | `npm run check` | typecheck and unit tests |
 
-Run `npx playwright install chromium` in `packages/editor` once before the first e2e run. The web e2e tests run against the **built** app, so `npm run test:e2e` builds it first; if you run Playwright directly, run `npx vite build` in `packages/web` after changing the UI.
+Run `npx playwright install chromium` in `packages/editor` once before the first e2e run. The e2e tests also run in WebKit, the engine of the desktop app's window on macOS and Linux. CI runs both (`E2E_BROWSERS=chromium,webkit` is the default there); elsewhere only Chromium runs unless you set `E2E_BROWSERS`. Playwright's WebKit needs Ubuntu's libraries: on Ubuntu, `npx playwright install --with-deps webkit`; elsewhere, its Docker image (`mcr.microsoft.com/playwright`). The web e2e tests run against the **built** app, so `npm run test:e2e` builds it first; if you run Playwright directly, run `npx vite build` in `packages/web` after changing the UI.
 
 Each web e2e test starts its own `gh-writer serve` on a temp copy of the sample novel (`packages/web/e2e/fixtures.ts`), with a fake GitHub (`packages/server/test/fake-github.ts`) that serves the REST API, the device flow and git over HTTP. Most views also run an [axe](https://github.com/dequelabs/axe-core) audit, many in both light and dark themes; new UI should too. Performance benchmarks (`*.performance.spec.ts`) run after the rest, one at a time.
 
