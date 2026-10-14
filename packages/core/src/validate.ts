@@ -1,6 +1,6 @@
 import { idPrefix, STRUCTURE_PREFIXES } from "./ids.ts";
 import { loadNovel } from "./load.ts";
-import { allRecords, mentions, type Novel, type RecordRef } from "./model.ts";
+import { allRecords, mentions, picturePath, pictures, type Novel, type Picture, type RecordRef } from "./model.ts";
 import type { FileSource } from "./source.ts";
 import { overlaps, storyTimeline, type TimelineItem } from "./time.ts";
 import type { Diagnostic, Severity } from "./types.ts";
@@ -32,6 +32,7 @@ export const RULES: Readonly<Record<string, Severity>> = {
   W_LAYOUT_UNKNOWN: "warning",
   W_TIME_OVERLAP: "warning",
   W_MISSING_IMAGE: "warning",
+  W_IMAGE_OUTSIDE: "warning",
 };
 
 export interface ValidationResult {
@@ -93,6 +94,12 @@ export function validateNovel(novel: Novel): Diagnostic[] {
     }
   }
 
+  /** A picture in prose must be under /images/, written from the repository root as github.com reads it (D10). */
+  function outsideImages(p: Picture, file: string, bodyLine: number) {
+    if (picturePath(p.src)) return;
+    push("warning", "W_IMAGE_OUTSIDE", file, `The picture “${p.alt || p.src}” isn't in the novel's images folder: use /images/<name> (from the repository's root, as github.com reads it)`, { line: bodyLine + p.line - 1 });
+  }
+
   // Scenes. `entities` holds custom types only: the built-in four have their own lists.
   for (const s of novel.allScenes) {
     ref(s.pov, ["character"], s.file, "/pov", "pov");
@@ -105,6 +112,7 @@ export function validateNovel(novel: Novel): Diagnostic[] {
       push("warning", "W_POV_NOT_PRESENT", s.file, `POV character ${s.pov} is not listed in characters`, { pointer: "/pov" });
     }
     for (const m of mentions(s.body)) ref(m.id, ["*entity"], s.file, "", `Mention "${m.text}"`, s.bodyLine + m.line - 1);
+    for (const p of pictures(s.body)) outsideImages(p, s.file, s.bodyLine);
     for (const line of hardWrappedLines(s.body)) {
       push("warning", "W_HARD_WRAP", s.file, "Paragraph continues on the next line; keep each paragraph on one line", { line: s.bodyLine + line - 1 });
     }
@@ -113,6 +121,7 @@ export function validateNovel(novel: Novel): Diagnostic[] {
   // Bible entries: mentions in notes.
   for (const e of novel.entities) {
     for (const m of mentions(e.body)) ref(m.id, ["*entity"], e.file, "", `Mention "${m.text}"`, e.bodyLine + m.line - 1);
+    for (const p of pictures(e.body)) outsideImages(p, e.file, e.bodyLine);
   }
 
   // Events.
@@ -215,15 +224,24 @@ async function missingImages(novel: Novel, source: FileSource): Promise<Diagnost
     if (!listings.has(dir)) listings.set(dir, source.list(dir).then((entries) => new Set(entries.filter((e) => !e.dir).map((e) => e.name))));
     return listings.get(dir)!.then((names) => names.has(path.slice(slash + 1)));
   };
-  const wanted = [
+  // Pictures in prose (D10) by the line they're on; a path outside images/ is W_IMAGE_OUTSIDE's.
+  const inProse = (body: string, file: string, bodyLine: number) =>
+    pictures(body).flatMap((p) => {
+      const path = picturePath(p.src);
+      return path ? [{ path, file, line: bodyLine + p.line - 1, what: `The picture “${p.alt || path}”` }] : [];
+    });
+  const wanted: { path: string; file: string; pointer?: string; line?: number; what: string }[] = [
     ...(novel.config?.cover ? [{ path: novel.config.cover, file: "novel.yaml", pointer: "/cover", what: "The cover" }] : []),
     ...novel.entities.flatMap((e) => (e.image ? [{ path: e.image, file: e.file, pointer: "/image", what: `${e.name}'s picture` }] : [])),
+    ...novel.allScenes.flatMap((s) => inProse(s.body, s.file, s.bodyLine)),
+    ...novel.entities.flatMap((e) => inProse(e.body, e.file, e.bodyLine)),
   ];
   const out: Diagnostic[] = [];
   for (const w of wanted) {
     // A path that isn't a plain repository path is the schema's to report.
     if (/^\/|\\|(^|\/)\.\.?(\/|$)/.test(w.path)) continue;
-    if (!(await exists(w.path))) out.push({ severity: "warning", code: "W_MISSING_IMAGE", file: w.file, pointer: w.pointer, message: `${w.what}, ${w.path}, isn't in the repository` });
+    if (await exists(w.path)) continue;
+    out.push({ severity: "warning", code: "W_MISSING_IMAGE", file: w.file, ...(w.pointer ? { pointer: w.pointer } : {}), ...(w.line ? { line: w.line } : {}), message: `${w.what}, ${w.path}, isn't in the repository` });
   }
   return out;
 }

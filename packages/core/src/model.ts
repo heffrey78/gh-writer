@@ -186,6 +186,44 @@ export interface Mention {
   line: number;
 }
 
+/** A picture in Markdown prose: `![alt](src "caption")` (D10). */
+export interface Picture {
+  alt: string;
+  src: string;
+  caption?: string;
+  /** 1-based line within the body. */
+  line: number;
+}
+
+const PICTURE = /!\[([^\]\n]*)\]\(\s*<?([^\s)>]+)>?(?:\s+(?:"([^"\n]*)"|'([^'\n]*)'))?\s*\)/g;
+
+/** The pictures in Markdown prose. */
+export function pictures(body: string): Picture[] {
+  const out: Picture[] = [];
+  body.split("\n").forEach((lineText, i) => {
+    for (const m of lineText.matchAll(PICTURE)) {
+      const caption = m[3] ?? m[4];
+      out.push({ alt: m[1]!, src: m[2]!, ...(caption ? { caption } : {}), line: i + 1 });
+    }
+  });
+  return out;
+}
+
+/**
+ * The repository path of a picture's `src`, written from the repository root as github.com reads it
+ * (`/images/map.jpg` → `images/map.jpg`), or undefined for anything outside `images/`.
+ */
+export function picturePath(src: string): string | undefined {
+  let path: string;
+  try {
+    path = decodeURI(src);
+  } catch {
+    return undefined;
+  }
+  if (!path.startsWith("/images/") || path.includes("\\") || /(^|\/)\.\.?(\/|$)/.test(path.slice(1))) return undefined;
+  return path.slice(1);
+}
+
 /** Entity mentions (`[Name](#id)`) in Markdown prose. */
 export function mentions(body: string): Mention[] {
   const out: Mention[] = [];

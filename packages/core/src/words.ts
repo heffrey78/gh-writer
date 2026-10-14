@@ -42,13 +42,16 @@ const ENTITIES: Record<string, string> = { amp: "&", nbsp: " ", mdash: "—", nd
 
 /**
  * Markdown prose as the text a reader sees: link and mention text without their targets,
- * images, HTML tags, footnote references and link definitions removed, escapes and common
- * character references decoded. Emphasis and other markers are left, as they never count.
+ * pictures' captions without their alt text or path, HTML tags, footnote references, link
+ * definitions and numbered lists' numbers removed, escapes and common character references
+ * decoded. Emphasis and other markers are left, as they never count.
  */
 export function proseText(markdown: string): string {
   return markdown
     .replace(/^ {0,3}\[(?!\^)[^\]\n]+\]:[ \t]*\S.*$/gm, "") // link reference definitions (footnotes are prose)
-    .replace(/!\[[^\]\n]*\]\([^)\n]*\)/g, " ") // images
+    .replace(/!\[[^\]\n]*\]\(\s*<?[^\s)>]*>?(?:\s+(?:"([^"\n]*)"|'([^'\n]*)'))?\s*\)/g, (_, double?: string, single?: string) => ` ${double ?? single ?? ""} `) // pictures: their captions
+    .replace(/!\[[^\]\n]*\]\([^)\n]*\)/g, " ") // other images
+    .replace(/^[ \t]*(?:[-*+][ \t]+)*\d{1,9}[.)](?=[ \t]|$)/gm, "") // numbered lists' numbers (D10), nested in bullets too
     .replace(/\[([^\]\n]*)\]\([^)\n]*\)/g, "$1") // links and mentions: [text](target)
     .replace(/\[\^[^\]\n]+\]/g, "") // footnote references
     .replace(/\[([^\]\n]+)\]\[[^\]\n]*\]/g, "$1") // reference links: [text][ref]

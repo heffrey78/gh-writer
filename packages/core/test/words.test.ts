@@ -35,6 +35,13 @@ describe("countWords", () => {
     ["> Quoted\n> text.\n\n***\n\n- one\n- two", 4],
     ["Roses are red,\\\nviolets are blue.", 6],
     ["| Day | Event |\n|-----|-------|\n| 1 | Arrival |", 4],
+    // D10: numbered lists' numbers aren't words; pictures' captions are, their alt text isn't.
+    ["1. Milk\n2. Eggs\n10) Flour", 3],
+    ["- Bread\n  1. Rye", 2],
+    ["![A map of Varn](/images/varn-map.jpg \"The valley, as Tomas drew it\")", 6],
+    ["![A map of Varn](/images/varn-map.jpg 'Varn')", 1],
+    ["## The Letter\n\nDear Ada,", 4],
+    ["In 1984 it rained.", 4],
   ])("%j has %i words", (md, words) => {
     expect(countWords(md)).toBe(words);
   });

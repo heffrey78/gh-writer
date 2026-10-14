@@ -75,6 +75,17 @@ describe("validate", () => {
     ]);
   });
 
+  it("pictures in prose: W_MISSING_IMAGE for a missing file, W_IMAGE_OUTSIDE for one not under /images/ (D10)", async () => {
+    const body = "A map:\n\n![The valley](/images/valley.jpg \"As Tomas drew it\")\n\n![Gone](/images/gone.png)\n\n![Here](images/here.jpg) and ![Web](https://example.com/x.png)\n";
+    const r = await fixture({ "manuscript/01-one/02-b.md": scene("sc_bbbbbb", "B", "", body), "images/valley.jpg": "\xff\xd8" });
+    expect(r.diagnostics).toMatchObject([
+      { code: "W_MISSING_IMAGE", file: "manuscript/01-one/02-b.md", line: 9, message: "The picture “Gone”, images/gone.png, isn't in the repository" },
+      { code: "W_IMAGE_OUTSIDE", file: "manuscript/01-one/02-b.md", line: 11, message: expect.stringContaining("“Here”") },
+      { code: "W_IMAGE_OUTSIDE", file: "manuscript/01-one/02-b.md", line: 11, message: expect.stringContaining("“Web”") },
+    ]);
+    expect(r.diagnostics).toHaveLength(3);
+  });
+
   it("E_SCHEMA for a cover that isn't a repository path, or a focal point outside the picture", async () => {
     const r = await fixture({
       "novel.yaml": `${NOVEL}cover: /home/me/cover.jpg\n`,
