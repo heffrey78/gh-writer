@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { compileBook, CompileError, loadNovel } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
-import { commitDate, fileName, FORMATS, isFormat, readCover, render, type Format, type PdfFonts } from "@gh-writer/export";
+import { commitDate, fileName, FORMATS, isFormat, readCover, readPictures, render, type Format, type PdfFonts } from "@gh-writer/export";
 
 export interface CompileOptions {
   /** Comma-separated: docx, epub, pdf (default all three). */
@@ -48,13 +48,14 @@ export async function runCompile(dir: string, options: CompileOptions = {}, out:
   // Taken before anything is written: the files written mustn't make the novel look changed.
   const date = await commitDate(root);
   const { cover, problem } = await readCover(root, novel);
+  const { pictures, problems } = await readPictures(root, book);
   const target = options.out ? resolve(options.out) : join(root, "compiled");
   await mkdir(target, { recursive: true });
   if (!options.out) await writeFile(join(target, ".gitignore"), "# Compiled files: made by `gh-writer compile`, not kept in git.\n*\n");
   const written: string[] = [];
   const missing = new Set<string>();
   for (const format of new Set(formats as Format[])) {
-    const rendered = await render(book, format, { date, cover, ...(options.fonts ? { fonts: options.fonts } : {}) });
+    const rendered = await render(book, format, { date, cover, pictures, ...(options.fonts ? { fonts: options.fonts } : {}) });
     const path = join(target, fileName(book, novel.chapters.length, format));
     await writeFile(path, rendered.bytes);
     written.push(relative(process.cwd(), path) || path);
@@ -63,5 +64,6 @@ export async function runCompile(dir: string, options: CompileOptions = {}, out:
   out(`Compiled ${book.chapters.length} chapter${book.chapters.length === 1 ? "" : "s"} (${book.words.toLocaleString("en-US")} words): ${written.join(", ")}`);
   if (missing.size) out(`The PDF's type has no letter for ${[...missing].join(" ")}: it shows boxes there.`);
   if (problem && formats.some((f) => f !== "docx")) out(problem);
+  for (const p of problems) out(p);
   return 0;
 }

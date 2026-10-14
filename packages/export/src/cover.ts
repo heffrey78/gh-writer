@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Novel } from "@gh-writer/core";
+import { bookImages, type Book, type Novel } from "@gh-writer/core";
 import { unzlibSync, zlibSync } from "fflate";
 
 /*
@@ -29,6 +29,23 @@ export async function readCover(root: string, novel: Novel): Promise<{ cover?: C
   if (!cover) return { problem: `The cover, ${path}, isn't a JPEG or PNG image, so the book goes out without it.` };
   if (!pdfCover(cover)) return { cover, problem: `The cover, ${path}, is a kind of PNG the PDF can't take (16-bit or interlaced), so the PDF goes out without it. Saved again as a JPEG, it would work everywhere.` };
   return { cover };
+}
+
+/**
+ * The pictures a book shows in its text (D10), read from `root` by their repository paths: a map for
+ * the formats to embed. A picture missing, or not a JPEG or PNG, is left out (its caption stays), and
+ * named in `problems`.
+ */
+export async function readPictures(root: string, book: Book): Promise<{ pictures: Map<string, CoverImage>; problems: string[] }> {
+  const pictures = new Map<string, CoverImage>();
+  const problems: string[] = [];
+  for (const path of bookImages(book)) {
+    const bytes = await readFile(join(root, path)).catch(() => undefined);
+    const image = bytes && coverImage(new Uint8Array(bytes));
+    if (image) pictures.set(path, image);
+    else problems.push(bytes ? `The picture ${path} isn't a JPEG or PNG image, so the book goes out without it.` : `The picture ${path} isn't there, so the book goes out without it.`);
+  }
+  return { pictures, problems };
 }
 
 /** Image bytes as a cover, with their size, or undefined if they aren't a JPEG or PNG. */

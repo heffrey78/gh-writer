@@ -56,6 +56,9 @@ describe("novel template", () => {
     mkdirSync(join(novel, "images"));
     cpSync(join(repo, "packages/export/test/fixtures/cover-alpha.png"), join(novel, "images/cover.png"));
     appendFileSync(join(novel, "novel.yaml"), "cover: images/cover.png\n");
+    // And a scene holding a heading, a list, a table and a picture (D10).
+    cpSync(join(repo, "packages/export/test/fixtures/cover.jpg"), join(novel, "images/map.jpg"));
+    appendFileSync(join(novel, "manuscript/01-return/01-arrival/01-the-station.md"), "\n## A letter\n\n1. Sell.\n2. Pay.\n\n| Day | Miles |\n|:--|--:|\n| Monday | 12 |\n\n![A map](/images/map.jpg \"The valley\")\n");
     for (const args of [["init", "-q"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "Draft"]]) spawnSync("git", ["-C", novel, ...args]);
     // In another clock zone than this process's, as GitHub's (UTC) and the author's machine may be.
     const bundled = node([join(template, ".github/gh-writer/compile.mjs"), novel, "--out", join(tmp, "by-bundle")], repo, { TZ: "Pacific/Kiritimati" });
@@ -67,6 +70,7 @@ describe("novel template", () => {
     for (const f of files) expect(readFileSync(join(tmp, "by-bundle", f)).equals(readFileSync(join(tmp, "by-app", f))), f).toBe(true);
     // The cover went in (a zip's file names are plain in its headers).
     expect(readFileSync(join(tmp, "by-app", "the-bridge-at-varn.epub")).includes("OEBPS/images/cover.png")).toBe(true);
+    expect(readFileSync(join(tmp, "by-app", "the-bridge-at-varn.epub")).includes("OEBPS/pictures/map.jpg")).toBe(true);
   }, 60_000);
 
   it("compiles named checkpoints into a Release, and on demand with a preset and range", () => {

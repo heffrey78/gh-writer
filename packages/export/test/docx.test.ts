@@ -27,7 +27,7 @@ describe("DOCX in standard manuscript format", () => {
   const styles = docx["word/styles.xml"]!;
 
   it("is a well-formed Word package", () => {
-    expect(Object.keys(docx).sort()).toEqual(["[Content_Types].xml", "_rels/.rels", "docProps/app.xml", "docProps/core.xml", "word/_rels/document.xml.rels", "word/document.xml", "word/header1.xml", "word/header2.xml", "word/settings.xml", "word/styles.xml"]);
+    expect(Object.keys(docx).sort()).toEqual(["[Content_Types].xml", "_rels/.rels", "docProps/app.xml", "docProps/core.xml", "word/_rels/document.xml.rels", "word/document.xml", "word/header1.xml", "word/header2.xml", "word/numbering.xml", "word/settings.xml", "word/styles.xml"]);
     for (const [name, text] of Object.entries(docx)) expect(parse(text).getElementsByTagName("parsererror"), name).toHaveLength(0);
     expect(docx["docProps/core.xml"]).toContain("<dc:title>The Bridge at Varn</dc:title><dc:creator>Ada Writer</dc:creator>");
     expect(docx["docProps/core.xml"]).toContain("2026-10-09T12:00:00Z");

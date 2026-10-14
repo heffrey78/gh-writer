@@ -30,12 +30,16 @@ export interface Rendered {
 
 /**
  * The book in one format. A cover goes on the EPUB and the PDF; Word manuscripts go out without one,
- * as agents and editors expect.
+ * as agents and editors expect. `pictures` are the text's own (readPictures), by repository path.
  */
-export async function render(book: Book, format: Format, { date, fonts, cover }: { date: Date; fonts?: PdfFonts; cover?: CoverImage | undefined }): Promise<Rendered> {
-  if (format === "docx") return { bytes: toDocx(book, { date }), missing: [] };
-  if (format === "epub") return { bytes: toEpub(book, { date, ...(cover ? { cover } : {}) }), missing: [] };
-  const { pdf, missing } = await toPdf(book, { date, ...(fonts ? { fonts } : {}), ...(cover ? { cover } : {}) });
+export async function render(
+  book: Book,
+  format: Format,
+  { date, fonts, cover, pictures }: { date: Date; fonts?: PdfFonts; cover?: CoverImage | undefined; pictures?: Map<string, CoverImage> },
+): Promise<Rendered> {
+  if (format === "docx") return { bytes: toDocx(book, { date, ...(pictures ? { pictures } : {}) }), missing: [] };
+  if (format === "epub") return { bytes: toEpub(book, { date, ...(cover ? { cover } : {}), ...(pictures ? { pictures } : {}) }), missing: [] };
+  const { pdf, missing } = await toPdf(book, { date, ...(fonts ? { fonts } : {}), ...(cover ? { cover } : {}), ...(pictures ? { pictures } : {}) });
   return { bytes: pdf, missing };
 }
 
@@ -51,8 +55,9 @@ export function fileName(book: Book, total: number, format: Format): string {
  * The files' date: when the novel was last committed, if everything in it is (so a commit compiles to
  * the same bytes anywhere); otherwise now.
  */
-export async function commitDate(root: string): Promise<Date> {
-  const git = async (...args: string[]) => (await promisify(execFile)("git", ["-C", root, ...args], { encoding: "utf8" })).stdout.trim();
+export async function commitDate(root: string, run?: (args: string[]) => Promise<string>): Promise<Date> {
+  // `run`: git in the novel's folder, as its caller runs it (the server's own git, D9); else the system's.
+  const git = async (...args: string[]) => (run ? (await run(args)).trim() : (await promisify(execFile)("git", ["-C", root, ...args], { encoding: "utf8" })).stdout.trim());
   const dirty = await git("status", "--porcelain", "--", ".").catch(() => "not a repository");
   const when = dirty ? "" : await git("log", "-1", "--format=%cI").catch(() => "");
   return when ? new Date(when) : new Date();

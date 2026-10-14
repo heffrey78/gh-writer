@@ -1,4 +1,5 @@
-import { flatBlocks, numberWords, type Block, type Book, type Run } from "@gh-writer/core";
+import { bookImages, numberWords, type Align, type Block, type Book, type Run } from "@gh-writer/core";
+import type { CoverImage } from "./cover.ts";
 import { isoSeconds, xml } from "./xml.ts";
 import { zip } from "./zip.ts";
 
@@ -14,16 +15,36 @@ import { zip } from "./zip.ts";
 export interface DocxOptions {
   /** The document's dates (and the zip's): the commit's, so the same commit gives the same file. */
   date?: Date;
+  /** The pictures in the text, by repository path (readPictures). */
+  pictures?: Map<string, CoverImage>;
 }
 
-const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+/** What the text's blocks need beyond the document itself: list numbering and embedded pictures. */
+interface Parts {
+  /** Each list, numbered on its own: bullets or decimals, and where a numbered one starts. */
+  lists: { ordered: boolean; start: number }[];
+  /** The pictures embedded, in order: their file in word/media and its relationship. */
+  media: { path: string; file: string; rel: string; image: CoverImage }[];
+  pictures: Map<string, CoverImage>;
+}
+
+const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"';
 /** Twips: 1440 to the inch. */
 const INCH = 1440;
 const PAGE = { width: 12240, height: 15840 };
 const TEXT_WIDTH = PAGE.width - 2 * INCH;
 
-export function toDocx(book: Book, { date = new Date(0) }: DocxOptions = {}): Uint8Array {
+export function toDocx(book: Book, { date = new Date(0), pictures = new Map() }: DocxOptions = {}): Uint8Array {
   const body: string[] = [];
+  const parts: Parts = { lists: [], media: [], pictures };
+  // Pictures embedded in the order they're first shown, each once.
+  for (const path of bookImages(book)) {
+    const image = pictures.get(path);
+    if (!image) continue;
+    const n = parts.media.length + 1;
+    parts.media.push({ path, file: `media/picture${n}.${image.type === "image/png" ? "png" : "jpg"}`, rel: `rIdPicture${n}`, image });
+  }
+  const blocks = (list: Block[], sceneBreak: string) => docxBlocks(list, sceneBreak, parts, 0);
   const pageBreak = () => body.push('<w:p><w:r><w:br w:type="page"/></w:r></w:p>');
 
   // Title page.
@@ -71,14 +92,96 @@ export function toDocx(book: Book, { date = new Date(0) }: DocxOptions = {}): Ui
       { path: "word/settings.xml", data: settings(book.language) },
       { path: "word/header1.xml", data: header },
       { path: "word/header2.xml", data: headerFirst },
-      { path: "word/_rels/document.xml.rels", data: documentRels },
+      { path: "word/numbering.xml", data: numbering(parts.lists) },
+      { path: "word/_rels/document.xml.rels", data: documentRels(parts.media) },
+      // Already compressed: stored as they are.
+      ...parts.media.map((m) => ({ path: `word/${m.file}`, data: m.image.bytes, store: true })),
     ],
     date,
   );
 }
 
-function blocks(list: Block[], sceneBreak: string): string[] {
-  return flatBlocks(list).map((b) => (b.kind === "break" ? p("SceneBreak", runs([{ text: sceneBreak }])) : p(b.quote ? "Quote" : "Normal", runs(b.runs))));
+/** EMUs (DrawingML's unit): 914,400 to the inch. */
+const EMU = 914400;
+/** A picture's largest size on the page: the text's width, and most of its height. */
+const PICTURE_MAX = { width: 6.5 * EMU, height: 7 * EMU };
+
+/** The text's blocks as WordprocessingML. `depth`: how far into lists, for their paragraphs' numbering and indents. */
+function docxBlocks(list: Block[], sceneBreak: string, parts: Parts, depth: number): string[] {
+  return list.flatMap((b): string[] => {
+    switch (b.kind) {
+      case "paragraph":
+        return [p(b.quote ? "Quote" : "Normal", runs(b.runs))];
+      case "break":
+        return [p("SceneBreak", runs([{ text: sceneBreak }]))];
+      case "heading":
+        return [p(`SceneHeading${b.level}`, runs(b.runs))];
+      case "list": {
+        parts.lists.push({ ordered: b.ordered, start: b.start });
+        const numId = parts.lists.length;
+        return b.items.flatMap((item) =>
+          item.flatMap((x, i) => {
+            // An item's first paragraph carries its bullet or number; what follows in it is indented to its text.
+            if (x.kind === "paragraph" && i === 0) return [p("ListParagraph", runs(x.runs), `<w:numPr><w:ilvl w:val="${depth}"/><w:numId w:val="${numId}"/></w:numPr>`)];
+            if (x.kind === "paragraph") return [p("ListParagraph", runs(x.runs), `<w:ind w:left="${(depth + 1) * (INCH / 2)}" w:firstLine="0"/>`)];
+            return docxBlocks([x], sceneBreak, parts, depth + 1);
+          }),
+        );
+      }
+      case "table":
+        return [table(b.header, b.rows, b.align)];
+      case "image": {
+        const media = parts.media.find((m) => m.path === b.path);
+        const caption = b.caption ? [p("Caption", runs([{ text: b.caption, em: true }]))] : [];
+        return media ? [picture(media, parts.media.indexOf(media) + 1, b.alt), ...caption] : caption;
+      }
+    }
+  });
+}
+
+/** A table: the header row repeated on each page, columns sharing the text's width, cells aligned as written. */
+function table(header: Run[][], rows: Run[][][], align: Align[]): string {
+  const width = Math.floor(TEXT_WIDTH / header.length);
+  const jc = (i: number) => (align[i] ? `<w:jc w:val="${align[i]}"/>` : "");
+  const cell = (content: Run[], i: number, bold: boolean) =>
+    `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/></w:tcPr>${p("TableText", runs(bold ? content.map((r) => ({ ...r, strong: true })) : content), jc(i))}</w:tc>`;
+  const border = (side: string) => `<w:${side} w:val="single" w:sz="4" w:space="0" w:color="808080"/>`;
+  return (
+    `<w:tbl><w:tblPr><w:tblW w:w="${width * header.length}" w:type="dxa"/><w:tblBorders>${["top", "left", "bottom", "right", "insideH", "insideV"].map(border).join("")}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="100" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr>` +
+    `<w:tblGrid>${header.map(() => `<w:gridCol w:w="${width}"/>`).join("")}</w:tblGrid>` +
+    `<w:tr><w:trPr><w:tblHeader/></w:trPr>${header.map((c, i) => cell(c, i, true)).join("")}</w:tr>` +
+    rows.map((row) => `<w:tr>${header.map((_, i) => cell(row[i] ?? [], i, false)).join("")}</w:tr>`).join("") +
+    "</w:tbl>"
+  );
+}
+
+/** A picture in its own centred paragraph, as large as the page allows at its shape, described by its alt text. */
+function picture(media: Parts["media"][number], n: number, alt: string): string {
+  const { width, height } = media.image;
+  const scale = Math.min(PICTURE_MAX.width / width, PICTURE_MAX.height / height);
+  const [cx, cy] = [Math.round(width * scale), Math.round(height * scale)];
+  const a = "http://schemas.openxmlformats.org/drawingml/2006/main";
+  const pic = "http://schemas.openxmlformats.org/drawingml/2006/picture";
+  return (
+    `<w:p><w:pPr><w:pStyle w:val="Picture"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/>` +
+    `<wp:docPr id="${n}" name="Picture ${n}" descr="${xml(alt)}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="${a}" noChangeAspect="1"/></wp:cNvGraphicFramePr>` +
+    `<a:graphic xmlns:a="${a}"><a:graphicData uri="${pic}"><pic:pic xmlns:pic="${pic}"><pic:nvPicPr><pic:cNvPr id="${n}" name="${media.file.slice("media/".length)}" descr="${xml(alt)}"/><pic:cNvPicPr/></pic:nvPicPr>` +
+    `<pic:blipFill><a:blip r:embed="${media.rel}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`
+  );
+}
+
+/** List numbering: bullets and decimals as two abstract definitions, nine levels deep; each list numbered from its own start. */
+function numbering(lists: Parts["lists"]): string {
+  const levels = (ordered: boolean) =>
+    Array.from({ length: 9 }, (_, i) => {
+      const left = (i + 1) * (INCH / 2);
+      const format = ordered ? `<w:numFmt w:val="decimal"/><w:lvlText w:val="%${i + 1}."/>` : `<w:numFmt w:val="bullet"/><w:lvlText w:val="${["•", "◦", "▪"][i % 3]}"/>`;
+      return `<w:lvl w:ilvl="${i}"><w:start w:val="1"/>${format}<w:lvlJc w:val="left"/><w:pPr><w:ind w:left="${left}" w:hanging="${INCH / 4}"/></w:pPr></w:lvl>`;
+    }).join("");
+  const abstract = (id: number, ordered: boolean) => `<w:abstractNum w:abstractNumId="${id}"><w:multiLevelType w:val="multilevel"/>${levels(ordered)}</w:abstractNum>`;
+  // Each list its own instance, so its numbers restart; overrides at every level, as a list is numbered at its depth.
+  const nums = lists.map((l, i) => `<w:num w:numId="${i + 1}"><w:abstractNumId w:val="${l.ordered ? 1 : 0}"/>${Array.from({ length: 9 }, (_, lvl) => `<w:lvlOverride w:ilvl="${lvl}"><w:startOverride w:val="${l.start}"/></w:lvlOverride>`).join("")}</w:num>`);
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:numbering ${W}>${abstract(0, false)}${abstract(1, true)}${nums.join("")}</w:numbering>`;
 }
 
 function p(style: string, content: string[], extraPPr = ""): string {
@@ -110,6 +213,13 @@ function styles(language: string): string {
     paragraph("PartTitle", "Part title", centred),
     paragraph("SceneBreak", "Scene break", `<w:keepNext/>${centred}`),
     paragraph("Quote", "Quote", `<w:ind w:left="${INCH / 2}" w:right="${INCH / 2}" w:firstLine="0"/>`),
+    paragraph("SceneHeading1", "heading 3", `<w:keepNext/><w:spacing w:before="240"/>${centred}<w:outlineLvl w:val="2"/>`, "<w:b/>", '<w:next w:val="Normal"/><w:qFormat/>'),
+    paragraph("SceneHeading2", "heading 4", '<w:keepNext/><w:spacing w:before="240"/><w:ind w:firstLine="0"/><w:outlineLvl w:val="3"/>', "<w:b/>", '<w:next w:val="Normal"/><w:qFormat/>'),
+    paragraph("SceneHeading3", "heading 5", '<w:keepNext/><w:ind w:firstLine="0"/><w:outlineLvl w:val="4"/>', "<w:i/>", '<w:next w:val="Normal"/><w:qFormat/>'),
+    paragraph("ListParagraph", "List Paragraph", '<w:ind w:firstLine="0"/>'),
+    paragraph("TableText", "Table text", '<w:spacing w:line="240" w:lineRule="auto"/><w:ind w:firstLine="0"/>'),
+    paragraph("Picture", "Picture", `<w:keepNext/><w:spacing w:before="240" w:line="240" w:lineRule="auto"/>${centred}`),
+    paragraph("Caption", "caption", `<w:spacing w:line="240" w:lineRule="auto"/>${centred}`),
     paragraph("TheEnd", "The end", `<w:spacing w:before="${INCH / 2}"/>${centred}`),
     paragraph("Header", "header", '<w:spacing w:line="240" w:lineRule="auto"/><w:ind w:firstLine="0"/><w:jc w:val="right"/>'),
   ].join("")}</w:styles>`;
@@ -124,10 +234,10 @@ const core = (book: Book, date: Date) =>
 const app = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>gh-writer</Application></Properties>`;
 
 const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/><Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/><Override PartName="/word/header2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`;
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/><Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/><Override PartName="/word/header2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`;
 
 const packageRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>`;
 
-const documentRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/><Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/><Relationship Id="rIdHeaderFirst" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header2.xml"/></Relationships>`;
+const documentRels = (media: Parts["media"]) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/><Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/><Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/><Relationship Id="rIdHeaderFirst" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header2.xml"/>${media.map((m) => `<Relationship Id="${m.rel}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${m.file}"/>`).join("")}</Relationships>`;

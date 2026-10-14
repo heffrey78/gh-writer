@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import nodeZlib from "node:zlib";
-import { flatBlocks, numberWords, type Block, type Book, type Run } from "@gh-writer/core";
+import { numberWords, type Block, type Book, type Run } from "@gh-writer/core";
 import { zlibSync } from "fflate";
 import * as fontkit from "fontkit";
 import PDFDocument from "pdfkit";
@@ -31,6 +31,8 @@ export interface PdfOptions {
   fonts?: PdfFonts;
   /** The book's cover, alone on the first page. */
   cover?: CoverImage;
+  /** The pictures in the text, by repository path (readPictures). */
+  pictures?: Map<string, CoverImage>;
 }
 
 export interface PdfResult {
@@ -78,7 +80,7 @@ function portableDeflate<T>(fn: () => T): T {
   }
 }
 
-export function toPdf(book: Book, { date = new Date(0), fonts = defaultFonts(), cover }: PdfOptions = {}): Promise<PdfResult> {
+export function toPdf(book: Book, { date = new Date(0), fonts = defaultFonts(), cover, pictures = new Map() }: PdfOptions = {}): Promise<PdfResult> {
   const doc = new PDFDocument({
     size: [PAGE.width, PAGE.height],
     margins: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN },
@@ -120,24 +122,108 @@ export function toPdf(book: Book, { date = new Date(0), fonts = defaultFonts(), 
   /** A third of the way down the text block, where a chapter's heading goes. */
   const third = (PAGE.height - 2 * MARGIN) / 3;
 
-  const paragraph = (runs: Run[], quote: boolean) => {
-    const x = quote ? MARGIN + INDENT : MARGIN;
-    const width = quote ? WIDTH - 2 * INDENT : WIDTH;
+  /** Runs set as one paragraph at `x`, `width` wide, its first line indented by `indent`. */
+  const text = (runs: Run[], { x = MARGIN, width = WIDTH, indent = 0, align = "left" as "left" | "center" | "right" } = {}) => {
     runs.forEach((r, i) => {
       const f = face(r);
       check(r.text, f);
       const continued = i < runs.length - 1;
       // The paragraph's first run places it; the rest carry on along the line (given no position).
-      if (i === 0) doc.font(f).text(r.text, x, doc.y, { width, indent: quote ? 0 : INDENT, continued });
+      if (i === 0) doc.font(f).text(r.text, x, doc.y, { width, indent, align, continued });
       else doc.font(f).text(r.text, { continued });
     });
   };
-  const blocks = (list: Block[]) => {
-    for (const b of flatBlocks(list)) {
-      if (b.kind === "break") centred(book.sceneBreak);
-      else paragraph(b.runs, !!b.quote);
+  const paragraph = (runs: Run[], quote: boolean) =>
+    text(runs, quote ? { x: MARGIN + INDENT, width: WIDTH - 2 * INDENT } : { indent: INDENT });
+  const bottom = () => PAGE.height - MARGIN;
+  /** A new page unless `height` more fits on this one. */
+  const room = (height: number) => {
+    if (doc.y + height > bottom()) newPage();
+  };
+
+  // A scene's own headings: centred bold, bold, italic; kept with the line after them.
+  const heading = (level: 1 | 2 | 3, runs: Run[]) => {
+    room(3 * LINE);
+    const styled = runs.map((r) => (level === 3 ? { ...r, em: !r.em } : { ...r, strong: true }));
+    text(styled, { align: level === 1 ? "center" : "left" });
+  };
+
+  // A list: each item's bullet or number hanging in its margin, its blocks indented to its text.
+  const list = (b: Extract<Block, { kind: "list" }>, depth: number) => {
+    const x = MARGIN + (b.quote ? INDENT : 0) + depth * INDENT;
+    b.items.forEach((item, n) => {
+      item.forEach((child, i) => {
+        if (child.kind === "list") return list(child, depth + 1);
+        if (child.kind !== "paragraph") return block(child);
+        room(LINE);
+        if (i === 0) {
+          const marker = b.ordered ? `${b.start + n}.` : "•";
+          check(marker, "regular");
+          const y = doc.y;
+          doc.font("regular").text(marker, x, y, { width: INDENT, lineBreak: false });
+          doc.y = y;
+        }
+        text(child.runs, { x: x + INDENT, width: WIDTH - (x + INDENT - MARGIN) });
+      });
+    });
+  };
+
+  // A table: ruled, the header row bold; single-spaced so a row reads as one; a row too tall for the page starts the next.
+  const table = (b: Extract<Block, { kind: "table" }>) => {
+    const columns = b.header.length;
+    const colWidth = WIDTH / columns;
+    const pad = 4;
+    doc.lineGap(single);
+    const row = (cells: Run[][], bold: boolean) => {
+      const content = Array.from({ length: columns }, (_, i) => (cells[i] ?? []).map((r) => (bold ? { ...r, strong: true } : r)));
+      const height = Math.max(LINE / 2, ...content.map((runs) => doc.font("regular").heightOfString(runs.map((r) => r.text).join("") || " ", { width: colWidth - 2 * pad }))) + 2 * pad;
+      room(height);
+      const top = doc.y;
+      content.forEach((runs, i) => {
+        doc.y = top + pad;
+        if (runs.length) text(runs, { x: MARGIN + i * colWidth + pad, width: colWidth - 2 * pad, align: b.align[i] ?? "left" });
+        doc.rect(MARGIN + i * colWidth, top, colWidth, height).lineWidth(0.5).stroke();
+      });
+      doc.y = top + height;
+    };
+    row(b.header, true);
+    for (const r of b.rows) row(r, false);
+    doc.lineGap(gap);
+    doc.y += LINE / 2;
+  };
+
+  // A picture as wide as the text at most, and no taller than half the page, centred, its caption under it.
+  const picture = (b: Extract<Block, { kind: "image" }>) => {
+    const image = pictures.get(b.path);
+    const bytes = image && pdfCover(image);
+    if (image && bytes) {
+      const scale = Math.min(WIDTH / image.width, (bottom() - MARGIN) / 2 / image.height);
+      const [w, h] = [image.width * scale, image.height * scale];
+      room(h + LINE);
+      portableDeflate(() => doc.image(Buffer.from(bytes), MARGIN + (WIDTH - w) / 2, doc.y, { width: w, height: h }));
+      doc.y += h + LINE / 4;
+    }
+    if (b.caption) centred(b.caption, "italic", single);
+    doc.y += LINE / 2;
+  };
+
+  const block = (b: Block): void => {
+    switch (b.kind) {
+      case "break":
+        return centred(book.sceneBreak);
+      case "paragraph":
+        return paragraph(b.runs, !!b.quote);
+      case "heading":
+        return heading(b.level, b.runs);
+      case "list":
+        return list(b, 0);
+      case "table":
+        return table(b);
+      case "image":
+        return picture(b);
     }
   };
+  const blocks = (list: Block[]) => list.forEach(block);
 
   // The cover, as large as the page allows, centred; the manuscript starts on the next page.
   const coverBytes = cover && pdfCover(cover);
