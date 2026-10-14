@@ -55,13 +55,19 @@ test("a card dropped on a filtered board lands next to the card it was dropped o
   const novel = await open(page, app);
   await page.getByRole("combobox", { name: "Point of view" }).selectOption({ label: "Ada Varn" });
   const betrayal = card(page, "The Betrayal");
-  const box = (await betrayal.boundingBox())!;
-  await page.getByRole("button", { name: "Move “Mirela's Offer”" }).dragTo(betrayal, { targetPosition: { x: box.width - 8, y: 8 } });
-  await expect.poll(() => novel.read(NIGHT)).toContain("scenes: [sc_0d9wm4, sc_0ffer5, sc_f100d0]");
+  // Each drag is tried again until it lands, as in the outline and swimlanes: one as the board settles
+  // (WebKit's slower to) can miss. Dropped there again, the card stays where it is.
+  await expect(async () => {
+    const box = (await betrayal.boundingBox())!;
+    await page.getByRole("button", { name: "Move “Mirela's Offer”" }).dragTo(betrayal, { targetPosition: { x: box.width - 8, y: 8 } });
+    await expect.poll(() => novel.read(NIGHT), { timeout: 3_000 }).toContain("scenes: [sc_0d9wm4, sc_0ffer5, sc_f100d0]");
+  }).toPass({ timeout: 20_000 });
   // The board shows the move before the next drag starts, or it would pick up whatever card is there now.
   await expect(page.getByRole("region", { name: "Night Crossing" }).getByRole("listitem", { name: "Mirela's Offer" })).toBeVisible();
-  await page.getByRole("button", { name: "Move “Mirela's Offer”" }).dragTo(card(page, "The Station"), { targetPosition: { x: 8, y: 8 } });
-  await expect.poll(() => novel.read("manuscript/01-return/01-arrival/_chapter.yaml")).toContain("scenes: [sc_0ffer5, sc_5tat1n, sc_br1dg3]");
+  await expect(async () => {
+    await page.getByRole("button", { name: "Move “Mirela's Offer”" }).dragTo(card(page, "The Station"), { targetPosition: { x: 8, y: 8 } });
+    await expect.poll(() => novel.read("manuscript/01-return/01-arrival/_chapter.yaml"), { timeout: 3_000 }).toContain("scenes: [sc_0ffer5, sc_5tat1n, sc_br1dg3]");
+  }).toPass({ timeout: 20_000 });
 });
 
 test("the outline switches between table and cards in place, and remembers the choice", async ({ page, app }) => {
