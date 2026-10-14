@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FolderOpen, GitBranch, MoreHorizontal, Plus, X } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import { useState, type ReactNode } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { api, keys } from "../api.ts";
+import { desktop, useOpenNovel } from "../desktop.ts";
 import { ago, remoteLabel } from "../format.ts";
 import { Shell } from "../layout.tsx";
 import { ErrorAlert } from "../ui/alert.tsx";
@@ -102,7 +103,7 @@ export function LibraryPage() {
       </section>
 
       {adding === "new" && <NewNovelDialog folder={library.data?.folder} authors={library.data?.novels.flatMap((n) => (n.author ? [n.author] : [])) ?? []} onClose={close} />}
-      {adding === "open" && <OpenFolderDialog onClose={close} />}
+      {adding === "open" && <OpenFolderDialog onClose={close} initial={params.get("path") ?? undefined} />}
       {adding === "clone" && <CloneDialog folder={library.data?.folder} onClose={close} />}
     </Shell>
   );
@@ -129,7 +130,7 @@ function Shelf({ children }: { children: ReactNode }) {
 }
 
 function Book({ novel, menus }: { novel: LibraryEntry; menus: HTMLElement | null }) {
-  const navigate = useNavigate();
+  const openNovel = useOpenNovel();
   const queryClient = useQueryClient();
   const [removing, setRemoving] = useState(false);
   const remove = useMutation({
@@ -150,7 +151,15 @@ function Book({ novel, menus }: { novel: LibraryEntry; menus: HTMLElement | null
   const item = "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm outline-none data-[highlighted]:bg-accent-soft";
   return (
     <li className="flex min-w-0 flex-col">
-      <Link to={`/novels/${novel.id}`} className="block w-fit rounded-[2px_5px_5px_2px] transition-transform hover:-translate-y-1 focus-visible:-translate-y-1" title={novel.path} aria-label={novel.author ? `${novel.title}, by ${novel.author}` : novel.title}>
+      <Link
+        to={`/novels/${novel.id}`}
+        onClick={(e) => {
+          // In the desktop app, a novel opens in a window of its own.
+          if (!desktop) return;
+          e.preventDefault();
+          openNovel(novel.id);
+        }}
+        className="block w-fit rounded-[2px_5px_5px_2px] transition-transform hover:-translate-y-1 focus-visible:-translate-y-1" title={novel.path} aria-label={novel.author ? `${novel.title}, by ${novel.author}` : novel.title}>
         <Cover id={novel.id} title={novel.title} author={novel.author} image={coverUrl(novel)} />
       </Link>
       <div className="mt-[1.4rem] flex items-start gap-1">
@@ -171,7 +180,7 @@ function Book({ novel, menus }: { novel: LibraryEntry; menus: HTMLElement | null
               <DropdownMenu.Label className="px-2 pt-1.5 text-xs text-muted">Folder</DropdownMenu.Label>
               <DropdownMenu.Label className="px-2 pb-1.5 font-mono text-xs break-all select-text">{novel.path}</DropdownMenu.Label>
               <DropdownMenu.Separator className="my-1 h-px bg-rule" />
-              <DropdownMenu.Item className={item} onSelect={() => void navigate(`/novels/${novel.id}`)}>
+              <DropdownMenu.Item className={item} onSelect={() => openNovel(novel.id)}>
                 Open
               </DropdownMenu.Item>
               {!novel.remote && (

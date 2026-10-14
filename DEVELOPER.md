@@ -82,12 +82,17 @@ The desktop app runs the server on Node's official binary, as one script ([D9](h
 `packages/desktop` is a Tauri 2 app ([D2](https://github.com/heffrey78/gh-writer/issues/22), [D9](https://github.com/heffrey78/gh-writer/issues/170)) around the same server and web app. Building it needs Rust, and on Linux WebKitGTK 4.1 (see [Tauri's prerequisites](https://v2.tauri.app/start/prerequisites/)). `npm run desktop` builds the server bundle, fetches this machine's runtime, then runs the app in development. The bundle and runtime are its resources (`server/` and `runtime/`, from `tauri.conf.json` and `tauri.linux.conf.json`).
 
 The shell (`src-tauri/src`) does the following:
-- It opens a window on a loading page and starts the server: `runtime/node/node server/gh-writer.mjs serve --sidecar`, with `GH_WRITER_GIT` set to `runtime/git` and `GH_WRITER_ASKPASS` set to its own executable.
-- Once the server prints its JSON line, the shell sends the window to the launch URL. The window stays on the server's pages; other links open in the writer's browser.
-- Closing a window, quitting, or SIGTERM, SIGINT or SIGHUP (logging out) has each page save what's typed: the shell calls `window.ghWriter.flushAll()`, and the page answers with the `flushed` command, the only one its capability grants. Then the shell closes the server's stdin and waits for it to commit and exit, killing it after 15 seconds.
-- The executable doubles as git's askpass program (`src/askpass.rs`). Started with one of git's username or password prompts as its only argument, it prints `x-access-token` or the token from `GH_WRITER_GIT_TOKEN` and exits before opening any window.
-- If the app itself dies, the closed pipe stops the server.
-- If the server stops on its own, the app offers to restart it.
+- **Starting.** It starts the server: `runtime/node/node server/gh-writer.mjs serve --sidecar`, with `GH_WRITER_GIT` set to `runtime/git` and `GH_WRITER_ASKPASS` set to its own executable. Neither is set when the writer has chosen *Use This Computer's git* (`settings.json` in the app's config folder).
+- **Windows.** The library has a window of its own (`main`), and each novel gets one (`novel-<library id>`). Every window starts on the loading page and, once the server is up, is sent to its page there. Windows stay on the server's pages, and other links, `target=_blank` included, open in the writer's browser. Each window's title follows its page. Sizes and positions are remembered.
+- **Signing in.** The shell sets the server's session cookie itself, as `SameSite=Lax`, rather than using the `?token=` redirect. WebKitGTK counts the navigation from the loading page as cross-site, so it would withhold the server's `Strict` cookie.
+- **Commands for pages.** The server's pages may call six commands, and only these (`capabilities/default.json`): `flushed`, `page_ready`, `pick_folder`, `open_novel`, `show_library` and `set_recent`. The page's side is `packages/web/src/desktop.ts`. The shell runs commands in a page through `window.ghWriter.run` (`go` to a path, `about`), keeping them until the page says it's ready.
+- **Menu.** File has New Novel…, Open Folder… and Clone from GitHub… (the library's own dialogs, in its window), Open Recent, Your Novels, Use This Computer's git (which restarts the server; every window comes back where it was), Close Window and Quit. Edit and Help (About gh-writer) complete it.
+- **One copy.** A second launch hands its arguments to the running one and exits. A folder passed on the command line, or dropped on the library window, opens through `/?add=open&path=…`: added and opened, or the dialog says why not. Only the library window takes drops; a novel's window leaves them to its page (pictures on portraits).
+- **Closing and quitting.** Closing a window, quitting, or SIGTERM, SIGINT or SIGHUP (logging out) has each page save what's typed: the shell calls `window.ghWriter.flushAll()`, and the page answers with `flushed`. Then the shell closes the server's stdin and waits for it to commit and exit, killing it after 15 seconds.
+- **Askpass.** The executable doubles as git's askpass program (`src/askpass.rs`). Started with one of git's username or password prompts as its only argument, it prints `x-access-token` or the token from `GH_WRITER_GIT_TOKEN` and exits before opening any window.
+- **Crashes.** If the app itself dies, the closed pipe stops the server. If the server stops on its own, the app offers to restart it.
+
+`e2e/desktop.spec.ts` in the web app checks the page's side, with a stand-in for the shell.
 
 Installers for Linux:
 

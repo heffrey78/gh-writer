@@ -3,6 +3,7 @@ import { DropdownMenu } from "radix-ui";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { UpdateButton, useAbout } from "./about.tsx";
+import { desktop, useShowLibrary } from "./desktop.ts";
 import { AccountItems, useGitHubAttention } from "./github/connect.tsx";
 import { useOverlay } from "./palette.tsx";
 import { useTheme, type ThemeChoice } from "./theme.ts";
@@ -34,6 +35,7 @@ export function Shell({
   chrome?: boolean;
   title?: string;
 }) {
+  const showLibrary = useShowLibrary();
   useEffect(() => {
     document.title = title ? `${title} · gh-writer` : "gh-writer";
   }, [title]);
@@ -44,7 +46,17 @@ export function Shell({
       </a>
       {chrome && (
       <header className="flex items-center gap-3 border-b border-rule bg-panel px-4 py-2">
-        <Link to="/" className="flex shrink-0 items-center gap-2 rounded-md px-1 font-semibold" aria-label={heading ? "gh-writer: your novels" : undefined}>
+        <Link
+          to="/"
+          onClick={(e) => {
+            // In the desktop app, the library has a window of its own.
+            if (!desktop) return;
+            e.preventDefault();
+            showLibrary();
+          }}
+          className="flex shrink-0 items-center gap-2 rounded-md px-1 font-semibold"
+          aria-label={heading ? "gh-writer: your novels" : undefined}
+        >
           <Logo />
           {!heading && "gh-writer"}
         </Link>

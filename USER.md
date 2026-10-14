@@ -16,6 +16,16 @@ Each book stands on the shelf in a cover of its own design, or with your cover: 
 
 `npx gh-writer serve path/to/novel` opens one novel directly. Taking a novel out of the library leaves its folder alone.
 
+### The desktop app
+
+In the desktop app, the library has a window of its own, and each novel opens in a window of its own. Opening a novel that's already open brings its window forward. The logo at the top left, or *File › Your Novels*, brings back the library.
+
+- **Choose…** beside a folder field opens your system's folder dialog, so you needn't type a path.
+- **Drop a novel's folder** on the library window to open it, or open one from a terminal with `gh-writer path/to/novel`. If it isn't a novel, the library says why.
+- **File › Open Recent** lists the novels you've opened most recently.
+- **File › Use This Computer's git** switches from the git that comes with gh-writer to the one installed on your computer, if you'd rather use your own setup. Your open windows come back where they were.
+- Quitting, or closing a window, saves what you've typed first.
+
 ## Finding your way
 
 **The top bar** names the book and the version open (choose it to open [Drafts](#drafts-versions-and-checkpoints)), says whether your work is saved and synced, and keeps everything else in its **⋯** menu: Checkpoints, Compile, the theme (light, dark, or like your system), your GitHub account, and the keyboard shortcuts.

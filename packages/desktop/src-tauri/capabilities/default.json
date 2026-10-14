@@ -1,10 +1,21 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The app's pages, served by its own server on 127.0.0.1, may tell the shell they've saved (flushed). Nothing else of Tauri's is open to them.",
-  "windows": ["*"],
+  "description": "The app's pages, served by its own server on 127.0.0.1, may ask the shell for what a browser page can't do: say they've saved, take its commands, choose a folder, open a novel's window, bring the library forward, list recent novels. Nothing else of Tauri's is open to them.",
+  "windows": [
+    "*"
+  ],
   "remote": {
-    "urls": ["http://127.0.0.1:*/*"]
+    "urls": [
+      "http://127.0.0.1:*/*"
+    ]
   },
-  "permissions": ["allow-flushed"]
+  "permissions": [
+    "allow-flushed",
+    "allow-page-ready",
+    "allow-pick-folder",
+    "allow-open-novel",
+    "allow-show-library",
+    "allow-set-recent"
+  ]
 }

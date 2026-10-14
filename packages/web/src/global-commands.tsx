@@ -1,15 +1,16 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router";
 import { api, keys } from "./api.ts";
 import { githubKey, useConnect, useGitHub } from "./github/connect.tsx";
 import { useCommands } from "./commands.ts";
 import { useAbout } from "./about.tsx";
+import { useOpenNovel, useShowLibrary } from "./desktop.ts";
 import { APP_KEYS, useOverlay } from "./palette.tsx";
 import { useTheme, type ThemeChoice } from "./theme.ts";
 
 /** Commands available everywhere: the library, each novel, the theme, the shortcut reference. */
 export function GlobalCommands() {
-  const navigate = useNavigate();
+  const openNovel = useOpenNovel();
+  const showLibrary = useShowLibrary();
   const queryClient = useQueryClient();
   const library = useQuery({ queryKey: keys.library, queryFn: api.library, staleTime: 30_000 });
   const novels = library.data?.novels ?? [];
@@ -17,11 +18,11 @@ export function GlobalCommands() {
   const signedIn = github.data?.signedIn ?? false;
   useCommands(
     () => [
-      { id: "app.library", title: "Go to your novels", group: "Go to", run: () => void navigate("/") },
-      { id: "app.new", title: "New novel…", group: "Novels", keywords: ["start", "create"], run: () => void navigate("/?add=new") },
-      { id: "app.open-folder", title: "Open a novel's folder…", group: "Novels", keywords: ["add"], run: () => void navigate("/?add=open") },
-      { id: "app.clone", title: "Clone a novel from GitHub…", group: "Novels", keywords: ["add", "repository"], run: () => void navigate("/?add=clone") },
-      ...novels.map((n) => ({ id: `app.open.${n.id}`, title: `Open “${n.title}”`, group: "Novels", keywords: [n.path], run: () => void navigate(`/novels/${n.id}`) })),
+      { id: "app.library", title: "Go to your novels", group: "Go to", run: () => showLibrary() },
+      { id: "app.new", title: "New novel…", group: "Novels", keywords: ["start", "create"], run: () => showLibrary("/?add=new") },
+      { id: "app.open-folder", title: "Open a novel's folder…", group: "Novels", keywords: ["add"], run: () => showLibrary("/?add=open") },
+      { id: "app.clone", title: "Clone a novel from GitHub…", group: "Novels", keywords: ["add", "repository"], run: () => showLibrary("/?add=clone") },
+      ...novels.map((n) => ({ id: `app.open.${n.id}`, title: `Open “${n.title}”`, group: "Novels", keywords: [n.path], run: () => openNovel(n.id) })),
       ...(["system", "light", "dark"] as ThemeChoice[]).map((t) => ({
         id: `app.theme.${t}`,
         title: `Theme: ${t === "system" ? "follow the system" : t}`,
@@ -40,7 +41,7 @@ export function GlobalCommands() {
       { id: "app.shortcuts", title: "Keyboard shortcuts", group: "App", keys: APP_KEYS[1]!.keys, run: () => useOverlay.getState().set("shortcuts") },
       { id: "app.about", title: "About gh-writer", group: "App", keywords: ["version", "update", "licence", "license"], run: () => useAbout.getState().set(true) },
     ],
-    [navigate, novels, signedIn, queryClient],
+    [openNovel, showLibrary, novels, signedIn, queryClient],
   );
   return null;
 }

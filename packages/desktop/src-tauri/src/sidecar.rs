@@ -28,12 +28,13 @@ pub struct Resources {
 }
 
 impl Resources {
-    pub fn in_dir(dir: &Path) -> Self {
+    /// The resources in `dir`; with `system_git`, the server uses the computer's own git.
+    pub fn in_dir(dir: &Path, system_git: bool) -> Self {
         let git = dir.join("runtime/git");
         Self {
             node: dir.join("runtime/node").join(if cfg!(windows) { "node.exe" } else { "node" }),
             server: dir.join("server/gh-writer.mjs"),
-            git: git.is_dir().then_some(git),
+            git: (git.is_dir() && !system_git).then_some(git),
             licenses: dir.join("licenses"),
         }
     }
@@ -44,8 +45,8 @@ pub struct Sidecar {
     stdin: Option<ChildStdin>,
     /// http://127.0.0.1:<port>
     pub url: String,
-    /// The address that signs the window in: it carries the launch token.
-    pub launch_url: String,
+    /// The secret a launch URL carries, which signs a window in.
+    pub token: String,
 }
 
 #[derive(Deserialize)]
@@ -53,21 +54,20 @@ pub struct Sidecar {
 enum Line {
     Ready {
         url: String,
-        #[serde(rename = "launchUrl")]
-        launch_url: String,
+        token: String,
     },
     Failed {
         error: String,
     },
 }
 
-/// The server's first line: its address and launch URL, or why it couldn't start.
+/// The server's first line: its address and launch token, or why it couldn't start.
 pub fn parse_line(line: &str) -> Result<(String, String), String> {
     if line.trim().is_empty() {
         return Err("The server stopped before it started.".into());
     }
     match serde_json::from_str::<Line>(line.trim()) {
-        Ok(Line::Ready { url, launch_url }) => Ok((url, launch_url)),
+        Ok(Line::Ready { url, token }) => Ok((url, token)),
         Ok(Line::Failed { error }) => Err(error),
         Err(_) => Err(format!("The server said something unexpected: {}", line.trim())),
     }
@@ -119,11 +119,11 @@ impl Sidecar {
             Ok(Err(e)) => Err(format!("Couldn't read from the server: {e}")),
             Err(_) => Err(format!("The server didn't start within {} seconds.", START_TIMEOUT.as_secs())),
         };
-        let mut sidecar = Sidecar { child, stdin, url: String::new(), launch_url: String::new() };
+        let mut sidecar = Sidecar { child, stdin, url: String::new(), token: String::new() };
         match first {
-            Ok((url, launch_url)) => {
+            Ok((url, token)) => {
                 sidecar.url = url;
-                sidecar.launch_url = launch_url;
+                sidecar.token = token;
                 Ok(sidecar)
             }
             Err(e) => {
@@ -162,9 +162,9 @@ mod tests {
     use super::parse_line;
 
     #[test]
-    fn reads_the_address_and_launch_url() {
+    fn reads_the_address_and_token() {
         let line = r#"{"url":"http://127.0.0.1:4000","token":"t","launchUrl":"http://127.0.0.1:4000/?token=t"}"#;
-        assert_eq!(parse_line(line), Ok(("http://127.0.0.1:4000".into(), "http://127.0.0.1:4000/?token=t".into())));
+        assert_eq!(parse_line(line), Ok(("http://127.0.0.1:4000".into(), "t".into())));
     }
 
     #[test]

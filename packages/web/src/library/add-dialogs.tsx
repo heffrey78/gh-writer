@@ -2,9 +2,10 @@ import { ApiError, type CloneProgress, type LibraryEntry } from "@gh-writer/clie
 import { slugify } from "@gh-writer/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Lock } from "lucide-react";
-import { useRef, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, keys } from "../api.ts";
+import { ChooseFolder } from "../desktop-bridge.tsx";
+import { desktop, useOpenNovel } from "../desktop.ts";
 import { ago } from "../format.ts";
 import { GitHubMark, useConnect, useGitHub } from "../github/connect.tsx";
 import { cn } from "../ui/cn.ts";
@@ -13,13 +14,17 @@ import { Button } from "../ui/button.tsx";
 import { Modal } from "../ui/dialog.tsx";
 import { Field } from "../ui/field.tsx";
 
-/** After a novel joins the library: refresh the shelf and open the novel. */
-function useOpenAdded() {
-  const navigate = useNavigate();
+/**
+ * After a novel joins the library: refresh the shelf and open the novel (in the desktop app, in its
+ * own window, so the library closes its dialog and stays).
+ */
+function useOpenAdded(onClose: () => void) {
+  const open = useOpenNovel();
   const queryClient = useQueryClient();
   return async (novel: LibraryEntry) => {
     await queryClient.invalidateQueries({ queryKey: keys.library });
-    void navigate(`/novels/${novel.id}`);
+    open(novel.id);
+    if (desktop) onClose();
   };
 }
 
@@ -28,7 +33,7 @@ function useOpenAdded() {
  * the library's folder). If git doesn't know the author yet, ask for a name and email for its history.
  */
 export function NewNovelDialog({ folder, authors, onClose }: { folder: string | undefined; authors: string[]; onClose: () => void }) {
-  const opened = useOpenAdded();
+  const opened = useOpenAdded(onClose);
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState(authors[0] ?? "");
   const [path, setPath] = useState("");
@@ -67,6 +72,7 @@ export function NewNovelDialog({ folder, authors, onClose }: { folder: string | 
           placeholder={where}
           hint={where ? <>Leave empty for {where}. It must be new or empty.</> : "It must be new or empty."}
         />
+        <ChooseFolder title="Where the new novel goes (a new or empty folder)" onChosen={setPath} />
         {askingIdentity && (
           <fieldset className="grid gap-3 rounded-md border border-rule p-3">
             <legend className="px-1 text-sm font-medium">Who's writing?</legend>
@@ -87,19 +93,30 @@ export function NewNovelDialog({ folder, authors, onClose }: { folder: string | 
   );
 }
 
-/** Add a novel that is already on this computer. */
-export function OpenFolderDialog({ onClose }: { onClose: () => void }) {
-  const opened = useOpenAdded();
-  const [path, setPath] = useState("");
+/**
+ * Add a novel that is already on this computer. Given a folder (one dropped on the desktop app, or
+ * passed to it), it opens it at once, saying here what's wrong if it can't.
+ */
+export function OpenFolderDialog({ onClose, initial }: { onClose: () => void; initial?: string | undefined }) {
+  const opened = useOpenAdded(onClose);
+  const [path, setPath] = useState(initial ?? "");
   const add = useMutation({ mutationFn: (p: string) => api.addNovel(p), onSuccess: opened });
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
+  const submit = (e?: FormEvent) => {
+    e?.preventDefault();
     if (path.trim()) add.mutate(path.trim());
   };
+  const tried = useRef(false);
+  useEffect(() => {
+    if (initial && !tried.current) {
+      tried.current = true;
+      add.mutate(initial);
+    }
+  }, [initial, add]);
   return (
     <Modal title="Open a folder" onClose={onClose}>
       <form onSubmit={submit} className="grid gap-3">
         <Field label="Folder" placeholder="~/novels/my-novel" value={path} onChange={(e) => setPath(e.target.value)} hint="A git repository holding novel.yaml." required autoFocus />
+        <ChooseFolder title="A novel's folder" onChosen={setPath} />
         {add.isError && <ErrorAlert title="Couldn't open that folder">{add.error.message}</ErrorAlert>}
         <div className="flex justify-end gap-2">
           <Button onClick={onClose}>Cancel</Button>
@@ -114,7 +131,7 @@ export function OpenFolderDialog({ onClose }: { onClose: () => void }) {
 
 /** Clone a novel from GitHub (or any git address), with progress; closing the dialog cancels it. */
 export function CloneDialog({ folder, onClose }: { folder: string | undefined; onClose: () => void }) {
-  const opened = useOpenAdded();
+  const opened = useOpenAdded(onClose);
   const [repo, setRepo] = useState("");
   const [into, setInto] = useState("");
   const [progress, setProgress] = useState<CloneProgress>();
@@ -142,6 +159,7 @@ export function CloneDialog({ folder, onClose }: { folder: string | undefined; o
         <YourRepositories chosen={repo} onChoose={setRepo} />
         <Field label="Repository" placeholder="owner/name or a URL" value={repo} onChange={(e) => setRepo(e.target.value)} required autoFocus />
         <Field label="Into folder (optional)" placeholder={`${folder ?? "~/gh-writer"}/<name>`} value={into} onChange={(e) => setInto(e.target.value)} />
+        <ChooseFolder title="Where the clone goes (a new or empty folder)" onChosen={setInto} />
         {clone.isPending && (
           <div className="grid gap-1">
             <div

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-novel"
+description = "Enables the open_novel command without any pre-configured scope."
+commands.allow = ["open_novel"]
+
+[[permission]]
+identifier = "deny-open-novel"
+description = "Denies the open_novel command without any pre-configured scope."
+commands.deny = ["open_novel"]
