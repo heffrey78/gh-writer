@@ -2,6 +2,7 @@ export { proseSchema } from "./schema.ts";
 export { parseProse, serializeProse } from "./markdown.ts";
 export { joinSceneFile, splitSceneFile, type SceneFile } from "./scene-file.ts";
 export { insertSectionBreak, Picture, proseContent, type PictureOptions } from "./extensions.ts";
+export { insertTable, setHeading, structureCommands } from "./structure.ts";
 export { getMarkdown, loadMarkdown, setInitialMarkdown } from "./editor.ts";
 export {
   chapterContent,

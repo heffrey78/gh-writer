@@ -20,6 +20,8 @@ export function countNode(node: Node): number {
   let n = counted.get(node);
   if (n !== undefined) return n;
   if (node.type.name === "raw_block") n = countWords(node.textContent);
+  // A picture's caption is the reader's to read, as core counts it; its description isn't (D10).
+  else if (node.type.name === "picture") n = countText(node.attrs.caption ?? "");
   else if (node.isTextblock) n = countText(node.textBetween(0, node.content.size, " ", leafText));
   else {
     n = 0;

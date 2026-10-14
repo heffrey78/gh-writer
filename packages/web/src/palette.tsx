@@ -57,6 +57,8 @@ const EDITING_KEYS: { title: string; keys: string }[] = [
   { title: "Block quote", keys: "Mod-Shift-b" },
   { title: "Section break", keys: "Mod-Enter" },
   { title: "Line break", keys: "Shift-Enter" },
+  { title: "Next table cell, or nest a list item", keys: "Tab" },
+  { title: "Previous table cell, or lift a list item", keys: "Shift-Tab" },
   { title: "Undo", keys: "Mod-z" },
   { title: "Redo", keys: "Mod-Shift-z" },
 ];

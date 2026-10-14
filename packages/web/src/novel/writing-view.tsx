@@ -12,6 +12,7 @@ import {
   serializeProse,
   sessionCommands,
   spellCommands,
+  structureCommands,
   writingModeCommands,
   type EditorCommand,
   type Manuscript,
@@ -271,7 +272,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
   // The editor's own commands, run on this editor; their shortcuts work in the text.
   useCommands(() => {
     const group = (c: EditorCommand) => (findCommands.includes(c) ? "Find" : "Writing");
-    return [...writingModeCommands, ...sessionCommands, ...findCommands, ...spellCommands, ...linkCommands].map((c: EditorCommand) => ({
+    return [...writingModeCommands, ...structureCommands, ...sessionCommands, ...findCommands, ...spellCommands, ...linkCommands].map((c: EditorCommand) => ({
       id: c.id,
       title: c.title,
       group: group(c),

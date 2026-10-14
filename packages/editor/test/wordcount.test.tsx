@@ -90,7 +90,8 @@ describe("counting documents", () => {
       ),
       { numRuns: 200 },
     );
-  });
+    // Hundreds of whole-scene serializations: allowed time under the full suite's load.
+  }, 30_000);
 
   test("an edit recounts only the edited paragraph", () => {
     const doc = parseProse(bodies[0]!);

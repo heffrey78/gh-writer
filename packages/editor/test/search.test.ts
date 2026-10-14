@@ -68,6 +68,15 @@ describe("what is searched", () => {
     expect(found(search("no, and meant it"))).toEqual(["sc_a:no, and meant it"]);
   });
 
+  test("headings, list items and table cells are searched and replaced as prose; pictures aren't (D10)", () => {
+    const md = '## The bridge\n\n- the bridge\n\n| Where | Note |\n|---|---|\n| bridge | held |\n\n![The bridge](/images/b.jpg "bridge at dusk")\n';
+    const rich: Manuscript = [{ id: "ch_r", title: "R", scenes: [{ id: "sc_r", title: "R", markdown: md }] }];
+    const r = searchManuscript({ manuscript: rich, query: { text: "bridge" }, scope: "manuscript" });
+    expect(r.count).toBe(3);
+    const matches = r.chapters[0]!.scenes[0]!.matches;
+    expect(replaceInMarkdown(md, matches, "span", false)).toBe('## The span\n\n- the span\n\n| Where | Note |\n| ----- | ---- |\n| span  | held |\n\n![The bridge](/images/b.jpg "bridge at dusk")\n');
+  });
+
   test("mentions match on their label, never their ID; raw inline Markdown doesn't match", () => {
     expect(found(search("Ada nodded"))).toEqual(["sc_a:Ada nodded"]);
     expect(search("char_7f3k2q").count).toBe(0);

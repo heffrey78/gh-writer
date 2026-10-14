@@ -1,6 +1,9 @@
-import { TextSelection } from "@tiptap/pm/state";
 import { picturePath } from "@gh-writer/core";
-import { Mark, Node, markInputRule, mergeAttributes, nodeInputRule, wrappingInputRule, type Attributes, type Editor } from "@tiptap/core";
+import { Mark, Node, markInputRule, mergeAttributes, nodeInputRule, textblockTypeInputRule, wrappingInputRule, type Attributes, type Editor } from "@tiptap/core";
+import type { Node as ProseNode } from "@tiptap/pm/model";
+import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
+import { addRowAfter, goToNextCell, isInTable, tableEditing } from "@tiptap/pm/tables";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
 /*
  * TipTap extensions for scene prose. They define the schema (see schema.ts), so node and mark
@@ -112,7 +115,44 @@ export const Heading = Node.create({
   addAttributes: () => ({ level: { default: 1, rendered: false, parseHTML: (el) => Math.min(3, Math.max(1, Number(el.tagName.slice(1)) - 1)) }, ...source() }),
   parseHTML: () => [2, 3, 4].map((n) => ({ tag: `h${n}` })),
   renderHTML: ({ node, HTMLAttributes }) => [`h${Math.min(3, node.attrs.level as number) + 1}`, mergeAttributes(HTMLAttributes, { class: "ghw-heading" }), 0],
+  addKeyboardShortcuts() {
+    const level = (n: number) => () => this.editor.commands.setNode(this.name, { level: n });
+    return { "Mod-Alt-1": level(1), "Mod-Alt-2": level(2), "Mod-Alt-3": level(3), "Mod-Alt-0": () => this.editor.commands.setNode("paragraph") };
+  },
+  addInputRules() {
+    // `# `, `## `, `### ` at a line's start, as in Markdown.
+    return [textblockTypeInputRule({ find: /^(#{1,3})\s$/, type: this.type, getAttributes: (m) => ({ level: m[1]!.length }) })];
+  },
+  addProseMirrorPlugins: () => [headingLevels],
 });
+
+/**
+ * Headings as screen readers hear them: a heading looks its Markdown level, but is announced by its rank
+ * among the levels the text uses, beneath the page's own heading (aria-level 2 and on). A scene that
+ * starts at ## then reads as the next level down from the page's title, never skipping one.
+ */
+const headingLevels: Plugin<DecorationSet> = new Plugin<DecorationSet>({
+  key: new PluginKey("ghwHeadingLevels"),
+  state: {
+    init: (_, state) => headingDecorations(state.doc),
+    apply: (tr, old) => (tr.docChanged ? headingDecorations(tr.doc) : old),
+  },
+  props: { decorations: (state) => headingLevels.getState(state) },
+});
+
+function headingDecorations(doc: ProseNode): DecorationSet {
+  const headings: { pos: number; node: ProseNode }[] = [];
+  doc.descendants((node, pos) => {
+    if (node.type.name === "heading") headings.push({ pos, node });
+    return node.isBlock && !node.isTextblock;
+  });
+  if (!headings.length) return DecorationSet.empty;
+  const levels = [...new Set(headings.map((h) => h.node.attrs.level as number))].sort();
+  return DecorationSet.create(
+    doc,
+    headings.map((h) => Decoration.node(h.pos, h.pos + h.node.nodeSize, { "aria-level": String(2 + levels.indexOf(h.node.attrs.level as number)) })),
+  );
+}
 
 /** A list's attributes: tight (no blank lines between items) as written, and its source. */
 const listAttributes = () => ({ tight: { default: true, rendered: false }, ...source() });
@@ -124,6 +164,12 @@ export const BulletList = Node.create({
   addAttributes: listAttributes,
   parseHTML: () => [{ tag: "ul" }],
   renderHTML: ({ HTMLAttributes }) => ["ul", HTMLAttributes, 0],
+  addKeyboardShortcuts() {
+    return { "Mod-Shift-8": () => this.editor.commands.toggleList(this.name, "list_item") };
+  },
+  addInputRules() {
+    return [wrappingInputRule({ find: /^\s*([-+*])\s$/, type: this.type })];
+  },
 });
 
 export const OrderedList = Node.create({
@@ -136,6 +182,20 @@ export const OrderedList = Node.create({
   }),
   parseHTML: () => [{ tag: "ol" }],
   renderHTML: ({ HTMLAttributes }) => ["ol", HTMLAttributes, 0],
+  addKeyboardShortcuts() {
+    return { "Mod-Shift-7": () => this.editor.commands.toggleList(this.name, "list_item") };
+  },
+  addInputRules() {
+    // `1. ` (or any number) at a line's start; a list right before it continues if the number follows on.
+    return [
+      wrappingInputRule({
+        find: /^(\d+)\.\s$/,
+        type: this.type,
+        getAttributes: (m) => ({ start: Number(m[1]) }),
+        joinPredicate: (m, node) => node.childCount + (node.attrs.start as number) === Number(m[1]),
+      }),
+    ];
+  },
 });
 
 /** A list item: a paragraph, then any blocks (another list, more paragraphs). */
@@ -145,6 +205,15 @@ export const ListItem = Node.create({
   defining: true,
   parseHTML: () => [{ tag: "li" }],
   renderHTML: ({ HTMLAttributes }) => ["li", HTMLAttributes, 0],
+  addKeyboardShortcuts() {
+    // Enter: a new item (in an empty one, out of the list); Tab nests an item, Shift+Tab lifts it. Tab
+    // where an item can't nest (the first) isn't taken, so it still leaves the text.
+    return {
+      Enter: () => this.editor.commands.splitListItem(this.name),
+      Tab: () => this.editor.commands.sinkListItem(this.name),
+      "Shift-Tab": () => this.editor.commands.liftListItem(this.name),
+    };
+  },
 });
 
 declare module "@tiptap/core" {
@@ -174,6 +243,21 @@ export const Table = Node.create({
   extendNodeSchema: (extension) => ({ tableRole: extension.config.tableRole }),
   parseHTML: () => [{ tag: "table" }],
   renderHTML: ({ HTMLAttributes }) => ["table", mergeAttributes(HTMLAttributes, { class: "ghw-table" }), ["tbody", 0]],
+  addProseMirrorPlugins: () => [tableEditing()],
+  addKeyboardShortcuts() {
+    // Tab to the next cell (from the last, a new row), Shift+Tab back; Enter as Tab, as a cell is one line.
+    const next = () => {
+      if (!isInTable(this.editor.state)) return false;
+      const { state, view } = this.editor;
+      if (goToNextCell(1)(state, view.dispatch)) return true;
+      return addRowAfter(state, view.dispatch) && goToNextCell(1)(this.editor.state, view.dispatch);
+    };
+    return {
+      Tab: next,
+      Enter: next,
+      "Shift-Tab": () => isInTable(this.editor.state) && goToNextCell(-1)(this.editor.state, this.editor.view.dispatch),
+    };
+  },
 });
 
 export const TableRow = Node.create({
