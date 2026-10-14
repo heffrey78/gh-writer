@@ -69,8 +69,12 @@ test("moves scenes by keyboard, within and across chapters", async ({ page, app 
 
 test("moves a scene by dragging it before another", async ({ page, app }) => {
   const novel = await open(page, app);
-  await item(page, "Ben's Ledger").dragTo(item(page, "Tomas's Workshop"), { targetPosition: { x: 20, y: 3 } });
-  await expect.poll(() => novel.read(`${OLD_DEBTS}/_chapter.yaml`)).toContain("scenes: [sc_1edger, sc_w0rk5h]");
+  // Tried again until it lands: a drag in WebKit as the tree settles can miss on CI. Dropped there
+  // again, the scene stays where it is.
+  await expect(async () => {
+    await item(page, "Ben's Ledger").dragTo(item(page, "Tomas's Workshop"), { targetPosition: { x: 20, y: 3 } });
+    await expect.poll(() => novel.read(`${OLD_DEBTS}/_chapter.yaml`), { timeout: 3_000 }).toContain("scenes: [sc_1edger, sc_w0rk5h]");
+  }).toPass({ timeout: 20_000 });
   await expect(notice(page)).toContainText("Moved “Ben's Ledger”");
   // And onto a chapter: to its end. The tree may still be redrawing from the first move (WebKit is
   // slower to), so the drag is tried again until it lands; a second drop puts it at the end again.

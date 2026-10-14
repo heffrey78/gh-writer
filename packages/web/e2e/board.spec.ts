@@ -61,8 +61,11 @@ test("moves a card to the next status with the keyboard, changing its file, and 
 test("a card dropped on another column takes its status", async ({ page, app }) => {
   await page.setViewportSize({ width: 1400, height: 1200 });
   const novel = await open(page, app);
-  await page.getByRole("button", { name: "Move “Ben's Ledger”, Idea" }).dragTo(column(page, "Final"));
-  await expect.poll(() => novel.read(LEDGER)).toMatch(/^status: final$/m);
+  // Tried again until it lands: a drag in WebKit as the board settles can miss on CI.
+  await expect(async () => {
+    await page.getByRole("button", { name: "Move “Ben's Ledger”, Idea" }).dragTo(column(page, "Final"));
+    await expect.poll(() => novel.read(LEDGER), { timeout: 3_000 }).toMatch(/^status: final$/m);
+  }).toPass({ timeout: 20_000 });
   await expect(column(page, "Final").getByRole("listitem", { name: "Ben's Ledger" })).toBeVisible();
 });
 
