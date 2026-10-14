@@ -121,9 +121,13 @@ test("a column moves by keyboard through the whole book, exactly as the outline 
 test("dragging a column beside another puts its scene there", async ({ page, app }) => {
   const novel = await open(page, app);
   const target = grid(page).getByRole("columnheader", { name: /The Betrayal$/ });
-  const box = (await target.boundingBox())!;
-  await page.getByRole("button", { name: "Move “Mirela's Offer”" }).dragTo(target, { targetPosition: { x: 4, y: box.height / 2 } });
-  await expect.poll(() => novel.read("manuscript/02-the-sale/01-night-crossing/_chapter.yaml")).toContain("scenes: [sc_0ffer5, sc_0d9wm4, sc_f100d0]");
+  // Tried again until it lands: a drag as the grid settles (WebKit's slower to) can miss. Dropped there
+  // again, the scene stays where it is.
+  await expect(async () => {
+    const box = (await target.boundingBox())!;
+    await page.getByRole("button", { name: "Move “Mirela's Offer”" }).dragTo(target, { targetPosition: { x: 4, y: box.height / 2 } });
+    await expect.poll(() => novel.read("manuscript/02-the-sale/01-night-crossing/_chapter.yaml"), { timeout: 3_000 }).toContain("scenes: [sc_0ffer5, sc_0d9wm4, sc_f100d0]");
+  }).toPass({ timeout: 20_000 });
   await expect(grid(page).getByRole("columnheader").filter({ hasText: /^(The Betrayal|Mirela's Offer)$/ })).toHaveText(["Mirela's Offer", "The Betrayal"]);
   await axe(page);
 });

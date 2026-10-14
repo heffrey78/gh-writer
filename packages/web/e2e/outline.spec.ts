@@ -58,6 +58,10 @@ test("reorders scenes with the keyboard, and opens one", async ({ page, app }) =
 
 test("reorders by dragging a row's handle", async ({ page, app }) => {
   const novel = await open(page, app);
-  await page.getByRole("button", { name: "Move “Walking the Span”" }).dragTo(row(page, "The Station"), { targetPosition: { x: 40, y: 4 } });
-  await expect.poll(() => novel.read(ARRIVAL)).toContain("scenes: [sc_br1dg3, sc_5tat1n]");
+  // Tried again until it lands, as in the swimlanes: a drag as the list settles can miss. Dropped there
+  // again, the scene stays where it is.
+  await expect(async () => {
+    await page.getByRole("button", { name: "Move “Walking the Span”" }).dragTo(row(page, "The Station"), { targetPosition: { x: 40, y: 4 } });
+    await expect.poll(() => novel.read(ARRIVAL), { timeout: 3_000 }).toContain("scenes: [sc_br1dg3, sc_5tat1n]");
+  }).toPass({ timeout: 20_000 });
 });

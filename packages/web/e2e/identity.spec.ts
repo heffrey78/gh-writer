@@ -16,7 +16,10 @@ const gitconfig = (app: App) => join(app.home, ".gitconfig");
 
 test("at first run, signed in and unknown to git: asked once, with the account's name and noreply address", async ({ page, app }) => {
   writeFileSync(gitconfig(app), "[init]\n\tdefaultBranch = main\n");
+  // Signed out when the first page asks, so it has nothing to offer; asked as the sign-in finishes, it could be answered with it.
+  const signedOut = page.waitForResponse((r) => r.url().endsWith("/api/identity"));
   await launch(page, app);
+  await signedOut;
   await signIn(page, app);
   await page.reload();
 
