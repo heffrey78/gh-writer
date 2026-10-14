@@ -16,6 +16,8 @@ await server.close();
 |---|---|---|
 | `GET /api/health` | yes | `{ status: "ok" }` |
 | `GET /api/session` | no | `{ authenticated }`: whether the request carries a valid session cookie |
+| `GET /api/app` | yes | `{ desktop, version, node, git: { version, bundled }, update }`: what's running; `update` is a newer release (`{ version, url, notes }`) or null. Only the desktop app (`GH_WRITER_APP_VERSION` set) checks, against GitHub's latest release, at most once a day (an hour after a failure) |
+| `GET /api/app/licenses` | yes | `{ licenses: [{ name, text }] }`: the licence texts in `GH_WRITER_LICENSES`, which the desktop app sets; none otherwise |
 | `GET /api/library` | yes | `{ novels, notices, folder }`: `folder` is where new novels and clones go, with `~` for home; a novel with a cover has its version as `coverVersion` |
 | `GET /api/library/:id/cover` | yes | the novel's cover image, for the shelf: read from its folder without opening the novel (which would start syncing it) |
 | `POST /api/library` | yes | `{ path }` → `201 { novel }`, or `400 { code, error }` |

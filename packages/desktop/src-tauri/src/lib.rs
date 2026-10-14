@@ -103,10 +103,15 @@ fn may_navigate(app: &AppHandle, url: &Url) -> bool {
     if server.is_some_and(|server| server.origin() == url.origin()) {
         return true;
     }
+    open_outside(app, url);
+    false
+}
+
+/// A link for the writer's browser (or mail app): never a window of the app's own.
+fn open_outside(app: &AppHandle, url: &Url) {
     if matches!(url.scheme(), "http" | "https" | "mailto") {
         let _ = app.opener().open_url(url.as_str(), None::<&str>);
     }
-    false
 }
 
 /// Start the server and send the main window to it; if it can't start, say why and quit.
@@ -118,7 +123,8 @@ fn start_server(app: &AppHandle) {
         fs::create_dir_all(&logs).map_err(|e| format!("Couldn't make the log folder ({}): {e}", logs.display()))?;
         // The app's own executable answers git's prompts for the GitHub token (askpass mode, in main).
         let askpass = std::env::current_exe().map_err(|e| e.to_string())?;
-        let sidecar = Sidecar::start(&resources, &askpass, &logs.join("server.log"))?;
+        let version = app.package_info().version.to_string();
+        let sidecar = Sidecar::start(&resources, &askpass, &logs.join("server.log"), &version)?;
         let server: Url = sidecar.url.parse().map_err(|e| format!("The server gave a bad address: {e}"))?;
         let launch: Url = sidecar.launch_url.parse().map_err(|e| format!("The server gave a bad address: {e}"))?;
         Ok::<_, String>((sidecar, server, launch))
@@ -190,6 +196,15 @@ pub fn run() {
                 .inner_size(1280.0, 860.0)
                 .min_inner_size(640.0, 480.0)
                 .on_navigation(move |url| may_navigate(&handle, url))
+                // Links that open a new window (target=_blank: GitHub's sign-in page, an issue, a
+                // release) go to the browser.
+                .on_new_window({
+                    let handle = app.handle().clone();
+                    move |url, _| {
+                        open_outside(&handle, &url);
+                        tauri::webview::NewWindowResponse::Deny
+                    }
+                })
                 .build()?;
             #[cfg(unix)]
             quit_on_signals(app.handle());

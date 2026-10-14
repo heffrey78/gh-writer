@@ -24,6 +24,30 @@ export interface WritingStats {
 export type { ChapterComparison, ChangeStatus, Comparison, DiffPart, EntryComparison, EventComparison, FieldChange, ParagraphDiff, RelationshipComparison, SceneComparison } from "@gh-writer/core/compare";
 
 /** The GitHub connection, as the server describes it (never with the token). */
+/** What the running app is: GET /api/app. */
+export interface AppInfo {
+  /** Running as the desktop app (otherwise from a terminal). */
+  desktop: boolean;
+  version: string | null;
+  node: string;
+  git: { version: string | null; bundled: boolean };
+  /** A newer release, for the desktop app. */
+  update: Release | null;
+}
+
+export interface Release {
+  version: string;
+  /** Its page on GitHub, with the downloads. */
+  url: string;
+  /** Markdown. */
+  notes: string;
+}
+
+export interface License {
+  name: string;
+  text: string;
+}
+
 export interface GitHubStatus {
   signedIn: boolean;
   account?: { login: string; name?: string; avatarUrl?: string };
@@ -364,6 +388,10 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
 
   return {
     session: async () => (await request<{ authenticated: boolean }>("GET", "/api/session")).data,
+    /** The app's version, its Node and git, and a newer release if there is one. */
+    app: async () => (await request<AppInfo>("GET", "/api/app")).data,
+    /** The licence texts the desktop app ships. */
+    licenses: async () => (await request<{ licenses: License[] }>("GET", "/api/app/licenses")).data.licenses,
     /** The library, its notices, and the folder new novels and clones go in (~ for home). */
     library: async () => (await request<{ novels: LibraryEntry[]; notices: LibraryNotice[]; folder: string }>("GET", "/api/library")).data,
     /** Start a novel from the template. Rejects with NEEDS_IDENTITY when git doesn't know the author: send `identity` then. */

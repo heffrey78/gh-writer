@@ -25,7 +25,8 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../../../dist/server/": "server/"
+      "../../../dist/server/": "server/",
+      "../../../LICENSE.md": "licenses/gh-writer-LICENSE.md"
     },
     "publisher": "Jeff Wikstrom",
     "copyright": "Copyright (c) 2026 Jeff Wikstrom"

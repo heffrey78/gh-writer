@@ -3,7 +3,7 @@
 # with `sudo pacman -U packages/desktop/arch/gh-writer-*.pkg.tar.zst`.
 pkgname=gh-writer
 pkgver=0.1.0
-pkgrel=1
+pkgrel=2
 pkgdesc="Plan and write a novel with GitHub"
 arch=('x86_64')
 url="https://github.com/heffrey78/gh-writer"

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { api, keys } from "./api.ts";
 import { githubKey, useConnect, useGitHub } from "./github/connect.tsx";
 import { useCommands } from "./commands.ts";
+import { useAbout } from "./about.tsx";
 import { APP_KEYS, useOverlay } from "./palette.tsx";
 import { useTheme, type ThemeChoice } from "./theme.ts";
 
@@ -37,6 +38,7 @@ export function GlobalCommands() {
           }
         : { id: "app.github.connect", title: "Connect to GitHub…", group: "App", keywords: ["sign in", "log in", "account"], run: () => useConnect.getState().show() },
       { id: "app.shortcuts", title: "Keyboard shortcuts", group: "App", keys: APP_KEYS[1]!.keys, run: () => useOverlay.getState().set("shortcuts") },
+      { id: "app.about", title: "About gh-writer", group: "App", keywords: ["version", "update", "licence", "license"], run: () => useAbout.getState().set(true) },
     ],
     [navigate, novels, signedIn, queryClient],
   );

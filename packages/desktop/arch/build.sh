@@ -3,8 +3,17 @@
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 version=$(sed -n 's/^pkgver=//p' "$here/PKGBUILD")
+release=$(sed -n 's/^pkgrel=//p' "$here/PKGBUILD")
 cd "$here/.."
 npx tauri build --bundles deb
 ln -sf "../src-tauri/target/release/bundle/deb/gh-writer_${version}_amd64.deb" "$here/"
 cd "$here"
 makepkg --force --cleanbuild
+
+# The installer budget (#169): 100 MB.
+size=$(stat -c %s "$here/gh-writer-$version-$release-x86_64.pkg.tar.zst")
+if [ "$size" -gt 100000000 ]; then
+  echo "The package is $((size / 1000000)) MB, over the 100 MB budget." >&2
+  exit 1
+fi
+echo "Package: $((size / 1000000)) MB"

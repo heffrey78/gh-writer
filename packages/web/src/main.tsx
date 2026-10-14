@@ -2,6 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router";
+import { AboutDialog } from "./about.tsx";
 import { queryClient } from "./api.ts";
 import { ConnectDialog } from "./github/connect.tsx";
 import { PublishDialog } from "./github/publish.tsx";
@@ -27,6 +28,7 @@ createRoot(document.getElementById("root")!).render(
         <CommandPalette />
         <ConnectDialog />
         <PublishDialog />
+        <AboutDialog />
         <ErrorBoundary what="this page">
           <Routes>
             <Route path="/" element={<LibraryPage />} />

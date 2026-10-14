@@ -1,7 +1,8 @@
-import { Check, Ellipsis, Keyboard } from "lucide-react";
+import { Check, Ellipsis, Info, Keyboard } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router";
+import { UpdateButton, useAbout } from "./about.tsx";
 import { AccountItems, useGitHubAttention } from "./github/connect.tsx";
 import { useOverlay } from "./palette.tsx";
 import { useTheme, type ThemeChoice } from "./theme.ts";
@@ -50,6 +51,7 @@ export function Shell({
         {heading && <div className="flex min-w-0 items-center gap-1">{heading}</div>}
         <div className="flex flex-1 items-center justify-end gap-2">
           {actions}
+          <UpdateButton />
           <MoreMenu items={menu} />
         </div>
       </header>
@@ -107,6 +109,9 @@ function MoreMenu({ items }: { items?: ReactNode }) {
             <DropdownMenu.Separator className="my-1 h-px bg-rule" />
             <DropdownMenu.Item className={MENU_ITEM} onSelect={() => useOverlay.getState().set("shortcuts")}>
               <Keyboard className="size-4" aria-hidden /> Keyboard shortcuts
+            </DropdownMenu.Item>
+            <DropdownMenu.Item className={MENU_ITEM} onSelect={() => useAbout.getState().set(true)}>
+              <Info className="size-4" aria-hidden /> About gh-writer
             </DropdownMenu.Item>
           </DropdownMenu.Content>
         </DropdownMenu.Portal>

@@ -23,6 +23,8 @@ pub struct Resources {
     pub server: PathBuf,
     /// The portable git, if the app has one; otherwise the server uses the system's.
     pub git: Option<PathBuf>,
+    /// The licence texts of what the app ships, for About.
+    pub licenses: PathBuf,
 }
 
 impl Resources {
@@ -32,6 +34,7 @@ impl Resources {
             node: dir.join("runtime/node").join(if cfg!(windows) { "node.exe" } else { "node" }),
             server: dir.join("server/gh-writer.mjs"),
             git: git.is_dir().then_some(git),
+            licenses: dir.join("licenses"),
         }
     }
 }
@@ -72,8 +75,9 @@ pub fn parse_line(line: &str) -> Result<(String, String), String> {
 
 impl Sidecar {
     /// Start the server and wait until it's listening. Its messages go to `log` (the last run's are
-    /// kept beside it, as .previous.log). `askpass` answers git's prompts for GitHub tokens.
-    pub fn start(resources: &Resources, askpass: &Path, log: &Path) -> Result<Sidecar, String> {
+    /// kept beside it, as .previous.log). `askpass` answers git's prompts for GitHub tokens; `version`
+    /// is the app's, for About and the update check.
+    pub fn start(resources: &Resources, askpass: &Path, log: &Path, version: &str) -> Result<Sidecar, String> {
         if log.exists() {
             let _ = fs::rename(log, log.with_extension("previous.log"));
         }
@@ -84,7 +88,9 @@ impl Sidecar {
             .args(["serve", "--sidecar"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(log_file);
+            .stderr(log_file)
+            .env("GH_WRITER_APP_VERSION", version)
+            .env("GH_WRITER_LICENSES", &resources.licenses);
         if let Some(git) = &resources.git {
             command.env("GH_WRITER_GIT", git).env("GH_WRITER_ASKPASS", askpass);
         }

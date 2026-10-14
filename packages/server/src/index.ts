@@ -1,3 +1,4 @@
+export { appInfo, licenses, newer, RELEASES_REPO, UpdateCheck, type AppInfo, type License, type Release } from "./app-info.ts";
 export { createApp, type AppOptions } from "./app.ts";
 export { CHECKPOINT_PREFIX, CheckpointError, Checkpoints, type Checkpoint, type CheckpointDeps, type CheckpointErrorCode, type RestoreResult } from "./checkpoints.ts";
 export {

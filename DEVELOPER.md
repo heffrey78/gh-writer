@@ -94,9 +94,13 @@ Installers for Linux:
 | Command | Makes | Size |
 |---|---|---|
 | `npm run desktop:arch` | an Arch package (`packages/desktop/arch/gh-writer-*.pkg.tar.zst`; install with `sudo pacman -U`), repackaged from the .deb by `arch/PKGBUILD` | about 58 MB |
-| `npm run build:server && npm run fetch:runtime`, then `npx tauri build` in `packages/desktop` | the .deb and the AppImage (`src-tauri/target/release/bundle/`) | about 82 MB and 165 MB |
+| `npm run build:server && npm run fetch:runtime`, then `npx tauri build` in `packages/desktop` | the .deb (`src-tauri/target/release/bundle/deb/`) | about 82 MB |
 
-The .deb and the Arch package use the system's WebKitGTK. The AppImage carries WebKitGTK and its libraries itself, which is most of its size. It runs with FUSE 3 alone, or with `--appimage-extract-and-run`.
+Both use the system's WebKitGTK. There's no AppImage: it has to carry WebKitGTK itself, which comes to 165 MB. `arch/build.sh` fails if the package is over the 100 MB budget.
+
+Updates: on Linux the app can't replace itself (Tauri updates only AppImages there). The server checks GitHub's latest release once a day (`GET /api/app`), and the top bar says when a newer one is out. About gh-writer shows its notes and links to its download. The updater signing key, for the macOS and Windows updaters to come, is `~/.tauri/gh-writer.key` on the maintainer's machine. Its password is in the keychain (`secret-tool lookup service gh-writer-updater key ~/.tauri/gh-writer.key`), and the public key is `src-tauri/updater.key.pub`. For CI, both go into Actions secrets (`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`).
+
+About gh-writer also shows the versions of the app, Node and git. In the desktop app it shows the licences of what it ships, from the `licenses/` resource folder (gh-writer's, Node's, git's, and where git's source is).
 
 The server's messages go to `server.log` in the app's log folder (`~/.local/share/io.github.heffrey78.ghwriter/logs` on Linux). The previous run's are in `server.previous.log`. `cargo test` in `src-tauri` runs the shell's unit tests.
 

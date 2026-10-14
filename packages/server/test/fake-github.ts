@@ -79,6 +79,8 @@ export interface FakeGitHub {
   revoke(token: string): void;
   /** Set to make the next created repository refuse pushes (its git side missing), once. */
   brokenNextRepo: boolean;
+  /** gh-writer's latest release on GitHub, if it has one. */
+  latestRelease?: { tag: string; notes: string };
   /** The bare repository behind owner/name (with `gitRoot`). */
   repoPath(owner: string, name: string): string;
   /** owner/name's issues, labels and milestones (made empty on first use). */
@@ -172,6 +174,11 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
     fake.requests.push({ method: req.method ?? "GET", path: url.pathname, ...(auth ? { token: auth } : {}), ...(body ? { body } : {}) });
     const form = new URLSearchParams(body);
     const user = auth ? fake.users.get(auth) : undefined;
+    // gh-writer's own latest release, for the desktop app's update check: public, no sign-in.
+    if (req.method === "GET" && url.pathname === "/repos/heffrey78/gh-writer/releases/latest") {
+      const r = fake.latestRelease;
+      return r ? json(res, 200, { tag_name: r.tag, html_url: `${fake.url}/heffrey78/gh-writer/releases/tag/${r.tag}`, body: r.notes, draft: false, prerelease: false }) : json(res, 404, { message: "Not Found" });
+    }
     const repoApi = /^\/repos\/([^/]+)\/([^/]+)(\/.*)$/.exec(url.pathname);
     if (repoApi) return serveIssues(req, res, url, body, user, repoApi[1]!, repoApi[2]!, repoApi[3]!);
 

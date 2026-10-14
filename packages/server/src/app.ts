@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { appInfo, licenses, UpdateCheck } from "./app-info.ts";
 import { gitInstall } from "./git.ts";
 import { githubRoutes } from "./github-routes.ts";
 import type { GitHub } from "./github.ts";
@@ -28,6 +29,10 @@ export function createApp({ token, port, library, workspaces, github, web }: App
   // Which git runs (D9): the desktop app's own, or the system's.
   app.get("/api/health", (c) => c.json({ status: "ok", git: gitInstall().bundled ? "bundled" : "system" }));
   app.get("/api/session", (c) => c.json({ authenticated: hasSession(c, token, port()) }));
+  // About the app (D9): versions, licences, and a newer release for the desktop app.
+  const updates = new UpdateCheck(github.apiUrl);
+  app.get("/api/app", async (c) => c.json(await appInfo(updates)));
+  app.get("/api/app/licenses", async (c) => c.json({ licenses: await licenses() }));
   app.route("/api/library", libraryRoutes(library, github));
   app.route("/api/novels", novelRoutes(library, workspaces, github));
   app.route("/api/github", githubRoutes(github));

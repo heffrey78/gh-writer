@@ -19,7 +19,7 @@ test("the top bar is the title, the open version, save and sync, and a ⋯ menu 
   await more.focus();
   await page.keyboard.press("Enter");
   const menu = page.getByRole("menu");
-  await expect(menu.getByRole("menuitem")).toHaveText(["Checkpoints…", "Compile…", "Connect GitHub…", "Keyboard shortcuts"]);
+  await expect(menu.getByRole("menuitem")).toHaveText(["Checkpoints…", "Compile…", "Connect GitHub…", "Keyboard shortcuts", "About gh-writer"]);
   await expect(menu.getByRole("menuitemradio")).toHaveText(["Like the system", "Light", "Dark"]);
   await expect(menu.getByRole("menuitemradio", { name: "Like the system" })).toBeChecked();
   await axe(page);
@@ -36,6 +36,8 @@ test("the top bar is the title, the open version, save and sync, and a ⋯ menu 
 
   await page.keyboard.press("Enter");
   await page.keyboard.press("End");
+  await expect(page.getByRole("menuitem", { name: "About gh-writer" })).toBeFocused();
+  await page.keyboard.press("ArrowUp");
   await expect(page.getByRole("menuitem", { name: "Keyboard shortcuts" })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();

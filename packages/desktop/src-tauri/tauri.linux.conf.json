@@ -2,12 +2,13 @@
   "$schema": "https://schema.tauri.app/config/2",
   "bundle": {
     "targets": [
-      "appimage",
       "deb"
     ],
     "resources": {
       "../../../dist/server/": "server/",
-      "../../../dist/runtime/linux-x64/": "runtime/"
+      "../../../LICENSE.md": "licenses/gh-writer-LICENSE.md",
+      "../../../dist/runtime/linux-x64/": "runtime/",
+      "../../../dist/runtime/linux-x64/licenses/": "licenses/"
     },
     "linux": {
       "deb": {
