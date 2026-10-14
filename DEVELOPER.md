@@ -107,6 +107,17 @@ Updates: on Linux the app can't replace itself (Tauri updates only AppImages the
 
 About gh-writer also shows the versions of the app, Node and git. In the desktop app it shows the licences of what it ships, from the `licenses/` resource folder (gh-writer's, Node's, git's, and where git's source is).
 
+Cutting a release:
+
+1. Set the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `arch/PKGBUILD` (setting `pkgrel=1` again).
+2. Commit, then tag `v1.2.3` (or `v1.2.3-rc.1` for a pre-release) and push the tag.
+3. The Desktop workflow (`.github/workflows/desktop.yml`) checks that the tag names that version. It builds the .deb on Ubuntu 22.04 and makes the Arch package from it.
+4. It installs each on a clean container with no git and runs `scripts/smoke-desktop.ts` on the packaged Node, against a fake GitHub. The smoke test signs in, clones, takes the account's name and email, writes, syncs (pushing through the app's askpass) and quits, then starts the app under Xvfb and quits it with SIGTERM.
+5. It drafts a GitHub Release with both packages and git's source (git and dugite-native, at the pinned versions; GPL-2.0).
+6. Publish the draft when it's right. The app offers the latest published release, never a draft or a pre-release.
+
+The workflow also runs on pull requests that touch the desktop app or its scripts, without the release, and by hand (*Run workflow*). To run the smoke test on this machine against an installed package: `node scripts/build-smoke.ts`, then `/usr/lib/gh-writer/runtime/node/node dist/smoke/smoke-desktop.mjs --sample dist/smoke/sample-novel`. Set `GH_WRITER_SMOKE_ALLOW_GIT=1` if this machine has git.
+
 The server's messages go to `server.log` in the app's log folder (`~/.local/share/io.github.heffrey78.ghwriter/logs` on Linux). The previous run's are in `server.previous.log`. `cargo test` in `src-tauri` runs the shell's unit tests.
 
 ## Conventions

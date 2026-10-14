@@ -9,6 +9,7 @@
 // Downloads are cached in node_modules/.cache/gh-writer-runtime. For this machine's own target, it
 // checks that node and the git run with nothing else on PATH.
 // Usage: node scripts/fetch-runtime.ts [target] [--out <dir>]   (targets below; default: this machine's)
+//        node scripts/fetch-runtime.ts --versions                 (the pinned versions, as JSON)
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
@@ -66,7 +67,12 @@ const UNUSED = {
 };
 
 const repo = fileURLToPath(new URL("..", import.meta.url));
-const { values, positionals } = parseArgs({ allowPositionals: true, options: { out: { type: "string" } } });
+const { values, positionals } = parseArgs({ allowPositionals: true, options: { out: { type: "string" }, versions: { type: "boolean" } } });
+// --versions: what's pinned, for the release (git's source goes with every release, GPL-2.0).
+if (values.versions) {
+  console.log(JSON.stringify({ node: NODE.version, git: GIT.version, gitTag: GIT.tag }));
+  process.exit(0);
+}
 const host = `${process.platform}-${process.arch}`;
 const target = (positionals[0] ?? host) as Target;
 if (!TARGETS.includes(target)) {
