@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, keys } from "../api.ts";
 import { ChooseFolder } from "../desktop-bridge.tsx";
 import { desktop, useOpenNovel } from "../desktop.ts";
+import { useIdentity } from "../identity.tsx";
 import { ago } from "../format.ts";
 import { GitHubMark, useConnect, useGitHub } from "../github/connect.tsx";
 import { cn } from "../ui/cn.ts";
@@ -38,6 +39,7 @@ export function NewNovelDialog({ folder, authors, onClose }: { folder: string | 
   const [author, setAuthor] = useState(authors[0] ?? "");
   const [path, setPath] = useState("");
   const [identity, setIdentity] = useState<{ name: string; email: string }>();
+  const suggestion = useIdentity().data?.suggestion;
   const create = useMutation({
     mutationFn: () =>
       api.createNovel({
@@ -48,7 +50,8 @@ export function NewNovelDialog({ folder, authors, onClose }: { folder: string | 
       }),
     onSuccess: opened,
     onError: (e) => {
-      if (e instanceof ApiError && e.code === "NEEDS_IDENTITY" && !identity) setIdentity({ name: author.trim(), email: "" });
+      // The GitHub account's name and noreply address, if signed in.
+      if (e instanceof ApiError && e.code === "NEEDS_IDENTITY" && !identity) setIdentity({ name: author.trim() || (suggestion?.name ?? ""), email: suggestion?.email ?? "" });
     },
   });
   const askingIdentity = identity !== undefined;

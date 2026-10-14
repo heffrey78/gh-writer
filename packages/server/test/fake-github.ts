@@ -8,6 +8,8 @@ import { fakeProjects, type FakeProjects } from "./fake-projects.ts";
 
 export interface FakeUser {
   login: string;
+  /** GitHub's number for the account (4242 by default). */
+  id?: number;
   name?: string;
   /** The token's OAuth scopes; by default all a novel needs. */
   scopes?: string[];
@@ -210,7 +212,7 @@ export async function fakeGitHub({ clientId = "Iv1.fakeclient", login = "ada", i
       case "GET /user":
         if (!user) return json(res, 401, { message: "Bad credentials" });
         res.setHeader("X-OAuth-Scopes", scopesOf(user).join(", "));
-        return json(res, 200, { login: user.login, name: user.name ?? null, avatar_url: `${fake.url}/avatars/${user.login}.png` });
+        return json(res, 200, { login: user.login, id: user.id ?? 4242, name: user.name ?? null, avatar_url: `${fake.url}/avatars/${user.login}.png` });
       case "GET /user/repos": {
         if (!user) return json(res, 401, { message: "Bad credentials" });
         const mine = fake.repos.filter((r) => r.owner === user.login).sort((a, b) => b.pushedAt.localeCompare(a.pushedAt));

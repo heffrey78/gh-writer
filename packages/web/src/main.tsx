@@ -5,6 +5,7 @@ import { BrowserRouter, Route, Routes } from "react-router";
 import { AboutDialog } from "./about.tsx";
 import { queryClient } from "./api.ts";
 import { DesktopBridge } from "./desktop-bridge.tsx";
+import { FirstRunIdentity, IdentityDialog } from "./identity.tsx";
 import { ConnectDialog } from "./github/connect.tsx";
 import { PublishDialog } from "./github/publish.tsx";
 import { GlobalCommands } from "./global-commands.tsx";
@@ -30,6 +31,8 @@ createRoot(document.getElementById("root")!).render(
         <ConnectDialog />
         <PublishDialog />
         <AboutDialog />
+        <IdentityDialog />
+        <FirstRunIdentity />
         <DesktopBridge />
         <ErrorBoundary what="this page">
           <Routes>

@@ -95,7 +95,7 @@ describe("creating and listing", () => {
     process.env.GIT_CONFIG_GLOBAL = empty;
     try {
       append(SCENE, "x\n");
-      await expect(checkpoints.create("Nope")).rejects.toMatchObject({ code: "BLOCKED", message: expect.stringContaining("git config --global user.name") });
+      await expect(checkpoints.create("Nope")).rejects.toMatchObject({ code: "BLOCKED", message: expect.stringContaining("Your name and email") });
       expect(await checkpoints.list()).toEqual([]);
     } finally {
       process.env.GIT_CONFIG_GLOBAL = global;

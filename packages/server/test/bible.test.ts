@@ -220,7 +220,7 @@ describe("transactions", () => {
     writeFileSync(empty, "");
     process.env.GIT_CONFIG_GLOBAL = empty;
     try {
-      await expect(bible.createEntity("character", { name: "Nobody" })).rejects.toMatchObject({ code: "BLOCKED", message: expect.stringContaining("git config --global user.name") });
+      await expect(bible.createEntity("character", { name: "Nobody" })).rejects.toMatchObject({ code: "BLOCKED", message: expect.stringContaining("Your name and email") });
       expect(existsSync(join(dir, "bible/characters/nobody.md"))).toBe(false);
     } finally {
       process.env.GIT_CONFIG_GLOBAL = global;

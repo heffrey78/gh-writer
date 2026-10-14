@@ -162,7 +162,7 @@ describe("when not to commit", () => {
       expect(await committer.commit()).toEqual({ skipped: "IDENTITY" });
       expect(commits(dir)).toBe(1);
       const status = await committer.status();
-      expect(status).toMatchObject({ state: "blocked", blocked: { code: "IDENTITY", message: expect.stringContaining("git config --global user.name") } });
+      expect(status).toMatchObject({ state: "blocked", blocked: { code: "IDENTITY", message: expect.stringContaining("Your name and email") } });
     } finally {
       process.env.GIT_CONFIG_GLOBAL = global;
     }

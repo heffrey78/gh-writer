@@ -1,10 +1,11 @@
-import { Check, Ellipsis, Info, Keyboard } from "lucide-react";
+import { Check, Ellipsis, Info, Keyboard, UserPen } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { UpdateButton, useAbout } from "./about.tsx";
 import { desktop, useShowLibrary } from "./desktop.ts";
 import { AccountItems, useGitHubAttention } from "./github/connect.tsx";
+import { useIdentityDialog } from "./identity.tsx";
 import { useOverlay } from "./palette.tsx";
 import { useTheme, type ThemeChoice } from "./theme.ts";
 import { cn } from "./ui/cn.ts";
@@ -118,6 +119,9 @@ function MoreMenu({ items }: { items?: ReactNode }) {
             </DropdownMenu.RadioGroup>
             <DropdownMenu.Separator className="my-1 h-px bg-rule" />
             <AccountItems item={MENU_ITEM} />
+            <DropdownMenu.Item className={MENU_ITEM} onSelect={() => useIdentityDialog.getState().show()}>
+              <UserPen className="size-4" aria-hidden /> Your name and email…
+            </DropdownMenu.Item>
             <DropdownMenu.Separator className="my-1 h-px bg-rule" />
             <DropdownMenu.Item className={MENU_ITEM} onSelect={() => useOverlay.getState().set("shortcuts")}>
               <Keyboard className="size-4" aria-hidden /> Keyboard shortcuts

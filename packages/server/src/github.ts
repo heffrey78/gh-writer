@@ -120,6 +120,8 @@ export function ghToken(): Promise<string | undefined> {
 
 export interface GitHubAccount {
   login: string;
+  /** GitHub's number for the account, which its noreply email address carries. */
+  id?: number;
   name?: string;
   avatarUrl?: string;
   /** The token's scopes as GitHub reports them (X-OAuth-Scopes), when it does. */
@@ -223,6 +225,20 @@ export class GitHub {
   /** The stored token, for git and the API. Undefined when signed out (or the keychain can't be read). */
   async token(): Promise<string | undefined> {
     return this.#store.get().catch(() => undefined);
+  }
+
+  /**
+   * A name and email for git from the signed-in account: its name (or login), and its noreply
+   * address (<id>+<login>@users.noreply.github.com), which GitHub links to the account and which keeps
+   * the writer's own address out of the book's history. None when signed out.
+   */
+  async suggestedIdentity(): Promise<{ name: string; email: string } | undefined> {
+    const status = await this.status();
+    const account = status.signedIn ? status.account : undefined;
+    if (!account) return undefined;
+    const host = new URL(this.webUrl).hostname;
+    const user = account.id !== undefined ? `${account.id}+${account.login}` : account.login;
+    return { name: account.name ?? account.login, email: `${user}@users.noreply.${host}` };
   }
 
   async status(): Promise<AccountStatus> {
@@ -410,10 +426,11 @@ export class GitHub {
       return undefined;
     }
     if (!res.ok) throw new GitHubError("GITHUB", `GitHub answered ${res.status} when asked who you are.`);
-    const user = (await res.json()) as { login: string; name?: string | null; avatar_url?: string };
+    const user = (await res.json()) as { login: string; id?: number; name?: string | null; avatar_url?: string };
     const scopes = res.headers.get("x-oauth-scopes");
     const account: GitHubAccount = {
       login: user.login,
+      ...(typeof user.id === "number" ? { id: user.id } : {}),
       ...(user.name ? { name: user.name } : {}),
       ...(user.avatar_url ? { avatarUrl: user.avatar_url } : {}),
       ...(scopes !== null ? { scopes: scopes.split(",").map((x) => x.trim()).filter(Boolean) } : {}),

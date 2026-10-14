@@ -46,7 +46,7 @@ describe("GitHub", () => {
     fake.approve();
     const done = await github.pollDevice();
     results.push(done);
-    expect(done).toEqual({ status: "done", account: { signedIn: true, deviceFlow: true, account: { login: "ada", name: "Ada Writer", avatarUrl: `${fake.url}/avatars/ada.png` } } });
+    expect(done).toEqual({ status: "done", account: { signedIn: true, deviceFlow: true, account: { login: "ada", id: 4242, name: "Ada Writer", avatarUrl: `${fake.url}/avatars/ada.png` } } });
     expect(await store.get()).toBe(fake.deviceToken);
     results.push(await github.status());
     expect(results.at(-1)).toMatchObject({ signedIn: true, account: { login: "ada" } });
@@ -138,7 +138,7 @@ describe("scopes", () => {
     expect(await connect({ store }).github.status()).toEqual({
       signedIn: true,
       deviceFlow: true,
-      account: { login: "ada", avatarUrl: `${fake.url}/avatars/ada.png` },
+      account: { login: "ada", id: 4242, avatarUrl: `${fake.url}/avatars/ada.png` },
       missingScopes: ["workflow"],
       missingBoardScopes: ["project"],
     });

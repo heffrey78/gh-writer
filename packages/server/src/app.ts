@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { appInfo, licenses, UpdateCheck } from "./app-info.ts";
+import { globalIdentity, setGlobalIdentity } from "./committer.ts";
 import { gitInstall } from "./git.ts";
 import { githubRoutes } from "./github-routes.ts";
 import type { GitHub } from "./github.ts";
@@ -33,6 +34,21 @@ export function createApp({ token, port, library, workspaces, github, web }: App
   const updates = new UpdateCheck(github.apiUrl);
   app.get("/api/app", async (c) => c.json(await appInfo(updates)));
   app.get("/api/app/licenses", async (c) => c.json({ licenses: await licenses() }));
+
+  // Who git signs as (#186): the name and email set on this computer, and one from the GitHub account.
+  app.get("/api/identity", async (c) =>
+    c.json({ identity: await globalIdentity(), suggestion: (await github.suggestedIdentity().catch(() => undefined)) ?? null }),
+  );
+  app.put("/api/identity", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as { name?: unknown; email?: unknown };
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const email = typeof body.email === "string" ? body.email.trim() : "";
+    if (!name || !/^[^\s@]+@[^\s@]+$/.test(email)) return c.json({ code: "BAD_IDENTITY", error: "Give a name and an email address." }, 400);
+    await setGlobalIdentity({ name, email });
+    // Work that waited for a name and email is committed now.
+    await workspaces.retryIdentity();
+    return c.json({ identity: { name, email } });
+  });
   app.route("/api/library", libraryRoutes(library, github));
   app.route("/api/novels", novelRoutes(library, workspaces, github));
   app.route("/api/github", githubRoutes(github));

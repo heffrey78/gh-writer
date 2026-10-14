@@ -24,6 +24,12 @@ export interface WritingStats {
 export type { ChapterComparison, ChangeStatus, Comparison, DiffPart, EntryComparison, EventComparison, FieldChange, ParagraphDiff, RelationshipComparison, SceneComparison } from "@gh-writer/core/compare";
 
 /** The GitHub connection, as the server describes it (never with the token). */
+/** A name and email git signs commits with. */
+export interface GitIdentity {
+  name: string;
+  email: string;
+}
+
 /** What the running app is: GET /api/app. */
 export interface AppInfo {
   /** Running as the desktop app (otherwise from a terminal). */
@@ -390,6 +396,10 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
     session: async () => (await request<{ authenticated: boolean }>("GET", "/api/session")).data,
     /** The app's version, its Node and git, and a newer release if there is one. */
     app: async () => (await request<AppInfo>("GET", "/api/app")).data,
+    /** Who git signs as on this computer (null if it doesn't know), and a suggestion from the GitHub account (null signed out). */
+    identity: async () => (await request<{ identity: GitIdentity | null; suggestion: GitIdentity | null }>("GET", "/api/identity")).data,
+    /** Set who git signs as on this computer. Work waiting for it is committed. Rejects with BAD_IDENTITY. */
+    setIdentity: async (identity: GitIdentity) => (await request<{ identity: GitIdentity }>("PUT", "/api/identity", identity)).data.identity,
     /** The licence texts the desktop app ships. */
     licenses: async () => (await request<{ licenses: License[] }>("GET", "/api/app/licenses")).data.licenses,
     /** The library, its notices, and the folder new novels and clones go in (~ for home). */

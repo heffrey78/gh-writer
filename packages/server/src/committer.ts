@@ -44,8 +44,22 @@ export async function operationInProgress(root: string): Promise<boolean> {
   return (await g.raw(["ls-files", "--unmerged", "--", "."])).trim() !== "";
 }
 
-export const IDENTITY_MESSAGE =
-  'git doesn\'t know who you are, so your work can\'t be committed. Set your name and email: git config --global user.name "Your Name" and git config --global user.email "you@example.com".';
+export const IDENTITY_MESSAGE = "git doesn't know your name and email yet, so your saved work can't be committed to your book's history. Give them under Your name and email (in the ⋯ menu), and it's committed.";
+
+/** The name and email git signs with on this computer (the user's global configuration), if both are set. */
+export async function globalIdentity(): Promise<{ name: string; email: string } | null> {
+  const g = git();
+  const get = async (key: string) => (await g.raw(["config", "--global", "--get", key]).catch(() => "")).trim();
+  const [name, email] = [await get("user.name"), await get("user.email")];
+  return name && email ? { name, email } : null;
+}
+
+/** Set the name and email git signs with on this computer (the user's global configuration). */
+export async function setGlobalIdentity({ name, email }: { name: string; email: string }): Promise<void> {
+  const g = git();
+  await g.raw(["config", "--global", "user.name", name]);
+  await g.raw(["config", "--global", "user.email", email]);
+}
 
 /** Whether git has a name and email to commit with (config or GIT_AUTHOR_* / GIT_COMMITTER_*). */
 export async function hasGitIdentity(root: string): Promise<boolean> {

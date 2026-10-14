@@ -19,7 +19,7 @@ test("the top bar is the title, the open version, save and sync, and a ⋯ menu 
   await more.focus();
   await page.keyboard.press("Enter");
   const menu = page.getByRole("menu");
-  await expect(menu.getByRole("menuitem")).toHaveText(["Checkpoints…", "Compile…", "Connect GitHub…", "Keyboard shortcuts", "About gh-writer"]);
+  await expect(menu.getByRole("menuitem")).toHaveText(["Checkpoints…", "Compile…", "Connect GitHub…", "Your name and email…", "Keyboard shortcuts", "About gh-writer"]);
   await expect(menu.getByRole("menuitemradio")).toHaveText(["Like the system", "Light", "Dark"]);
   await expect(menu.getByRole("menuitemradio", { name: "Like the system" })).toBeChecked();
   await axe(page);

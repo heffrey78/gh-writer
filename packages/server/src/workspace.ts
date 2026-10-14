@@ -341,6 +341,15 @@ export class Workspaces {
     return ws;
   }
 
+  /** Commit now wherever a commit was blocked for want of a git identity: one has just been given. */
+  async retryIdentity(): Promise<void> {
+    await Promise.all(
+      [...this.#open.values()].map(async (ws) => {
+        if ((await ws.committer?.status())?.blocked?.code === "IDENTITY") await ws.committer?.commit();
+      }),
+    );
+  }
+
   /** End every event stream, so that the HTTP server can finish its requests. */
   stop(): void {
     for (const ws of this.#open.values()) ws.stop();

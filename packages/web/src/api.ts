@@ -13,6 +13,7 @@ export const queryClient = new QueryClient({
 
 export const keys = {
   app: ["app"] as const,
+  identity: ["identity"] as const,
   licenses: ["licenses"] as const,
   library: ["library"] as const,
   novel: (id: string) => ["novel", id] as const,

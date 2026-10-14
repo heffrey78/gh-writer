@@ -4,6 +4,7 @@ import { Popover } from "radix-ui";
 import { useId } from "react";
 import { ago } from "../format.ts";
 import { useConnect } from "../github/connect.tsx";
+import { useIdentityDialog } from "../identity.tsx";
 import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
 
@@ -106,7 +107,14 @@ export function SyncBadge({
               <>
                 <dt>Saved work</dt>
                 <dd className="text-ink">
-                  {commit.blocked
+                  {commit.blocked?.code === "IDENTITY" ? (
+                    <>
+                      git doesn't know your name and email yet, so saved work waits to be committed.{" "}
+                      <button type="button" className="text-accent underline" onClick={() => useIdentityDialog.getState().show()}>
+                        Give them…
+                      </button>
+                    </>
+                  ) : commit.blocked
                     ? commit.blocked.message
                     : commit.pendingChanges
                       ? `${commit.pendingChanges} file${commit.pendingChanges === 1 ? "" : "s"} waiting to be committed`

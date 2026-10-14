@@ -124,6 +124,10 @@ Set the **target length**, the **date** to reach it by and your **words a day** 
 
 **Sync**: with a novel on GitHub, gh-writer brings in changes and sends yours every few minutes, and when you choose *Sync now*. The top bar shows whether you're synced. If the same passage was changed in two places, *Resolve sync conflicts* walks you through each one.
 
+
+### Your name and email
+
+git signs every change it saves to your book's history with a name and an email, and needs both before it can save anything. If you're signed in to GitHub, gh-writer offers your account's name and its private noreply address. GitHub knows that address is you, and your own email stays out of the history. You can change them any time under *Your name and email…* in the **⋯** menu. They're set for every novel on this computer, as git's own settings (`git config --global`). If saved work is waiting because git doesn't know you yet, the sync button says so and offers to fix it.
 ## Drafts: versions and checkpoints
 
 **Drafts** (the version's name in the top bar, or *Checkpoints* in the ⋯ menu) holds the book's history:
