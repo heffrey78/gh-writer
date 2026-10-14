@@ -6,7 +6,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useStore } from "zustand";
 import { chapterContent, loadChapter, parseChapter, replaceScene, type SceneMarkdown, type SceneSource } from "./chapter.ts";
 import { loadMarkdown, setInitialMarkdown } from "./editor.ts";
-import { proseContent } from "./extensions.ts";
+import { Picture, proseContent } from "./extensions.ts";
 import { FindExtension } from "./find.ts";
 import { SearchHighlightExtension } from "./search.ts";
 import { SelectFocusExtension } from "./select-focus.ts";
@@ -50,6 +50,8 @@ export interface SceneEditorProps {
   issueMarks?: IssueMarksProps;
   /** A mention was hovered, or Alt+Enter pressed beside one: for a card about its entity. */
   onMention?: MentionCallbacks;
+  /** Where a picture in the text loads from, given its repository path (images/…): the app's server. */
+  pictureUrl?: (path: string) => string | undefined;
 }
 
 export interface SpellProps {
@@ -125,6 +127,11 @@ function useMentionExtension(entities: readonly MentionEntity[] | undefined, new
 }
 
 /** A WYSIWYG editor for one scene's prose. */
+/** The prose's extensions with pictures loading from `url`, when the app says where. */
+function withPictures<T>(content: T[], url: ((path: string) => string | undefined) | undefined): T[] {
+  return url ? content.map((e) => ((e as unknown) === Picture ? (Picture.configure({ url }) as T) : e)) : content;
+}
+
 export function SceneEditor({
   markdown,
   onChange,
@@ -140,6 +147,7 @@ export function SceneEditor({
   newEntry,
   issueMarks,
   onMention,
+  pictureUrl,
 }: SceneEditorProps) {
   const spellExtension = useSpellExtension(spell);
   const mentionExtension = useMentionExtension(entities, newEntry);
@@ -164,7 +172,7 @@ export function SceneEditor({
 
   const editor = useEditor({
     extensions: [
-      ...proseContent,
+      ...withPictures(proseContent, pictureUrl),
       UndoRedo,
       SelectFocusExtension,
       issueMarksExtension,
@@ -259,6 +267,8 @@ export interface ChapterEditorProps {
   onMention?: MentionCallbacks;
   /** A line of pinned details under each scene's title, by scene ID; display only. */
   pinned?: Readonly<Record<string, string>>;
+  /** Where a picture in the text loads from, given its repository path (images/…): the app's server. */
+  pictureUrl?: (path: string) => string | undefined;
 }
 
 /**
@@ -279,6 +289,7 @@ export function ChapterEditor({
   issueMarks,
   onMention,
   pinned,
+  pictureUrl,
 }: ChapterEditorProps) {
   const spellExtension = useSpellExtension(spell);
   const latestPinned = useRef(pinned);
@@ -319,7 +330,7 @@ export function ChapterEditor({
   }).current;
 
   const editor = useEditor({
-    extensions: [...chapterContent, UndoRedo, SelectFocusExtension, issueMarksExtension, pinnedLines, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, ...mentionExtension, mentionInfo],
+    extensions: [...withPictures(chapterContent, pictureUrl), UndoRedo, SelectFocusExtension, issueMarksExtension, pinnedLines, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, ...mentionExtension, mentionInfo],
     editorProps: {
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": label, class: "ghw-prose ghw-chapter" },
     },

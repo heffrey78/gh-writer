@@ -1,4 +1,5 @@
 import { TextSelection } from "@tiptap/pm/state";
+import { picturePath } from "@gh-writer/core";
 import { Mark, Node, markInputRule, mergeAttributes, nodeInputRule, wrappingInputRule, type Attributes, type Editor } from "@tiptap/core";
 
 /*
@@ -98,7 +99,146 @@ export const SectionBreak = Node.create({
   },
 });
 
-/** Markdown the editor doesn't model (lists, tables, HTML, code…), edited as plain Markdown text. */
+/**
+ * A scene's own heading (a letter's date, a document's title), levels 1-3 (D10). Shown a level below
+ * the page's own headings, so a scene's # sits beneath the chapter's title.
+ */
+export const Heading = Node.create({
+  name: "heading",
+  group: "block",
+  // A line of text: a Markdown heading can't hold a break.
+  content: "(text | mention | raw_inline)*",
+  defining: true,
+  addAttributes: () => ({ level: { default: 1, rendered: false, parseHTML: (el) => Math.min(3, Math.max(1, Number(el.tagName.slice(1)) - 1)) }, ...source() }),
+  parseHTML: () => [2, 3, 4].map((n) => ({ tag: `h${n}` })),
+  renderHTML: ({ node, HTMLAttributes }) => [`h${Math.min(3, node.attrs.level as number) + 1}`, mergeAttributes(HTMLAttributes, { class: "ghw-heading" }), 0],
+});
+
+/** A list's attributes: tight (no blank lines between items) as written, and its source. */
+const listAttributes = () => ({ tight: { default: true, rendered: false }, ...source() });
+
+export const BulletList = Node.create({
+  name: "bullet_list",
+  group: "block",
+  content: "list_item+",
+  addAttributes: listAttributes,
+  parseHTML: () => [{ tag: "ul" }],
+  renderHTML: ({ HTMLAttributes }) => ["ul", HTMLAttributes, 0],
+});
+
+export const OrderedList = Node.create({
+  name: "ordered_list",
+  group: "block",
+  content: "list_item+",
+  addAttributes: () => ({
+    start: { default: 1, parseHTML: (el) => Number(el.getAttribute("start") ?? 1), renderHTML: (attrs) => (attrs.start === 1 ? {} : { start: attrs.start }) },
+    ...listAttributes(),
+  }),
+  parseHTML: () => [{ tag: "ol" }],
+  renderHTML: ({ HTMLAttributes }) => ["ol", HTMLAttributes, 0],
+});
+
+/** A list item: a paragraph, then any blocks (another list, more paragraphs). */
+export const ListItem = Node.create({
+  name: "list_item",
+  content: "paragraph block*",
+  defining: true,
+  parseHTML: () => [{ tag: "li" }],
+  renderHTML: ({ HTMLAttributes }) => ["li", HTMLAttributes, 0],
+});
+
+declare module "@tiptap/core" {
+  interface NodeConfig {
+    /** The part a node plays in a table, for ProseMirror's table commands. */
+    tableRole?: "table" | "row" | "cell" | "header_cell";
+  }
+}
+
+/** A cell's column alignment and the spans ProseMirror's table commands expect (always 1: GitHub's tables can't merge). */
+const cellAttributes = () => ({
+  align: { default: null, parseHTML: (el: HTMLElement) => el.style.textAlign || null, renderHTML: (attrs: { align?: string | null }) => (attrs.align ? { style: `text-align: ${attrs.align}` } : {}) },
+  colspan: { default: 1, rendered: false },
+  rowspan: { default: 1, rendered: false },
+  colwidth: { default: null, rendered: false },
+});
+
+/** A table (GitHub's): a header row, then rows of cells, each a line of text (D10). */
+export const Table = Node.create({
+  name: "table",
+  group: "block",
+  content: "table_row+",
+  tableRole: "table",
+  isolating: true,
+  addAttributes: source,
+  // ProseMirror's table commands find a schema's table nodes by this field of their spec.
+  extendNodeSchema: (extension) => ({ tableRole: extension.config.tableRole }),
+  parseHTML: () => [{ tag: "table" }],
+  renderHTML: ({ HTMLAttributes }) => ["table", mergeAttributes(HTMLAttributes, { class: "ghw-table" }), ["tbody", 0]],
+});
+
+export const TableRow = Node.create({
+  name: "table_row",
+  content: "(table_header | table_cell)+",
+  tableRole: "row",
+  parseHTML: () => [{ tag: "tr" }],
+  renderHTML: ({ HTMLAttributes }) => ["tr", HTMLAttributes, 0],
+});
+
+/** Cells hold a line of text: no breaks, which a GitHub table cell can't. */
+const CELL_CONTENT = "(text | mention | raw_inline)*";
+
+export const TableHeader = Node.create({
+  name: "table_header",
+  content: CELL_CONTENT,
+  tableRole: "header_cell",
+  isolating: true,
+  addAttributes: cellAttributes,
+  parseHTML: () => [{ tag: "th" }],
+  renderHTML: ({ HTMLAttributes }) => ["th", mergeAttributes(HTMLAttributes, { scope: "col" }), 0],
+});
+
+export const TableCell = Node.create({
+  name: "table_cell",
+  content: CELL_CONTENT,
+  tableRole: "cell",
+  isolating: true,
+  addAttributes: cellAttributes,
+  parseHTML: () => [{ tag: "td" }],
+  renderHTML: ({ HTMLAttributes }) => ["td", HTMLAttributes, 0],
+});
+
+export interface PictureOptions {
+  /** The address to load a picture from, given its repository path (images/…): the app's server's. */
+  url: (path: string) => string | undefined;
+}
+
+/**
+ * A picture on a line of its own: `![alt](/images/name "caption")` (D10). `url` is as written (`src`,
+ * like every block's, is its Markdown); the picture loads from the `url` option of its repository path.
+ */
+export const Picture = Node.create<PictureOptions>({
+  name: "picture",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: false,
+  addOptions: () => ({ url: (path) => `/${path}` }),
+  addAttributes: () => ({
+    url: { default: "", rendered: false, parseHTML: (el) => el.getAttribute("data-url") ?? "" },
+    alt: { default: "", rendered: false, parseHTML: (el) => el.querySelector("img")?.getAttribute("alt") ?? "" },
+    caption: { default: null, rendered: false, parseHTML: (el) => el.querySelector("figcaption")?.textContent ?? null },
+    ...source(),
+  }),
+  parseHTML: () => [{ tag: "figure[data-url]" }],
+  renderHTML({ node, HTMLAttributes }) {
+    const path = picturePath(node.attrs.url as string);
+    const img = ["img", { src: (path && this.options.url(path)) ?? "", alt: node.attrs.alt, loading: "lazy" }];
+    const caption = node.attrs.caption as string | null;
+    return ["figure", mergeAttributes(HTMLAttributes, { class: "ghw-picture", "data-url": node.attrs.url }), img, ...(caption ? [["figcaption", caption]] : [])];
+  },
+});
+
+/** Markdown the editor doesn't model (code, HTML, footnotes…), edited as plain Markdown text. */
 export const RawBlock = Node.create({
   name: "raw_block",
   group: "block",
@@ -216,4 +356,26 @@ export const Strong = Mark.create({
 });
 
 /** The nodes and marks of scene prose, with their shortcuts and input rules. */
-export const proseContent = [Doc, Text, Paragraph, Blockquote, SectionBreak, RawBlock, HardBreak, Mention, RawInline, Link, Emphasis, Strong];
+export const proseContent = [
+  Doc,
+  Text,
+  Paragraph,
+  Blockquote,
+  SectionBreak,
+  Heading,
+  BulletList,
+  OrderedList,
+  ListItem,
+  Table,
+  TableRow,
+  TableHeader,
+  TableCell,
+  Picture,
+  RawBlock,
+  HardBreak,
+  Mention,
+  RawInline,
+  Link,
+  Emphasis,
+  Strong,
+];

@@ -76,7 +76,7 @@ describe("SpellCheckExtension", () => {
   }
 
   test("underlines misspellings, never names, mentions or raw Markdown", async () => {
-    open("Ada reached Varn statoin.\n\n[Benn](#char_b3n0vs) waved *recieve*.\n\n| tabel | x |\n|---|---|\n");
+    open("Ada reached Varn statoin.\n\n[Benn](#char_b3n0vs) waved *recieve*.\n\n```\ntabel x\n```\n");
     await vi.waitFor(() => expect(misspelled()).toEqual(["statoin", "recieve"]));
     expect(editor.view.dom.querySelector(".ghw-misspelled")!.getAttribute("aria-invalid")).toBe("spelling");
     expect(editor.view.dom.getAttribute("spellcheck")).toBe("false");

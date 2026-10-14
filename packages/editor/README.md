@@ -191,8 +191,12 @@ The TipTap extensions in `proseContent` define the schema, and `proseSchema` is 
 | `hard_break` | Line ending with `\` or two spaces |
 | `mention` (`id`, `label`) | `[Ada](#char_7f3k2q)`, a link to a bible entity ID |
 | `em`, `strong`, `link` marks | `*em*`, `**strong**`, `[text](url)` |
-| `raw_block` | Any other block (lists, headings, tables, code, HTML, footnote definitions…), edited as plain Markdown text |
-| `raw_inline` | Any other inline syntax (code, images, strikethrough, HTML, reference links…), kept as an atom |
+| `heading` (`level` 1–3) | `#`, `##`, `###` (and setext); deeper levels read as 3. A line of text, shown a level below the page's headings |
+| `bullet_list`, `ordered_list` (`start`), `list_item` | `- item`, `1. item`, nested; `tight` records whether items are separated by blank lines. An item starts with a paragraph |
+| `table`, `table_row`, `table_header`, `table_cell` (`align`) | GitHub's tables: a header row and rows of one-line cells. The node roles ProseMirror's table commands expect; no merged cells |
+| `picture` (`url`, `alt`, `caption`) | `![alt](/images/name "caption")` alone in its paragraph, under `/images/` ([D10](https://github.com/heffrey78/gh-writer/issues/198)). Loads from the `Picture` extension's `url` option (`pictureUrl` on the React editors) |
+| `raw_block` | Any other block (code, HTML, task lists, footnote definitions…), edited as plain Markdown text |
+| `raw_inline` | Any other inline syntax (code, pictures within a line, strikethrough, HTML, reference links…), kept as an atom |
 
 ### Round-trip guarantees
 
@@ -211,5 +215,8 @@ Blocks parsed by `parseProse` are recognised as unchanged by node identity, whic
 - The file ends with a newline once its last block is edited, even if it had none.
 - A section break is always written `***`.
 - A link whose text equals its URL may become `<url>`.
+- Headings are written with `#` (a setext heading becomes ATX), `####` and deeper as `###`.
+- Lists use `-` bullets and `1.` numbering (`*` and `)` for a list right after another of its kind, so the two don't merge), keep their first number, and drop empty items. A numbered list not starting at 1 is set apart from the paragraph before it in an item, which it couldn't otherwise interrupt.
+- Tables are written with aligned columns and `|` at both ends.
 
 Lines that weren't edited are never touched, so a one-word change shows up as a one-line diff.

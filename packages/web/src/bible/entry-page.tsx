@@ -11,6 +11,7 @@ import { AlertDialog } from "radix-ui";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { useStore } from "zustand";
+import { imageUrl } from "@gh-writer/client";
 import { api, keys } from "../api.ts";
 import type { Workspace } from "../novel/workspace.ts";
 import { ErrorAlert } from "../ui/alert.tsx";
@@ -271,6 +272,7 @@ export function EntryPage({
               markdown={file.body}
               onChange={(md) => workspace.change(entity.file, md)}
               entities={mentions}
+              pictureUrl={(path) => imageUrl(novelId, path)}
               className={cn("ghw-notes", tab && "[--ghw-prose-size:1rem]")}
               {...(spell ? { spell } : {})}
             />

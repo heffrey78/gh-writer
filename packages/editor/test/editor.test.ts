@@ -111,11 +111,11 @@ describe("shortcuts", () => {
   });
 
   test("Enter inside raw Markdown inserts a newline", () => {
-    open("- one\n");
+    open("```\none\n```\n");
     cursor(at("one", true));
     press("Enter");
-    type("- two");
-    expect(getMarkdown(editor)).toBe("- one\n- two\n");
+    type("two");
+    expect(getMarkdown(editor)).toBe("```\none\ntwo\n```\n");
   });
 
   test("undo returns to the file as it was", () => {
@@ -197,9 +197,9 @@ describe("mentions", () => {
 });
 
 describe("pasting", () => {
-  test("HTML from elsewhere keeps emphasis and drops what prose doesn't use", () => {
+  test("HTML from elsewhere keeps emphasis and lists, and drops what prose doesn't use", () => {
     open("");
-    editor.commands.insertContent('<p>A <i>very</i> <b style="color:red">bold</b> <span class="x">claim</span>.</p><ul><li>item</li></ul>');
-    expect(getMarkdown(editor)).toBe("A *very* **bold** claim.\n\nitem\n");
+    editor.commands.insertContent('<p>A <i>very</i> <b style="color:red">bold</b> <span class="x">claim</span>.</p><ul><li>item</li></ul><pre>code</pre>');
+    expect(getMarkdown(editor)).toBe("A *very* **bold** claim.\n\n- item\n\ncode\n");
   });
 });

@@ -98,13 +98,23 @@ test("a mention can't be broken by typing", async ({ page }) => {
   expect(await savedText(page)).not.toContain("[Ada]");
 });
 
-test("raw Markdown is shown and kept as written", async ({ page }) => {
+test("headings, lists, tables and pictures show as themselves; raw Markdown is shown and kept as written", async ({ page }) => {
   await openScene(page, "scenes/sampler.md");
-  await expect(textbox(page).locator("pre[data-raw]")).toContainText("| Kept | as Markdown |");
+  const text = textbox(page);
+  // D10: a scene's own heading sits a level below the page's; a list nests; a table has its header; a picture its description.
+  await expect(text.getByRole("heading", { level: 3, name: "A letter, and what it asks" })).toBeVisible();
+  await expect(text.locator("ol > li").first()).toContainText("Sell the workshop.");
+  await expect(text.locator("ol ul > li")).toHaveText(["the rent", "the debt"]);
+  await expect(text.getByRole("columnheader", { name: "Miles" })).toBeVisible();
+  await expect(text.getByRole("cell", { name: "12" })).toHaveCSS("text-align", "right");
+  await expect(text.locator("figure img")).toHaveAttribute("alt", "A map of Varn");
+  await expect(text.locator("figcaption")).toHaveText("The valley, as Tomas drew it");
+  await expect(text.locator("pre[data-raw]")).toContainText("Kept as Markdown: `code` and ~~struck~~");
   await caretAfter(page, "uses ");
   await page.keyboard.type("nearly ");
   await savedContains(page, "uses nearly _every_ kind");
-  await savedContains(page, "| `code` | ~~struck~~ |");
+  await savedContains(page, "| Day | Miles |\n|:----|------:|\n| Monday | 12 |");
+  await savedContains(page, "Kept as Markdown: `code` and ~~struck~~");
 });
 
 test("the editor is reachable and usable by keyboard alone", async ({ page }) => {

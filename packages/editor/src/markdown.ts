@@ -1,5 +1,5 @@
-import { ID_PATTERN } from "@gh-writer/core";
-import type { Nodes, PhrasingContent, Root, RootContent } from "mdast";
+import { ID_PATTERN, picturePath } from "@gh-writer/core";
+import type { AlignType, BlockContent, List as MdList, ListItem, Nodes, PhrasingContent, Root, RootContent, TableCell, TableRow } from "mdast";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmFromMarkdown, gfmToMarkdown } from "mdast-util-gfm";
 import { toMarkdown, type Handle, type Options } from "mdast-util-to-markdown";
@@ -16,6 +16,9 @@ import { proseSchema } from "./schema.ts";
  * blocks are serialized, in canonical syntax: one paragraph per line, `*em*`, `**strong**`,
  * `***` section breaks, using the emphasis markers and break style of the block's source, else
  * of the scene's.
+ *
+ * Headings, lists, tables and pictures on a line of their own are modelled too (D10): edited, they're
+ * written with `#` headings, `-` bullets, `1.` numbering, aligned `|` tables and `![alt](src "caption")`.
  *
  * Markdown the schema doesn't model is never dropped: unknown blocks become raw_block and
  * unknown inline syntax becomes raw_inline, both saved verbatim.
@@ -60,7 +63,7 @@ export function serializeProse(doc: Node): string {
   doc.forEach((block) => {
     const reused = isUnchanged(block);
     if (!reused && isEmpty(block)) return;
-    const text: string = reused ? block.attrs.src : withEol(canonicalBlock(block, doc.attrs.style), eol);
+    const text: string = reused ? block.attrs.src : withEol(canonicalBlock(block, doc.attrs.style, prev?.text), eol);
     out += separator(prev, out, block.attrs.gap, reused && (prev !== null || firstBlocks.has(block)), text, eol) + text;
     prev = { text, reused };
   });
@@ -101,28 +104,71 @@ function rawBlock(text: string, schema: Schema): Node {
   return schema.nodes.raw_block!.create(null, value ? schema.text(value) : null);
 }
 
-function block(node: Nodes, markdown: string, schema: Schema, inQuote: boolean): Node {
+/**
+ * A block from mdast. `nested`: inside a quote, list or table, where a raw slice spanning lines would
+ * carry the container's prefixes or indentation; an unsupported child makes the whole top-level
+ * block raw, so those stay intact.
+ */
+function block(node: Nodes, markdown: string, schema: Schema, nested: boolean): Node {
   switch (node.type) {
-    case "paragraph":
-      return schema.nodes.paragraph!.create(null, inlines(node.children, [], markdown, schema, inQuote));
+    case "paragraph": {
+      const picture = pictureOf(node.children, schema);
+      if (picture) return picture;
+      return schema.nodes.paragraph!.create(null, inlines(node.children, [], markdown, schema, nested));
+    }
     case "blockquote":
-      // An unsupported child makes the whole top-level quote raw, so its `>` prefixes stay intact.
       if (!node.children.length) throw new Unsupported();
       return schema.nodes.blockquote!.create(null, node.children.map((c) => block(c, markdown, schema, true)));
     case "thematicBreak":
       return schema.nodes.horizontal_rule!.create();
+    case "heading":
+      // D10: levels 1-3; deeper read as 3 (an unedited #### keeps its source).
+      return schema.nodes.heading!.create({ level: Math.min(node.depth, 3) }, inlines(node.children, [], markdown, schema, nested));
+    case "list": {
+      const items = node.children.map((item) => {
+        // Task lists stay raw; an item must start with a paragraph (an empty `-` doesn't).
+        if (item.checked !== null && item.checked !== undefined) throw new Unsupported();
+        const children = item.children.map((c) => block(c, markdown, schema, true));
+        // An item without words of its own (`-` alone, or `-` then a nested list) starts with an empty paragraph.
+        if (!children.length || children[0]!.type.name.endsWith("_list")) children.unshift(schema.nodes.paragraph!.create());
+        if (children[0]!.type.name !== "paragraph") throw new Unsupported();
+        return schema.nodes.list_item!.create(null, children);
+      });
+      const tight = !node.spread && node.children.every((item) => !item.spread);
+      return node.ordered
+        ? schema.nodes.ordered_list!.create({ start: node.start ?? 1, tight }, items)
+        : schema.nodes.bullet_list!.create({ tight }, items);
+    }
+    case "table": {
+      const align = node.align ?? [];
+      const rows = node.children.map((row, r) =>
+        schema.nodes.table_row!.create(
+          null,
+          row.children.map((cell, c) => (r ? schema.nodes.table_cell! : schema.nodes.table_header!).create({ align: align[c] ?? null }, inlines(cell.children, [], markdown, schema, true))),
+        ),
+      );
+      return schema.nodes.table!.create(null, rows);
+    }
     default:
       throw new Unsupported();
   }
 }
 
+/** A paragraph that is only a picture under /images/ (D10), as a picture node; otherwise undefined. */
+function pictureOf(children: PhrasingContent[], schema: Schema): Node | undefined {
+  const content = children.filter((c) => !(c.type === "text" && !c.value.trim()));
+  const image = content.length === 1 && content[0]!.type === "image" ? content[0]! : undefined;
+  if (!image || !picturePath(image.url)) return undefined;
+  return schema.nodes.picture!.create({ url: image.url, alt: image.alt ?? "", caption: image.title || null });
+}
+
 /** Soft line breaks (hard-wrapped prose) read as spaces, so an edited paragraph becomes one line. */
 const unwrap = (text: string) => text.replace(/[ \t]*\r?\n[ \t]*/g, " ");
 
-function inlines(nodes: PhrasingContent[], marks: readonly Mark[], markdown: string, schema: Schema, inQuote: boolean): Node[] {
+function inlines(nodes: PhrasingContent[], marks: readonly Mark[], markdown: string, schema: Schema, inContainer: boolean): Node[] {
   const out: Node[] = [];
   const nested = (children: PhrasingContent[], mark: Mark) =>
-    out.push(...inlines(children, mark.addToSet(marks), markdown, schema, inQuote));
+    out.push(...inlines(children, mark.addToSet(marks), markdown, schema, inContainer));
   for (const n of nodes) {
     switch (n.type) {
       case "text": {
@@ -155,8 +201,8 @@ function inlines(nodes: PhrasingContent[], marks: readonly Mark[], markdown: str
     }
     const { start, end } = offsets(n);
     const text = markdown.slice(start, end);
-    // Inside a quote a multi-line slice would include `>` prefixes; let the whole quote go raw.
-    if (inQuote && text.includes("\n")) throw new Unsupported();
+    // Nested, a multi-line slice would include `>` prefixes or indentation; let the whole block go raw.
+    if (inContainer && text.includes("\n")) throw new Unsupported();
     out.push(schema.nodes.raw_inline!.create({ text }, null, marks));
   }
   return out;
@@ -180,18 +226,27 @@ function isUnchanged(node: Node): boolean {
     const src = node.attrs.src;
     const root = typeof src === "string" ? mdast(src) : undefined;
     const parsed = root?.children.length === 1 ? topBlock(root.children[0]!, src, node.type.schema) : undefined;
-    result = !!parsed && parsed.type === node.type && parsed.content.eq(node.content);
+    result = !!parsed && parsed.type === node.type && sameAttrs(parsed, node) && parsed.content.eq(node.content);
     unchanged.set(node, result);
   }
   return result;
+}
+
+/** Whether two blocks' own attributes agree (a list's start or tightness, a heading's level), sources aside. */
+function sameAttrs(a: Node, b: Node): boolean {
+  return Object.keys(a.attrs).every((k) => k === "src" || k === "gap" || a.attrs[k] === b.attrs[k]);
 }
 
 /** A block with nothing to write. Markdown can't represent an empty paragraph. */
 function isEmpty(node: Node): boolean {
   switch (node.type.name) {
     case "paragraph":
+    case "heading":
       return trimInline(node).length === 0;
-    case "blockquote": {
+    case "blockquote":
+    case "bullet_list":
+    case "ordered_list":
+    case "list_item": {
       let empty = true;
       node.forEach((child) => (empty &&= isEmpty(child)));
       return empty;
@@ -244,8 +299,19 @@ function sourceStyle(tree: Nodes, markdown: string): Style {
 /** Use two spaces for a hard break, except right after another break, where only `\` survives. */
 const spacesBreak: Handle = (_node, _parent, _state, info) => (info.before.endsWith("\n") ? "\\\n" : "  \n");
 
-/** A block in canonical syntax, styled like its own source, else like the rest of the scene. */
-function canonicalBlock(node: Node, docStyle: Style | null): string {
+/** Whether a list opens, at any depth of first items, with a numbered list not starting at 1. */
+function opensWithLateNumber(list: MdList): boolean {
+  if (list.ordered && (list.start ?? 1) !== 1) return true;
+  const first = list.children[0]?.children[0];
+  return first?.type === "list" && opensWithLateNumber(first);
+}
+
+/**
+ * A block in canonical syntax, styled like its own source, else like the rest of the scene. A list
+ * right after another of its kind takes the other marker (`*` for `-`, `)` for `.`), or the two would
+ * read back as one list.
+ */
+function canonicalBlock(node: Node, docStyle: Style | null, before?: string): string {
   const src = node.attrs.src;
   const style = { ...docStyle, ...(typeof src === "string" && src ? sourceStyle(mdast(src), src) : {}) };
   const options: Options = {
@@ -254,6 +320,10 @@ function canonicalBlock(node: Node, docStyle: Style | null): string {
     strong: style.strong ?? "*",
     rule: "*",
     ruleRepetition: 3,
+    // D10: `-` bullets and `1.` numbering, unless the block before is a list using them.
+    bullet: before !== undefined && /^-[ \t]/.test(before) ? "*" : "-",
+    bulletOther: before !== undefined && /^-[ \t]/.test(before) ? "-" : "*",
+    bulletOrdered: before !== undefined && /^\d{1,9}\.[ \t]/.test(before) ? ")" : ".",
     ruleSpaces: false,
     // to-markdown may write the character after a backslash as a character reference (`&#x61;`)
     // so emphasis can flank, which the backslash would then escape. to-markdown already escapes
@@ -275,6 +345,38 @@ function blockToMdast(node: Node): RootContent {
     }
     case "horizontal_rule":
       return { type: "thematicBreak" };
+    case "heading":
+      return { type: "heading", depth: Math.min(3, Math.max(1, node.attrs.level)) as 1 | 2 | 3, children: inlineToMdast(expelWhitespace(trimInline(node))) };
+    case "bullet_list":
+    case "ordered_list": {
+      // Empty items aren't written: a lone `-` would read back as something else.
+      const spread = !node.attrs.tight;
+      const children: ListItem[] = [];
+      node.forEach((item) => {
+        if (isEmpty(item)) return;
+        const content: BlockContent[] = [];
+        item.forEach((c) => void (isEmpty(c) || content.push(blockToMdast(c) as BlockContent)));
+        // A numbered list can interrupt a paragraph only if it starts at 1 (so can a list whose first item
+        // begins with one): otherwise it needs a blank line.
+        const interrupts = content.some((c, i) => i > 0 && content[i - 1]!.type === "paragraph" && c.type === "list" && opensWithLateNumber(c));
+        children.push({ type: "listItem", spread: spread || interrupts, children: content });
+      });
+      const ordered = node.type.name === "ordered_list";
+      return { type: "list", ordered, ...(ordered ? { start: node.attrs.start } : {}), spread, children };
+    }
+    case "table": {
+      const align: AlignType[] = [];
+      node.firstChild?.forEach((cell) => void align.push(cell.attrs.align ?? null));
+      const rows: TableRow[] = [];
+      node.forEach((row) => {
+        const cells: TableCell[] = [];
+        row.forEach((cell) => void cells.push({ type: "tableCell", children: inlineToMdast(expelWhitespace(trimInline(cell))) }));
+        rows.push({ type: "tableRow", children: cells });
+      });
+      return { type: "table", align, children: rows };
+    }
+    case "picture":
+      return { type: "paragraph", children: [{ type: "image", url: node.attrs.url, alt: node.attrs.alt, title: node.attrs.caption || null }] };
     default:
       return { type: "html", value: node.textContent };
   }

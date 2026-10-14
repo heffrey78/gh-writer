@@ -94,6 +94,88 @@
   border-radius: 2px;
 }
 
+/* A scene's own headings, lists, tables and pictures (D10), in the prose's type. */
+.ghw-prose .ghw-heading {
+  margin: 1.4em 0 0.6em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.ghw-prose h2.ghw-heading {
+  font-size: 1.35em;
+}
+
+.ghw-prose h3.ghw-heading {
+  font-size: 1.15em;
+}
+
+.ghw-prose h4.ghw-heading {
+  font-size: 1em;
+  font-style: italic;
+}
+
+.ghw-prose :is(ul, ol) {
+  margin: 0 0 0.9em;
+  padding-left: 1.6em;
+}
+
+.ghw-prose li > p {
+  margin: 0 0 0.3em;
+}
+
+.ghw-prose li > :is(ul, ol) {
+  margin-bottom: 0.3em;
+}
+
+.ghw-prose .ghw-table {
+  margin: 0 0 0.9em;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.ghw-prose .ghw-table :is(th, td) {
+  min-width: 3em;
+  padding: 0.3em 0.7em;
+  border: 1px solid var(--ghw-rule);
+  vertical-align: top;
+}
+
+.ghw-prose .ghw-table th {
+  font-weight: 600;
+  text-align: left;
+  background: var(--ghw-raw-bg);
+}
+
+.ghw-prose .ghw-table .selectedCell {
+  background: var(--ghw-selection);
+}
+
+.ghw-prose .ghw-picture {
+  margin: 1.2em 0;
+  text-align: center;
+}
+
+.ghw-prose .ghw-picture img {
+  display: block;
+  max-width: 100%;
+  max-height: 32rem;
+  margin: 0 auto;
+  border-radius: 2px;
+}
+
+.ghw-prose .ghw-picture figcaption {
+  margin-top: 0.4em;
+  font-size: 0.85em;
+  font-style: italic;
+  color: var(--ghw-muted);
+}
+
+.ghw-prose .ghw-picture.ProseMirror-selectednode {
+  outline: 2px solid var(--ghw-accent);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
 .ghw-prose .ghw-mention {
   color: var(--ghw-accent);
   background: var(--ghw-accent-soft);
@@ -162,7 +244,7 @@
 }
 
 /* Focus mode with dimming: everything but the paragraph holding the caret fades back. */
-.ghw-prose.ghw-dim :is(p, pre, hr) {
+.ghw-prose.ghw-dim :is(p, pre, hr, h2, h3, h4, ul, ol, table, figure) {
   opacity: 0.4;
   transition: opacity 0.2s ease;
 }
@@ -172,7 +254,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ghw-prose.ghw-dim :is(p, pre, hr) {
+  .ghw-prose.ghw-dim :is(p, pre, hr, h2, h3, h4, ul, ol, table, figure) {
     transition: none;
   }
 }

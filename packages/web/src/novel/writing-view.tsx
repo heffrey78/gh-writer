@@ -19,12 +19,13 @@ import {
 } from "@gh-writer/editor";
 import { ChapterEditor, FindReplace, SceneEditor, useWritingModes, WordCount, type SpellService } from "@gh-writer/editor/react";
 import type { Editor } from "@tiptap/core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Plus } from "lucide-react";
 import { Button } from "../ui/button.tsx";
 import { create, useStore } from "zustand";
 import { joinSceneFile, splitSceneFile } from "@gh-writer/editor";
+import { imageUrl } from "@gh-writer/client";
 import { api } from "../api.ts";
 import { useCommands } from "../commands.ts";
 import type { QuickEntries } from "../bible/quick-entries.ts";
@@ -113,6 +114,9 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
     );
     return () => offs.forEach((off) => off());
   }, [editor, workspace, paths.join("\n")]);
+
+  // Pictures in the text load from the server's images route.
+  const pictureUrl = useCallback((path: string) => imageUrl(novelId, path), [novelId]);
 
   // The scene the author is in, for "restore this scene": the open one, or the caret's in a chapter.
   const setCurrent = useCurrentScene((s) => s.set);
@@ -390,6 +394,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
             newEntry={newEntry}
             issueMarks={issueMarks}
             onMention={onMention}
+            pictureUrl={pictureUrl}
             {...(spell ? { spell } : {})}
           />
         ) : (
@@ -404,6 +409,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
             newEntry={newEntry}
             issueMarks={issueMarks}
             onMention={onMention}
+            pictureUrl={pictureUrl}
             {...(spell ? { spell } : {})}
           />
         )}

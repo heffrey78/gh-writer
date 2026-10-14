@@ -122,6 +122,87 @@ describe("unedited round-trip", () => {
   }, Number(process.env.FUZZ_TIMEOUT ?? 120_000));
 });
 
+/** A scene with every structure D10 models, in more than one syntax. */
+const RICH = [
+  "A letter came.",
+  "Monday, 3rd\n==========",
+  "## The *letter*",
+  "* Milk\n* Eggs\n    * brown",
+  "3) Sell [the workshop](#loc_w0rk5h).\n\n4) Pay Ben.",
+  "Day | Miles\n:-- | --:\nMonday | **12**\nTuesday | 4",
+  "![A map of Varn](/images/varn-map.jpg \"The valley, as Tomas drew it\")",
+  "![On the web](https://example.com/x.png)",
+  "> - quoted\n> - list",
+  "#### Too deep",
+].join("\n\n") + "\n";
+
+describe("headings, lists, tables and pictures (D10)", () => {
+  test("an unedited scene holding them round-trips byte for byte", () => {
+    expect(roundTrip(RICH)).toBe(RICH);
+    expect(roundTrip(RICH.replace(/\n/g, "\r\n"))).toBe(RICH.replace(/\n/g, "\r\n"));
+  });
+
+  test("each is a node of its own, with what it was written with", () => {
+    const doc = parseProse(RICH);
+    const kinds: string[] = [];
+    doc.forEach((b) => void kinds.push(b.type.name));
+    expect(kinds).toEqual(["paragraph", "heading", "heading", "bullet_list", "ordered_list", "table", "picture", "paragraph", "blockquote", "heading"]);
+    expect([doc.child(1).attrs.level, doc.child(1).textContent, doc.child(2).attrs.level, doc.child(9).attrs.level]).toEqual([1, "Monday, 3rd", 2, 3]);
+    const bullets = doc.child(3);
+    expect([bullets.attrs.tight, bullets.childCount, bullets.child(1).child(1).type.name]).toEqual([true, 2, "bullet_list"]);
+    const numbered = doc.child(4);
+    expect([numbered.attrs.start, numbered.attrs.tight, numbered.child(0).firstChild!.child(1).type.name]).toEqual([3, false, "mention"]);
+    const table = doc.child(5);
+    expect(table.child(0).child(0).type.name).toBe("table_header");
+    expect([table.childCount, table.child(1).child(1).type.name, table.child(1).child(1).attrs.align, table.child(0).child(0).attrs.align]).toEqual([3, "table_cell", "right", "left"]);
+    expect(doc.child(6).attrs).toMatchObject({ url: "/images/varn-map.jpg", alt: "A map of Varn", caption: "The valley, as Tomas drew it" });
+    // A picture from outside the novel stays raw, within its paragraph.
+    expect(doc.child(7).child(0).type.name).toBe("raw_inline");
+    expect(doc.child(8).child(0).type.name).toBe("bullet_list");
+  });
+
+  test("edited, each is written canonically: # headings, - bullets, 1. numbering, aligned tables", () => {
+    const doc = parseProse(RICH);
+    const pos = (i: number) => {
+      let p = 0;
+      for (let k = 0; k < i; k++) p += doc.child(k).nodeSize;
+      return p;
+    };
+    const out = edit(RICH, (tr) => {
+      // The caption first: typing moves what comes after it.
+      tr.setNodeMarkup(pos(6), null, { ...doc.child(6).attrs, caption: "Varn, as Tomas drew it" });
+      type(tr, "!", at(tr.doc, "4") + 1);
+      type(tr, " too", at(tr.doc, "brown") + 5);
+      type(tr, " 3rd", at(tr.doc, "Monday, 3rd") + 11);
+      type(tr, " ", at(tr.doc, "Pay Ben") + 7);
+    });
+    expect(out).toBe(
+      [
+        "A letter came.",
+        "# Monday, 3rd 3rd",
+        "## The *letter*",
+        "- Milk\n- Eggs\n  - brown too",
+        "3. Sell [the workshop](#loc_w0rk5h).\n\n4. Pay Ben .",
+        "| Day     |  Miles |\n| :------ | -----: |\n| Monday  | **12** |\n| Tuesday |     4! |",
+        "![A map of Varn](/images/varn-map.jpg \"Varn, as Tomas drew it\")",
+        "![On the web](https://example.com/x.png)",
+        "> - quoted\n> - list",
+        "#### Too deep",
+      ].join("\n\n") + "\n",
+    );
+  });
+
+  test("an empty list item isn't written; a heading emptied goes", () => {
+    const out = edit("- one\n- two\n\n# Title\n", (tr) => {
+      const two = at(tr.doc, "two");
+      tr.delete(two, two + 3);
+      const title = at(tr.doc, "Title");
+      tr.delete(title, title + 5);
+    });
+    expect(out).toBe("- one\n");
+  });
+});
+
 describe("document model", () => {
   test("mentions become mention nodes carrying the entity ID", () => {
     const doc = parseProse("[Ada](#char_7f3k2q) and *[Ben Varn](#char_b3n0vs)*\n");
@@ -141,11 +222,12 @@ describe("document model", () => {
   });
 
   test("unsupported Markdown is held as raw nodes with its exact source", () => {
-    const doc = parseProse("Run `make` now.\n\n- a\n- b\n\n> - quoted list\n");
+    const doc = parseProse("Run `make` now.\n\n<div>raw</div>\n\n> ```\n> quoted code\n> ```\n\n- [ ] a task\n");
     expect(doc.child(0).child(1).type.name).toBe("raw_inline");
     expect(doc.child(0).child(1).attrs.text).toBe("`make`");
-    expect([doc.child(1).type.name, doc.child(1).textContent]).toEqual(["raw_block", "- a\n- b"]);
-    expect([doc.child(2).type.name, doc.child(2).textContent]).toEqual(["raw_block", "> - quoted list"]);
+    expect([doc.child(1).type.name, doc.child(1).textContent]).toEqual(["raw_block", "<div>raw</div>"]);
+    expect([doc.child(2).type.name, doc.child(2).textContent]).toEqual(["raw_block", "> ```\n> quoted code\n> ```"]);
+    expect([doc.child(3).type.name, doc.child(3).textContent]).toEqual(["raw_block", "- [ ] a task"]);
   });
 
   test("hard-wrapped lines read as one paragraph", () => {
@@ -263,7 +345,39 @@ describe("canonical serialization", () => {
     { weight: 1, arbitrary: fc.array(paragraph, { minLength: 1, maxLength: 3 }).map((ps) => schema.nodes.blockquote!.create(null, ps)) },
     { weight: 1, arbitrary: fc.constant(schema.nodes.horizontal_rule!.create()) },
   );
-  const docArb = fc.array(blockArb, { minLength: 1, maxLength: 5 }).map((blocks) => schema.nodes.doc!.create(null, blocks));
+  // D10's blocks: headings, lists (nested), tables and pictures.
+  const cellText = fc.string({ unit: fc.constantFrom(..."ab *_|\\".split("")), minLength: 1, maxLength: 8 });
+  const cell = (header: boolean, align: string | null) =>
+    fc.array(fc.tuple(cellText, fc.subarray(["em", "strong"] as const)), { maxLength: 2 }).map((runs) =>
+      (header ? schema.nodes.table_header! : schema.nodes.table_cell!).create({ align }, runs.map(([t, m]) => schema.text(t, m.map((k) => schema.marks[k]!.create())))),
+    );
+  const table = fc
+    .tuple(fc.array(fc.constantFrom(null, "left", "center", "right"), { minLength: 1, maxLength: 3 }), fc.integer({ min: 0, max: 2 }))
+    .chain(([align, rows]) =>
+      fc.tuple(fc.tuple(...align.map((a) => cell(true, a))), fc.array(fc.tuple(...align.map((a) => cell(false, a))), { minLength: rows, maxLength: rows })).map(([head, body]) =>
+        schema.nodes.table!.create(null, [schema.nodes.table_row!.create(null, head), ...body.map((cells) => schema.nodes.table_row!.create(null, cells))]),
+      ),
+    );
+  const list: fc.Arbitrary<Node> = fc.letrec((tie) => ({
+    list: fc
+      .tuple(fc.boolean(), fc.integer({ min: 0, max: 12 }), fc.boolean(), fc.array(tie("item"), { minLength: 1, maxLength: 3 }))
+      .map(([ordered, start, tight, items]) =>
+        ordered ? schema.nodes.ordered_list!.create({ start, tight }, items as Node[]) : schema.nodes.bullet_list!.create({ tight }, items as Node[]),
+      ),
+    item: fc
+      .tuple(paragraph, fc.option(tie("list"), { freq: 4, depthSize: "small" }))
+      .map(([p, sub]) => schema.nodes.list_item!.create(null, sub ? [p, sub as Node] : [p])),
+  })).list;
+  const heading = fc.tuple(fc.integer({ min: 1, max: 3 }), paragraph).map(([level, p]) => {
+    const line: Node[] = [];
+    p.forEach((c) => void (c.type.name === "hard_break" || line.push(c)));
+    return schema.nodes.heading!.create({ level }, line);
+  });
+  const picture = fc
+    .tuple(fc.constantFrom("A map", "Ada [age 9]", "x"), fc.option(fc.constantFrom("The valley", 'a "quote"', "x)y"), { nil: null }))
+    .map(([alt, caption]) => schema.nodes.picture!.create({ url: "/images/map.jpg", alt, caption }));
+  const richArb = fc.oneof({ weight: 4, arbitrary: blockArb }, heading, list, table, picture);
+  const docArb = fc.array(richArb, { minLength: 1, maxLength: 5 }).map((blocks) => schema.nodes.doc!.create(null, blocks));
 
   /**
    * What a document means in Markdown: per paragraph, each character with its marks, breaks and
@@ -292,12 +406,21 @@ describe("canonical serialization", () => {
       return lines.length ? lines : undefined;
     }
     if (node.type.name === "horizontal_rule") return "***";
+    if (node.type.name === "picture") return { picture: [node.attrs.url, node.attrs.alt, node.attrs.caption || null] };
+    if (node.type.name === "heading" || node.type.name === "table_header" || node.type.name === "table_cell") {
+      // Like a paragraph's lines, keyed by what holds them (and a heading's level, a cell's alignment).
+      const lines = meaning(schema.nodes.paragraph!.create(null, node.content));
+      const key = node.type.name === "heading" ? `h${node.attrs.level}` : `${node.type.name}:${node.attrs.align ?? ""}`;
+      return node.type.name === "heading" && lines === undefined ? undefined : { [key]: lines ?? [] };
+    }
     const children: unknown[] = [];
     node.forEach((c) => {
       const m = meaning(c);
       if (m !== undefined) children.push(m);
     });
-    return children.length || node.type.name === "doc" ? { [node.type.name]: children } : undefined;
+    // A numbered list's start shows in the Markdown; whether a list is tight doesn't always (one item).
+    const key = node.type.name === "ordered_list" ? `ordered_list:${node.attrs.start}` : node.type.name;
+    return children.length || node.type.name === "doc" ? { [key]: children } : undefined;
   }
 
   test("serialized documents parse back to the same content", () => {
