@@ -3,7 +3,7 @@ import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmFromMarkdown } from "mdast-util-gfm";
 import { toString } from "mdast-util-to-string";
 import { gfm } from "micromark-extension-gfm";
-import type { Novel } from "./model.ts";
+import { picturePath, type Novel } from "./model.ts";
 import { parseMarkdown } from "./parse.ts";
 import type { FileSource } from "./source.ts";
 import type { CompilePreset } from "./types.ts";
@@ -22,10 +22,20 @@ export interface Run {
   strong?: boolean;
 }
 
+export type Align = "left" | "center" | "right" | null;
+
 export type Block =
   | { kind: "paragraph"; runs: Run[]; quote?: boolean }
   /** A break between scenes, or one written within a scene: the preset's marker. */
-  | { kind: "break" };
+  | { kind: "break" }
+  /** A scene's own heading (a letter's date, a document's title), 1-3: set beneath the chapter's heading (D10). */
+  | { kind: "heading"; level: 1 | 2 | 3; runs: Run[] }
+  /** A bulleted or numbered list (from `start`); each item is its blocks: paragraphs and lists. */
+  | { kind: "list"; ordered: boolean; start: number; items: Block[][]; quote?: boolean }
+  /** A table: its header row and rows, each cell a line of runs; each column's alignment. */
+  | { kind: "table"; align: Align[]; header: Run[][]; rows: Run[][][] }
+  /** A picture on a line of its own: its repository path (images/…), alt text and caption. */
+  | { kind: "image"; path: string; alt: string; caption?: string };
 
 export interface BookChapter {
   id: string;
@@ -224,6 +234,8 @@ function trimBreaks(list: Block[]): Block[] {
 function blocks(node: Nodes, quote: boolean): Block[] {
   switch (node.type) {
     case "paragraph": {
+      const picture = pictureOf(node.children);
+      if (picture) return [picture];
       const runs = merge(inline(node.children, {}));
       return runs.length ? [{ kind: "paragraph", runs, ...(quote ? { quote: true } : {}) }] : [];
     }
@@ -234,17 +246,73 @@ function blocks(node: Nodes, quote: boolean): Block[] {
     case "html":
       // Hidden notes (<!-- … -->) and other raw HTML aren't the story.
       return [];
-    case "list":
-      return node.children.flatMap((item) => item.children.flatMap((c) => blocks(c, quote)));
-    case "heading":
-    case "code":
+    case "heading": {
+      const runs = merge(inline(node.children, {}));
+      return runs.length ? [{ kind: "heading", level: Math.min(node.depth, 3) as 1 | 2 | 3, runs }] : [];
+    }
+    case "list": {
+      const items = node.children.map((item) => item.children.flatMap((c) => blocks(c, false))).filter((item) => item.length);
+      return items.length ? [{ kind: "list", ordered: !!node.ordered, start: node.start ?? 1, items, ...(quote ? { quote: true } : {}) }] : [];
+    }
     case "table": {
+      const [head, ...body] = node.children.map((row) => row.children.map((cell) => merge(inline(cell.children, {}))));
+      return head ? [{ kind: "table", align: (node.align ?? []).map((a) => a ?? null), header: head, rows: body }] : [];
+    }
+    case "code": {
       const text = toString(node).trim();
       return text ? [{ kind: "paragraph", runs: [{ text }], ...(quote ? { quote: true } : {}) }] : [];
     }
     default:
       return "children" in node ? (node.children as Nodes[]).flatMap((c) => blocks(c, quote)) : [];
   }
+}
+
+/**
+ * A paragraph that is only a picture under images/ (D10), as an image block. Pictures elsewhere, or
+ * within a line of text, aren't the story's words: they're left out, as before.
+ */
+function pictureOf(children: PhrasingContent[]): Block | undefined {
+  const content = children.filter((c) => !(c.type === "text" && !c.value.trim()));
+  const image = content.length === 1 && content[0]!.type === "image" ? content[0]! : undefined;
+  const path = image && picturePath(image.url);
+  if (!image || !path) return undefined;
+  return { kind: "image", path, alt: image.alt ?? "", ...(image.title ? { caption: image.title } : {}) };
+}
+
+/** Every picture a book shows (their repository paths), in order, each once: what the formats embed. */
+export function bookImages(book: Pick<Book, "front" | "chapters" | "back">): string[] {
+  const paths = new Set<string>();
+  const visit = (list: Block[]) => {
+    for (const b of list) {
+      if (b.kind === "image") paths.add(b.path);
+      else if (b.kind === "list") b.items.forEach(visit);
+    }
+  };
+  for (const s of [...book.front, ...book.chapters, ...book.back]) visit(s.blocks);
+  return [...paths];
+}
+
+/**
+ * A book's blocks as paragraphs and breaks only, for formats that don't set headings, lists, tables
+ * or pictures yet: a heading or a list item is a paragraph, a table's row a paragraph of its cells,
+ * a picture its caption.
+ */
+export function flatBlocks(list: Block[]): Extract<Block, { kind: "paragraph" | "break" }>[] {
+  return list.flatMap((b): Extract<Block, { kind: "paragraph" | "break" }>[] => {
+    switch (b.kind) {
+      case "paragraph":
+      case "break":
+        return [b];
+      case "heading":
+        return [{ kind: "paragraph", runs: b.runs }];
+      case "list":
+        return b.items.flatMap((item) => flatBlocks(item).map((p) => (b.quote && p.kind === "paragraph" ? { ...p, quote: true } : p)));
+      case "table":
+        return [b.header, ...b.rows].map((row) => ({ kind: "paragraph" as const, runs: merge(row.flatMap((cell, i) => (i ? [{ text: "   " }, ...cell] : cell))) }));
+      case "image":
+        return b.caption ? [{ kind: "paragraph", runs: [{ text: b.caption }] }] : [];
+    }
+  });
 }
 
 /** Soft line breaks (hard-wrapped prose) read as spaces, as in the editor. */

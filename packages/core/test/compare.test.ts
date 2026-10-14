@@ -97,6 +97,15 @@ describe("compareNovels", () => {
 describe("compareProse", () => {
   it("reads mentions as their words and leaves hidden notes out", () => {
     expect(proseParagraphs("[Ada](#char_7f3k2q) *looked* up.\nAt the bridge.\n\n<!-- a note -->\n\n***\n\n> A quote.\n")).toEqual(["Ada looked up. At the bridge.", "* * *", "A quote."]);
+    // D10: a table row by row, a picture by its description and caption.
+    expect(proseParagraphs("## Day one\n\n- Bread\n- Salt\n\n| Day | Miles |\n|---|---|\n| Monday | 12 |\n\n![A map](/images/map.jpg \"The valley\")\n")).toEqual([
+      "Day one",
+      "Bread",
+      "Salt",
+      "Day | Miles",
+      "Monday | 12",
+      "Picture: A map — The valley",
+    ]);
   });
 
   it("shows the reworded words of a paragraph, not the whole of it", () => {

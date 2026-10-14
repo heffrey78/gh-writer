@@ -175,6 +175,8 @@ export function compareProse(before: string | undefined, after: string | undefin
 export function proseParagraphs(markdown: string): string[] {
   const tree = fromMarkdown(markdown.replace(/\r\n?/g, "\n"), { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] });
   const out: string[] = [];
+  // Soft line breaks (hard-wrapped prose) read as spaces.
+  const read = (node: Nodes) => toString(node, { includeHtml: false }).replace(/[ \t]*\n[ \t]*/g, " ").trim();
   const walk = (node: Nodes) => {
     switch (node.type) {
       case "html":
@@ -187,9 +189,23 @@ export function proseParagraphs(markdown: string): string[] {
       case "listItem":
         for (const child of node.children) walk(child);
         return;
+      // A table row by row, its cells set apart; a picture by its description and caption (D10).
+      case "table":
+        for (const row of node.children) out.push(row.children.map((cell) => read(cell)).join(" | "));
+        return;
+      case "paragraph": {
+        const content = node.children.filter((c) => !(c.type === "text" && !c.value.trim()));
+        const image = content.length === 1 && content[0]!.type === "image" ? content[0]! : undefined;
+        if (image) {
+          out.push(`Picture: ${image.alt ?? ""}${image.title ? ` — ${image.title}` : ""}`.trim());
+          return;
+        }
+        const text = read(node);
+        if (text) out.push(text);
+        return;
+      }
       default: {
-        // Soft line breaks (hard-wrapped prose) read as spaces.
-        const text = toString(node, { includeHtml: false }).replace(/[ \t]*\n[ \t]*/g, " ").trim();
+        const text = read(node);
         if (text) out.push(text);
       }
     }

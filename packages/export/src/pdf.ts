@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import nodeZlib from "node:zlib";
-import { numberWords, type Block, type Book, type Run } from "@gh-writer/core";
+import { flatBlocks, numberWords, type Block, type Book, type Run } from "@gh-writer/core";
 import { zlibSync } from "fflate";
 import * as fontkit from "fontkit";
 import PDFDocument from "pdfkit";
@@ -133,7 +133,7 @@ export function toPdf(book: Book, { date = new Date(0), fonts = defaultFonts(), 
     });
   };
   const blocks = (list: Block[]) => {
-    for (const b of list) {
+    for (const b of flatBlocks(list)) {
       if (b.kind === "break") centred(book.sceneBreak);
       else paragraph(b.runs, !!b.quote);
     }

@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { compileBook, countWords, loadNovel, memorySource, numberWords, type Book, type FileSource } from "../src/index.ts";
+import { bookImages, compileBook, countWords, flatBlocks, loadNovel, memorySource, numberWords, type Book, type FileSource } from "../src/index.ts";
 
 const ROOT = fileURLToPath(new URL("../../../examples/sample-novel/", import.meta.url));
 const sample: Record<string, string> = Object.fromEntries(
@@ -21,6 +21,53 @@ const text = (book: Book) => JSON.stringify(book);
 const words = (b: Book["chapters"][number]) => b.blocks.flatMap((x) => (x.kind === "paragraph" ? x.runs.map((r) => r.text) : ["#"])).join(" ");
 
 describe("compiling the manuscript", () => {
+  it("keeps a scene's headings, lists, tables and pictures as blocks of their own (D10)", async () => {
+    const body = [
+      "## The letter",
+      "Dear [Ada](#char_7f3k2q),",
+      "1. Sell the *workshop*.\n2. Pay Ben:\n   - the rent\n   - the debt",
+      "| Day | Miles |\n|:---|---:|\n| Monday | **12** |",
+      "![A map of Varn](/images/varn-map.jpg \"The valley, as Tomas drew it\")",
+      "![On the web](https://example.com/x.png)",
+      "#### Too deep",
+    ].join("\n\n");
+    const station = sample[STATION]!.replace(/\n---\n[\s\S]*$/, `\n---\n${body}\n`);
+    const { novel, source } = await open({ [STATION]: station });
+    const book = await compileBook(novel, source);
+    expect(book.chapters[0]!.blocks.slice(0, 6)).toEqual([
+      { kind: "heading", level: 2, runs: [{ text: "The letter" }] },
+      { kind: "paragraph", runs: [{ text: "Dear Ada," }] },
+      {
+        kind: "list",
+        ordered: true,
+        start: 1,
+        items: [
+          [{ kind: "paragraph", runs: [{ text: "Sell the " }, { text: "workshop", em: true }, { text: "." }] }],
+          [
+            { kind: "paragraph", runs: [{ text: "Pay Ben:" }] },
+            { kind: "list", ordered: false, start: 1, items: [[{ kind: "paragraph", runs: [{ text: "the rent" }] }], [{ kind: "paragraph", runs: [{ text: "the debt" }] }]] },
+          ],
+        ],
+      },
+      { kind: "table", align: ["left", "right"], header: [[{ text: "Day" }], [{ text: "Miles" }]], rows: [[[{ text: "Monday" }], [{ text: "12", strong: true }]]] },
+      { kind: "image", path: "images/varn-map.jpg", alt: "A map of Varn", caption: "The valley, as Tomas drew it" },
+      // A picture from the web isn't the novel's: left out, as before. A heading too deep reads as level 3.
+      { kind: "heading", level: 3, runs: [{ text: "Too deep" }] },
+    ]);
+    expect(bookImages(book)).toEqual(["images/varn-map.jpg"]);
+    expect(flatBlocks(book.chapters[0]!.blocks.slice(0, 5)).map((b) => (b.kind === "paragraph" ? b.runs.map((r) => r.text).join("") : "#"))).toEqual([
+      "The letter",
+      "Dear Ada,",
+      "Sell the workshop.",
+      "Pay Ben:",
+      "the rent",
+      "the debt",
+      "Day   Miles",
+      "Monday   12",
+      "The valley, as Tomas drew it",
+    ]);
+  });
+
   it("puts the chapters and their scenes in reading order, parts marked, scenes set apart by breaks", async () => {
     const { novel, source } = await open();
     const book = await compileBook(novel, source);

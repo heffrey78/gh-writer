@@ -1,4 +1,4 @@
-import { numberWords, type Block, type Book, type Run } from "@gh-writer/core";
+import { flatBlocks, numberWords, type Block, type Book, type Run } from "@gh-writer/core";
 import { isoSeconds, xml } from "./xml.ts";
 import { zip } from "./zip.ts";
 
@@ -78,7 +78,7 @@ export function toDocx(book: Book, { date = new Date(0) }: DocxOptions = {}): Ui
 }
 
 function blocks(list: Block[], sceneBreak: string): string[] {
-  return list.map((b) => (b.kind === "break" ? p("SceneBreak", runs([{ text: sceneBreak }])) : p(b.quote ? "Quote" : "Normal", runs(b.runs))));
+  return flatBlocks(list).map((b) => (b.kind === "break" ? p("SceneBreak", runs([{ text: sceneBreak }])) : p(b.quote ? "Quote" : "Normal", runs(b.runs))));
 }
 
 function p(style: string, content: string[], extraPPr = ""): string {

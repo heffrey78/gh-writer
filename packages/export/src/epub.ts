@@ -1,4 +1,4 @@
-import { numberWords, type Block, type Book, type Run } from "@gh-writer/core";
+import { flatBlocks, numberWords, type Block, type Book, type Run } from "@gh-writer/core";
 import type { CoverImage } from "./cover.ts";
 import { isoSeconds, xml } from "./xml.ts";
 import { zip, type ZipEntry } from "./zip.ts";
@@ -77,7 +77,7 @@ export function toEpub(book: Book, { date = new Date(0), cover }: EpubOptions = 
 function blocks(list: Block[], sceneBreak: string): string {
   let out = "";
   let quote = false;
-  for (const b of list) {
+  for (const b of flatBlocks(list)) {
     const q = b.kind === "paragraph" && !!b.quote;
     if (q !== quote) {
       out += q ? "<blockquote>" : "</blockquote>";

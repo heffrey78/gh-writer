@@ -16,7 +16,7 @@ export { passageIssueBody, readAnchor, writeAnchor, type IssueAnchor, type Passa
 export { resolveAnchor, type AnchorMatch, type AnchorOptions } from "./anchor-match.ts";
 export { ISSUE_KINDS, kindLabel, kindOf, STOCK_LABELS, type IssueKind } from "./issue-kinds.ts";
 export { entityLabel, entityOfLabel, type LabelDef } from "./entity-labels.ts";
-export { compileBook, CompileError, numberWords, presets, type Block, type Book, type BookChapter, type BookSection, type CompileOptions, type Run } from "./compile.ts";
+export { bookImages, compileBook, CompileError, flatBlocks, numberWords, presets, type Align, type Block, type Book, type BookChapter, type BookSection, type CompileOptions, type Run } from "./compile.ts";
 export { readableSpan, sceneFacts } from "./facts.ts";
 export { LEGACY_COLOURS, nextSeriesSlot, relationshipStyle, SERIES, seriesHex, seriesSlot, type RelationshipLine, type SeriesColour, type SeriesSlot } from "./palette.ts";
 export { entryPresence, entryPresences, type EntryPresence, type PresenceMark } from "./entry-presence.ts";
