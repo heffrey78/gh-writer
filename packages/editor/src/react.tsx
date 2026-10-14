@@ -14,6 +14,7 @@ import { IssueMarksExtension, refreshIssueMarks, type AnchoredIssue } from "./is
 import { PinnedLinesExtension, refreshPinnedLines } from "./pinned-lines.ts";
 import { LinkSuggestExtension } from "./link-suggest.ts";
 import { MentionInfoExtension, type MentionTarget } from "./mention-info.ts";
+import { PicturesExtension, type PictureCallbacks } from "./pictures.ts";
 import { MentionSuggestExtension, type MentionEntity, type MentionType } from "./mention-suggest.ts";
 import { SpellCheckExtension, type SpellService } from "./spell.ts";
 import { writingModes, WritingModesExtension, type WritingModes } from "./modes.ts";
@@ -52,6 +53,8 @@ export interface SceneEditorProps {
   onMention?: MentionCallbacks;
   /** Where a picture in the text loads from, given its repository path (images/…): the app's server. */
   pictureUrl?: (path: string) => string | undefined;
+  /** Image files dropped or pasted in, and a picture to change: for the app to ask about and save. */
+  pictures?: PictureCallbacks;
 }
 
 export interface SpellProps {
@@ -80,6 +83,18 @@ function useMentionInfoExtension(callbacks: MentionCallbacks | undefined) {
   const latest = useRef(callbacks);
   latest.current = callbacks;
   return MentionInfoExtension.configure({ onShow: (t) => latest.current?.show(t), onLeave: () => latest.current?.leave() });
+}
+
+/** Pictures dropped, pasted or changed (Enter or a double-click on one), handed to the latest `pictures` prop. */
+function usePicturesExtension(callbacks: PictureCallbacks | undefined) {
+  const latest = useRef(callbacks);
+  latest.current = callbacks;
+  return PicturesExtension.configure({
+    callbacks: () => ({
+      ...(latest.current?.add ? { add: (files: File[], at: number) => latest.current?.add?.(files, at) } : {}),
+      ...(latest.current?.edit ? { edit: (at: number) => latest.current?.edit?.(at) } : {}),
+    }),
+  });
 }
 
 export interface IssueMarksProps {
@@ -148,7 +163,9 @@ export function SceneEditor({
   issueMarks,
   onMention,
   pictureUrl,
+  pictures,
 }: SceneEditorProps) {
+  const picturesExtension = usePicturesExtension(pictures);
   const spellExtension = useSpellExtension(spell);
   const mentionExtension = useMentionExtension(entities, newEntry);
   const issueMarksExtension = useIssueMarksExtension(issueMarks);
@@ -183,6 +200,7 @@ export function SceneEditor({
       spellExtension,
       ...mentionExtension,
       mentionInfo,
+      picturesExtension,
       Placeholder.configure({ placeholder }),
     ],
     editorProps: {
@@ -269,6 +287,8 @@ export interface ChapterEditorProps {
   pinned?: Readonly<Record<string, string>>;
   /** Where a picture in the text loads from, given its repository path (images/…): the app's server. */
   pictureUrl?: (path: string) => string | undefined;
+  /** Image files dropped or pasted in, and a picture to change: for the app to ask about and save. */
+  pictures?: PictureCallbacks;
 }
 
 /**
@@ -290,7 +310,9 @@ export function ChapterEditor({
   onMention,
   pinned,
   pictureUrl,
+  pictures,
 }: ChapterEditorProps) {
+  const picturesExtension = usePicturesExtension(pictures);
   const spellExtension = useSpellExtension(spell);
   const latestPinned = useRef(pinned);
   latestPinned.current = pinned;
@@ -330,7 +352,7 @@ export function ChapterEditor({
   }).current;
 
   const editor = useEditor({
-    extensions: [...withPictures(chapterContent, pictureUrl), UndoRedo, SelectFocusExtension, issueMarksExtension, pinnedLines, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, ...mentionExtension, mentionInfo],
+    extensions: [...withPictures(chapterContent, pictureUrl), UndoRedo, SelectFocusExtension, issueMarksExtension, pinnedLines, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, ...mentionExtension, mentionInfo, picturesExtension],
     editorProps: {
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": label, class: "ghw-prose ghw-chapter" },
     },

@@ -5,18 +5,22 @@ import {
   caretScene,
   findCommands,
   getMarkdown,
+  insertPicture,
   linkCommands,
   liveCounts,
   MENTION_INFO_KEYS,
   mentionAtCaret,
+  pictureAt,
   serializeProse,
   sessionCommands,
+  setPicture,
   spellCommands,
   structureCommands,
   writingModeCommands,
   type EditorCommand,
   type Manuscript,
   type MentionTarget,
+  type PictureCallbacks,
 } from "@gh-writer/editor";
 import { ChapterEditor, FindReplace, SceneEditor, useWritingModes, WordCount, type SpellService } from "@gh-writer/editor/react";
 import type { Editor } from "@tiptap/core";
@@ -48,6 +52,7 @@ import { TodayCount } from "./today-count.tsx";
 import { useStructure } from "./structure.ts";
 import { TitleDialog } from "./structure-dialogs.tsx";
 import { chapterTitle } from "./navigation.tsx";
+import { PictureInTextDialog, type PictureRequest } from "./picture-in-text.tsx";
 import type { Workspace } from "./workspace.ts";
 
 interface Props {
@@ -118,6 +123,27 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
 
   // Pictures in the text load from the server's images route.
   const pictureUrl = useCallback((path: string) => imageUrl(novelId, path), [novelId]);
+  // A picture to add (dropped, pasted or from the palette) or change (Enter or a double-click on it): asked about in a dialog (#203).
+  const [pictureRequest, setPictureRequest] = useState<PictureRequest>();
+  const pictures: PictureCallbacks = {
+    add: (files, at) => setPictureRequest({ kind: "add", at, ...(files[0] ? { file: files[0] } : {}) }),
+    edit: (at) => {
+      const picture = editor && !editor.isDestroyed ? pictureAt(editor, at) : undefined;
+      if (picture) setPictureRequest({ kind: "edit", at, picture });
+    },
+  };
+  useCommands(
+    () => [
+      {
+        id: "writing.insertPicture",
+        title: "Insert a picture…",
+        group: "Writing",
+        keywords: ["image", "map", "illustration", "figure"],
+        run: () => editor && !editor.isDestroyed && setPictureRequest({ kind: "add", at: editor.state.selection.from }),
+      },
+    ],
+    [editor],
+  );
 
   // The scene the author is in, for "restore this scene": the open one, or the caret's in a chapter.
   const setCurrent = useCurrentScene((s) => s.set);
@@ -396,6 +422,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
             issueMarks={issueMarks}
             onMention={onMention}
             pictureUrl={pictureUrl}
+            pictures={pictures}
             {...(spell ? { spell } : {})}
           />
         ) : (
@@ -411,6 +438,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
             issueMarks={issueMarks}
             onMention={onMention}
             pictureUrl={pictureUrl}
+            pictures={pictures}
             {...(spell ? { spell } : {})}
           />
         )}
@@ -458,6 +486,24 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
             setMenu(undefined);
             raiseFromSelection();
           }}
+        />
+      )}
+      {pictureRequest && (
+        <PictureInTextDialog
+          novelId={novelId}
+          request={pictureRequest}
+          pictureUrl={pictureUrl}
+          onDone={(picture) => {
+            const request = pictureRequest;
+            setPictureRequest(undefined);
+            // Once the dialog has closed and given the text its focus back.
+            requestAnimationFrame(() => {
+              if (!editor || editor.isDestroyed) return;
+              if (request.kind === "add") insertPicture(editor, picture, request.at);
+              else setPicture(editor, request.at, picture);
+            });
+          }}
+          onClose={() => setPictureRequest(undefined)}
         />
       )}
       <NameEntryDialog novel={novel} />

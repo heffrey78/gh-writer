@@ -456,6 +456,8 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
     novel: async <Novel = unknown>(id: string) => (await request<{ novel: Novel; files: Record<string, string>; images: Record<string, string> }>("GET", `/api/novels/${encodeURIComponent(id)}`)).data,
     /** Give the book a cover (JPEG or PNG bytes, already resized): images/cover.jpg and `cover:` in novel.yaml, one commit. */
     setCover: (id: string, image: Blob) => upload<OperationResult & { cover: string }>("PUT", `/api/novels/${encodeURIComponent(id)}/cover`, image),
+    /** Save a picture for the prose (JPEG or PNG, already resized) under images/, named from `name`; the scene that names it commits it. */
+    addPicture: (id: string, image: Blob, name: string) => upload<{ path: string }>("PUT", `/api/novels/${encodeURIComponent(id)}/images?name=${encodeURIComponent(name)}`, image),
     removeCover: async (id: string) => (await request<OperationResult>("POST", `/api/novels/${encodeURIComponent(id)}/cover/delete`)).data,
     readFile: async (novelId: string, path: string) => (await request<TextFile & { path: string }>("GET", file(novelId, path))).data,
     /** Write if the file on disk still has hash `base` (null: doesn't exist); otherwise the current file comes back. */

@@ -1,6 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile, unlink } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
-import { loadNovel, type FileSource, type Novel } from "@gh-writer/core";
+import { loadNovel, picturePath, pictures, slugify, uniqueFileName, type FileSource, type Novel } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
 import { watch, type FSWatcher } from "chokidar";
 import { BibleOperations } from "./bible.ts";
@@ -8,7 +8,7 @@ import { BoardStore } from "./board.ts";
 import { Checkpoints } from "./checkpoints.ts";
 import { ManuscriptOperations } from "./manuscript.ts";
 import { Committer, type CommitStatus, type CommitterOptions } from "./committer.ts";
-import { atomicWrite, hashText, imageVersion, isVisible, readText, writablePath, type TextFile, type WriteHooks } from "./files.ts";
+import { atomicWrite, FileError, hashText, IMAGES_DIR, imageVersion, isVisible, readText, servableImage, sniffImage, writableImagePath, writablePath, type TextFile, type WriteHooks } from "./files.ts";
 import type { Library } from "./library.ts";
 import { git } from "./git.ts";
 import { githubRepoOf, type GitHub, type GitHubRepo } from "./github.ts";
@@ -77,6 +77,8 @@ export class NovelWorkspace {
   #exclusive?: Promise<unknown>;
 
   #github: GitHub | undefined;
+  /** Pictures the prose stopped naming, their files deleted: kept so a save that names one again (an Undo) brings it back. */
+  #dropped = new Map<string, { full: string; bytes: Uint8Array }>();
 
   constructor(root: string, { commit = {}, sync = {}, github }: WorkspaceOptions = {}) {
     this.root = root;
@@ -224,9 +226,61 @@ export class NovelWorkspace {
         this.#written.delete(path);
         throw e;
       }
+      await this.#prosePictures(path, current?.content ?? "", content);
       this.committer?.notify();
       return { ok: true, hash };
     }));
+  }
+
+  /**
+   * Save a picture for the prose (#203): `bytes` (JPEG or PNG, resized by the app) at images/<slug>.jpg
+   * or .png, the slug from `name` (with -2, -3… if taken). It isn't committed on its own: the scene that
+   * names it is saved next, and the two go in one commit.
+   */
+  addPicture(name: string, bytes: Uint8Array): Promise<{ path: string }> {
+    return this.#locked(IMAGES_DIR, () => this.#shared(async () => {
+      const format = sniffImage(bytes);
+      if (!format) throw new FileError("NOT_IMAGE", "That isn't a JPEG or PNG image.");
+      const names = await readdir(join(this.root, IMAGES_DIR)).catch(() => [] as string[]);
+      // A dropped picture's name stays taken, so an Undo can bring it back.
+      const taken = new Set([...names, ...[...this.#dropped.keys()].map((p) => p.slice(IMAGES_DIR.length + 1))]);
+      const path = `${IMAGES_DIR}/${uniqueFileName(name.trim() ? slugify(name) : "picture", format.ext, taken)}`;
+      await atomicWrite(await writableImagePath(this.root, path, bytes), bytes);
+      this.committer?.notify();
+      return { path };
+    }));
+  }
+
+  /**
+   * After a scene is saved: a picture it no longer names, that no other scene, entry or the cover does,
+   * has its file deleted (no picture is left behind in images/); one it names again whose file this
+   * deleted is put back.
+   */
+  async #prosePictures(path: string, before: string, after: string): Promise<void> {
+    if (!path.startsWith("manuscript/") || !path.endsWith(".md")) return;
+    const named = (text: string) => new Set(pictures(text).flatMap((p) => picturePath(p.src) ?? []));
+    const was = named(before);
+    const now = named(after);
+    for (const picture of now) {
+      const dropped = this.#dropped.get(picture);
+      if (!dropped) continue;
+      this.#dropped.delete(picture);
+      if (!(await servableImage(this.root, picture).catch(() => undefined))) await atomicWrite(dropped.full, dropped.bytes);
+    }
+    const gone = [...was].filter((p) => !now.has(p) && p.startsWith(`${IMAGES_DIR}/`));
+    if (!gone.length) return;
+    const novel = await loadNovel(nodeSource(this.root));
+    const kept = new Set<string | undefined>([novel.config?.cover, ...novel.entities.map((e) => e.image)]);
+    for (const scene of novel.allScenes) for (const p of pictures(scene.body)) kept.add(picturePath(p.src));
+    for (const picture of gone.filter((p) => !kept.has(p))) {
+      const image = await servableImage(this.root, picture).catch(() => undefined);
+      const bytes = image && (await readFile(image.full).catch(() => undefined));
+      if (!image || !bytes) continue;
+      await unlink(image.full);
+      this.#dropped.set(picture, { full: image.full, bytes });
+      // A few at most: enough for the Undo history of a session.
+      if (this.#dropped.size > 20) this.#dropped.delete(this.#dropped.keys().next().value!);
+    }
   }
 
   async #shared<T>(task: () => Promise<T>): Promise<T> {

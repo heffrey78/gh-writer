@@ -4,7 +4,7 @@ import { deflateSync } from "node:zlib";
 import { loadNovel, validate } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { BibleOperations, createServer, hashText, Library, sessionCookie } from "../src/index.ts";
+import { BibleOperations, createServer, hashText, Library, NovelWorkspace, sessionCookie } from "../src/index.ts";
 import { gitIn, novelRepo, scratch } from "./fixtures.ts";
 import { send } from "./http.ts";
 
@@ -175,6 +175,73 @@ describe("the book's cover", () => {
   });
 });
 
+describe("a picture in the prose (#203)", () => {
+  const STATION = "manuscript/01-return/01-arrival/01-the-station.md";
+  const BRIDGE = "manuscript/01-return/01-arrival/02-the-bridge.md";
+  let ws: NovelWorkspace;
+  beforeEach(() => {
+    ws = new NovelWorkspace(dir, { commit: false, sync: false });
+  });
+  const save = async (path: string, edit: (text: string) => string) => {
+    const result = await ws.write(path, edit(read(path)), hash(path));
+    expect(result.ok).toBe(true);
+  };
+  const add = (path: string, line: string) => save(path, (t) => `${t.trimEnd()}\n\n${line}\n`);
+  const without = (path: string, line: string) => save(path, (t) => t.replace(`\n\n${line}\n`, "\n"));
+
+  it("is saved under a name from its description, with a suffix if taken, and committed with the scene that names it", async () => {
+    const committed = new NovelWorkspace(dir, { commit: { quietMs: 60_000 }, sync: false });
+    try {
+      const before = commits();
+      const { path } = await committed.addPicture("A map of Varn", jpeg());
+      expect(path).toBe("images/a-map-of-varn.jpg");
+      expect(readFileSync(join(dir, path))).toEqual(jpeg());
+      expect((await committed.addPicture("A map of Varn", jpeg(2))).path).toBe("images/a-map-of-varn-2.jpg");
+      expect((await committed.addPicture("", jpeg())).path).toBe("images/picture.jpg");
+      expect(commits()).toBe(before);
+      const scene = read(STATION);
+      expect((await committed.write(STATION, `${scene}\n![A map of Varn](/images/a-map-of-varn.jpg "The valley")\n`, hash(STATION))).ok).toBe(true);
+      await committed.committer!.commit();
+      expect(commits()).toBe(before + 1);
+      expect(changedInLastCommit()).toEqual(expect.arrayContaining(["A\timages/a-map-of-varn.jpg", `M\t${STATION}`]));
+    } finally {
+      await committed.close();
+    }
+  });
+
+  it("refuses bytes that aren't JPEG or PNG", async () => {
+    await expect(ws.addPicture("x", Buffer.from("GIF89a"))).rejects.toMatchObject({ code: "NOT_IMAGE" });
+    expect(existsSync(join(dir, "images"))).toBe(false);
+  });
+
+  it("goes with the last scene that names it, and comes back with an Undo that names it again", async () => {
+    const { path } = await ws.addPicture("The seal", jpeg(7));
+    const line = `![The seal](/${path})`;
+    await add(STATION, line);
+    await add(BRIDGE, line);
+    await without(STATION, line);
+    expect(existsSync(join(dir, path)), "still named by the bridge").toBe(true);
+    await without(BRIDGE, line);
+    expect(existsSync(join(dir, path))).toBe(false);
+    // Its name stays taken while it might come back.
+    expect((await ws.addPicture("The seal", jpeg(8))).path).toBe("images/the-seal-2.jpg");
+    await add(BRIDGE, line);
+    expect(readFileSync(join(dir, path))).toEqual(jpeg(7));
+    expect(await warnings()).toEqual([]);
+  });
+
+  it("stays while an entry or the cover shows it, and a picture outside images/ is never touched", async () => {
+    await bible.setPicture(ADA, hash(ADA_FILE), jpeg());
+    await add(STATION, "![Ada](/images/ada-varn.jpg)");
+    await without(STATION, "![Ada](/images/ada-varn.jpg)");
+    expect(existsSync(join(dir, "images/ada-varn.jpg"))).toBe(true);
+    writeFileSync(join(dir, "map.png"), png());
+    await add(STATION, "![Map](/map.png)");
+    await without(STATION, "![Map](/map.png)");
+    expect(existsSync(join(dir, "map.png"))).toBe(true);
+  });
+});
+
 describe("through the server", () => {
   async function serve() {
     const library = await Library.open({ configDir: fresh("config") });
@@ -247,6 +314,20 @@ describe("through the server", () => {
       expect((await upload(`/bible/entities/${ADA}/picture?base=${hash(ADA_FILE)}&focus=2,0`, jpeg())).status).toBe(400);
       expect(images()).toEqual([]);
       clean();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("takes a picture for the prose, and refuses one that isn't JPEG or PNG", async () => {
+    const { server, upload, get } = await serve();
+    try {
+      const put = await upload("/images?name=A%20letter", png(2, 3), "image/png");
+      expect(put.status).toBe(200);
+      expect(await put.json()).toEqual({ path: "images/a-letter.png" });
+      expect((await get("/images/a-letter.png")).status).toBe(200);
+      const gif = await upload("/images?name=x", Buffer.from("GIF89a"), "image/gif");
+      expect([gif.status, ((await gif.json()) as { code: string }).code]).toEqual([400, "BAD_REQUEST"]);
     } finally {
       await server.close();
     }

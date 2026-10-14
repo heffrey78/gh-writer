@@ -120,3 +120,12 @@ export function objectPosition(focus: [number, number] | undefined): string {
   const [x, y] = focus ?? [0.5, 0.5];
   return `${Math.round(x * 100)}% ${Math.round(y * 100)}%`;
 }
+
+/** A picture in the prose (#203) is kept no larger than this on its longest edge: sharp on a page, quick to sync. */
+export const LONGEST_EDGE = 1600;
+
+/** The size a picture in the prose is saved at: its own, or smaller to fit LONGEST_EDGE (nothing is enlarged). */
+export function savedSize({ width, height }: { width: number; height: number }): Size {
+  const scale = Math.min(1, LONGEST_EDGE / Math.max(width, height));
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
+}

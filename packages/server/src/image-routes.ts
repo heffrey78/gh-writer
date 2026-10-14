@@ -6,13 +6,14 @@ import { FileError, IMAGES_DIR, MAX_IMAGE_BYTES, servableImage } from "./files.t
 import type { Library } from "./library.ts";
 
 /*
- * Pictures (#168): the bible's portraits and the book's cover, in images/.
+ * Pictures (#168, #203): the bible's portraits, the book's cover and the prose's pictures, in images/.
  *
  * GET  /:id/images/<path>                         the image at images/<path>, with its media type; ETag, revalidated each time
  * PUT  /:id/bible/entities/:entity/picture?base=&focus=x,y   the image's bytes (JPEG or PNG) → { file, image, commit }
  * POST /:id/bible/entities/:entity/picture/delete  { base } → { file, commit }
  * PUT  /:id/cover                                 the image's bytes → { cover, commit }
  * POST /:id/cover/delete                          → { commit }
+ * PUT  /:id/images?name=                          a picture for the prose (#203): the bytes → { path }, images/<name>.jpg or .png
  *
  * Uploads are refused over GitHub's 100 MB limit before they're read (413 TOO_LARGE), and anything but
  * JPEG or PNG bytes is 400 BAD_REQUEST. The app resizes pictures before sending them.
@@ -53,6 +54,17 @@ export function imageRoutes(routes: Hono<Env>, library: Library): void {
   routes.post("/:id/bible/entities/:entity/picture/delete", async (c) => {
     const { base } = await body(c);
     return operation(c, () => c.var.ws.bible.removePicture(c.req.param("entity"), String(base ?? "")));
+  });
+
+  // Not committed on its own: the scene naming it is saved next, and the two are committed together.
+  routes.put("/:id/images", upload, async (c) => {
+    const bytes = await bytesOf(c);
+    try {
+      return c.json(await c.var.ws.addPicture(c.req.query("name") ?? "", bytes));
+    } catch (e) {
+      if (!(e instanceof FileError)) throw e;
+      return c.json({ code: e.code === "TOO_LARGE" ? e.code : "BAD_REQUEST", error: e.message }, e.code === "TOO_LARGE" ? 413 : 400);
+    }
   });
 
   // The library shelf shows the cover: its entry is read again after each change.

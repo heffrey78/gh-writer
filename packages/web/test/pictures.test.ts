@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cropScale, expectedPath, initialCrop, MAX_PICTURE_BYTES, moveCrop, moveFocus, objectPosition, outputSize, pictureAlt, refusal, scaledCrop, shapeForType, SHAPES } from "../src/bible/pictures.ts";
+import { cropScale, expectedPath, initialCrop, MAX_PICTURE_BYTES, moveCrop, moveFocus, objectPosition, outputSize, pictureAlt, refusal, savedSize, scaledCrop, shapeForType, SHAPES } from "../src/bible/pictures.ts";
 
 const PHOTO = { width: 5472, height: 3648 }; // 20 megapixels, landscape
 
@@ -70,5 +70,14 @@ describe("the focal point", () => {
     expect(moveFocus([0.95, 0.5], 0.1, 0)).toEqual([1, 0.5]);
     expect(objectPosition([0.52, 0.3])).toBe("52% 30%");
     expect(objectPosition(undefined)).toBe("50% 50%");
+  });
+});
+
+describe("a picture in the prose (#203)", () => {
+  it("is kept no larger than 1600 px on its longest edge, its shape kept, and never enlarged", () => {
+    expect(savedSize(PHOTO)).toEqual({ width: 1600, height: 1067 });
+    expect(savedSize({ width: 1000, height: 1400 })).toEqual({ width: 1000, height: 1400 });
+    expect(savedSize({ width: 900, height: 3600 })).toEqual({ width: 400, height: 1600 });
+    expect(savedSize({ width: 20000, height: 1 })).toEqual({ width: 1600, height: 1 });
   });
 });
