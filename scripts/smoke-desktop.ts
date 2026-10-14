@@ -143,7 +143,7 @@ try {
   if (values.gui) {
     step("Starting the app itself, then quitting it as the system does (SIGTERM)");
     // The display and session the app needs, from this process (xvfb-run and dbus-run-session in CI).
-    const session = ["DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"].flatMap((k) => (process.env[k] ? [[k, process.env[k]!]] : []));
+    const session = ["DISPLAY", "XAUTHORITY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"].flatMap((k) => (process.env[k] ? [[k, process.env[k]!]] : []));
     const appEnv = { ...serverEnv, ...Object.fromEntries(session) };
     const window = spawn(app, [], { env: appEnv, stdio: ["ignore", "inherit", "pipe"] });
     let said = "";
