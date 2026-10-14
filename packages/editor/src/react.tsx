@@ -1,6 +1,6 @@
 import type { Content } from "@tiptap/core";
 import type { Fragment, Node } from "@tiptap/pm/model";
-import { Placeholder, UndoRedo } from "@tiptap/extensions";
+import { Dropcursor, Gapcursor, Placeholder, UndoRedo } from "@tiptap/extensions";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useStore } from "zustand";
@@ -15,6 +15,7 @@ import { PinnedLinesExtension, refreshPinnedLines } from "./pinned-lines.ts";
 import { LinkSuggestExtension } from "./link-suggest.ts";
 import { MentionInfoExtension, type MentionTarget } from "./mention-info.ts";
 import { PicturesExtension, type PictureCallbacks } from "./pictures.ts";
+import { TrailingParagraphExtension } from "./trailing.ts";
 import { MentionSuggestExtension, type MentionEntity, type MentionType } from "./mention-suggest.ts";
 import { SpellCheckExtension, type SpellService } from "./spell.ts";
 import { writingModes, WritingModesExtension, type WritingModes } from "./modes.ts";
@@ -84,6 +85,12 @@ function useMentionInfoExtension(callbacks: MentionCallbacks | undefined) {
   latest.current = callbacks;
   return MentionInfoExtension.configure({ onShow: (t) => latest.current?.show(t), onLeave: () => latest.current?.leave() });
 }
+
+/**
+ * Getting around tables and pictures (D10): a line to write on after a scene ending in one, the gap
+ * cursor between two (a caret where there's no text), and a mark where something dragged will land.
+ */
+const movingAround = [TrailingParagraphExtension, Gapcursor, Dropcursor.configure({ color: false, width: 3, class: "ghw-dropcursor" })];
 
 /** Pictures dropped, pasted or changed (Enter or a double-click on one), handed to the latest `pictures` prop. */
 function usePicturesExtension(callbacks: PictureCallbacks | undefined) {
@@ -201,6 +208,7 @@ export function SceneEditor({
       ...mentionExtension,
       mentionInfo,
       picturesExtension,
+      ...movingAround,
       Placeholder.configure({ placeholder }),
     ],
     editorProps: {
@@ -352,7 +360,7 @@ export function ChapterEditor({
   }).current;
 
   const editor = useEditor({
-    extensions: [...withPictures(chapterContent, pictureUrl), UndoRedo, SelectFocusExtension, issueMarksExtension, pinnedLines, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, ...mentionExtension, mentionInfo, picturesExtension],
+    extensions: [...withPictures(chapterContent, pictureUrl), UndoRedo, SelectFocusExtension, issueMarksExtension, pinnedLines, WritingModesExtension, WordCountExtension, FindExtension, SearchHighlightExtension, spellExtension, ...mentionExtension, mentionInfo, picturesExtension, ...movingAround],
     editorProps: {
       attributes: { role: "textbox", "aria-multiline": "true", "aria-label": label, class: "ghw-prose ghw-chapter" },
     },

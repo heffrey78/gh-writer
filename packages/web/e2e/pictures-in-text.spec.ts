@@ -83,7 +83,7 @@ test("chosen from the palette, resized, described and captioned; then changed by
   await expect.poll(() => novel.exists("images/a-map-of-varn.jpg")).toBe(true);
 });
 
-test("pasted into the text, and dropped between paragraphs, each asks for its description", async ({ page, app }) => {
+test("pasted into the text, and dropped between paragraphs, each asks for its description; dragged, one moves", async ({ page, app }) => {
   const novel = await openChapter(page, app);
   const dialog = page.getByRole("dialog", { name: "Insert a picture" });
 
@@ -120,4 +120,22 @@ test("pasted into the text, and dropped between paragraphs, each asks for its de
   await expect(dialog).toBeHidden();
   await expect.poll(() => novel.read(STATION)).toContain("the only passenger who stood.\n\n![Mirela's letter](/images/mirelas-letter.jpg)\n\nTwelve years");
   expect(novel.exists("images/mirelas-letter.jpg")).toBe(true);
+
+  // Dragged to move it: a mark shows where it will land, and it lands there.
+  const letter = novel.text.getByRole("img", { name: "Mirela's letter" });
+  const target = novel.text.locator("p", { hasText: "From the platform" });
+  // Tall enough for the picture and where it goes, both in view.
+  await page.setViewportSize({ width: 1280, height: 1400 });
+  await letter.scrollIntoViewIfNeeded();
+  const from = (await letter.boundingBox())!;
+  const to = (await target.boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x + 40, to.y + to.height - 4, { steps: 12 });
+  await expect(page.locator(".ghw-dropcursor")).toBeVisible();
+  await page.mouse.up();
+  await expect
+    .poll(() => novel.read(STATION))
+    .toContain("who stood.\n\nTwelve years had not moved the station clock. It still ran four minutes fast, as it had when her father set it, so that nobody in Varn would ever miss the last crossing.\n\nFrom the platform");
+  await expect.poll(() => novel.read(STATION)).toContain("Surveyors' flags.\n\n![Mirela's letter](/images/mirelas-letter.jpg)\n\nShe stood");
 });

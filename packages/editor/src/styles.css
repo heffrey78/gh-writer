@@ -119,6 +119,27 @@
   padding-left: 1.6em;
 }
 
+/* The marks themselves: an app's CSS reset (Tailwind's) takes them away. */
+.ghw-prose ul {
+  list-style: disc outside;
+}
+
+.ghw-prose ul ul {
+  list-style-type: circle;
+}
+
+.ghw-prose ul ul ul {
+  list-style-type: square;
+}
+
+.ghw-prose ol {
+  list-style: decimal outside;
+}
+
+.ghw-prose li::marker {
+  color: var(--ghw-muted);
+}
+
 .ghw-prose li > p {
   margin: 0 0 0.3em;
 }
@@ -174,6 +195,16 @@
   outline: 2px solid var(--ghw-accent);
   outline-offset: 4px;
   border-radius: 2px;
+}
+
+/* Where something dragged will land, and the caret between two blocks that aren't text. */
+.ghw-dropcursor {
+  background: var(--ghw-accent);
+  border-radius: 2px;
+}
+
+.ghw-prose .ProseMirror-gapcursor::after {
+  border-top: 2px solid var(--ghw-ink);
 }
 
 .ghw-prose .ghw-mention {

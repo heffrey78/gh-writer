@@ -14,7 +14,7 @@ async function palette(page: Page, query: string) {
   await expect(page.getByRole("dialog", { name: "Command palette" })).toHaveCount(0);
 }
 
-test("a heading and a table from the palette, filled in by keyboard, are written to the scene's Markdown", async ({ page, app }) => {
+test("a heading and a table from the palette, filled in by keyboard, with text and lists below, are written to the scene's Markdown", async ({ page, app }) => {
   const dir = app.novelRepo("varn");
   await app.restart(dir);
   await page.goto(app.launchUrl);
@@ -46,5 +46,30 @@ test("a heading and a table from the palette, filled in by keyboard, are written
   await expect(text.getByRole("row").nth(1).getByRole("cell")).toHaveText(["Ben", "nothing", "Monday", "luck"]);
   await axe(page);
 
-  await expect.poll(read, { timeout: 10_000 }).toContain("## At the toll house\n\n| Who | Paid    | When   | Why  |\n| --- | ------- | ------ | ---- |\n| Ben | nothing | Monday | luck |\n|     |         |        |      |\n");
+  // Below the table that ends the scene: a click on the line under it, or ↓ out of its last row.
+  await text.locator("table + p").click();
+  await page.keyboard.type("Paid in full.");
+  await expect(text.locator("table + p")).toHaveText("Paid in full.");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("End");
+  await page.keyboard.type(" Ben paid.");
+  await expect(text.locator("table + p")).toHaveText("Paid in full. Ben paid.");
+
+  // Lists show their bullets and numbers, past the app's CSS reset.
+  await page.keyboard.press("Enter");
+  for (const step of ["- bread", "Enter", "salt", "Enter", "Enter", "1. first"]) {
+    if (step === "Enter") await page.keyboard.press(step);
+    else await page.keyboard.type(step);
+  }
+  const style = (selector: string) => text.locator(selector).last().evaluate((el) => getComputedStyle(el).listStyleType);
+  expect(await style("ul")).toBe("disc");
+  expect(await style("ol")).toBe("decimal");
+  await axe(page);
+
+  await expect
+    .poll(read, { timeout: 10_000 })
+    .toContain(
+      "## At the toll house\n\n| Who | Paid    | When   | Why  |\n| --- | ------- | ------ | ---- |\n| Ben | nothing | Monday | luck |\n|     |         |        |      |\n\nPaid in full. Ben paid.\n\n- bread\n- salt\n\n1. first\n",
+    );
 });

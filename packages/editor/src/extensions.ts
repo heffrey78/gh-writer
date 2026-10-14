@@ -305,7 +305,8 @@ export const Picture = Node.create<PictureOptions>({
   group: "block",
   atom: true,
   selectable: true,
-  draggable: false,
+  // Dragged to move it, with a mark where it will land.
+  draggable: true,
   addOptions: () => ({ url: (path) => `/${path}` }),
   addAttributes: () => ({
     url: { default: "", rendered: false, parseHTML: (el) => el.getAttribute("data-url") ?? "" },
