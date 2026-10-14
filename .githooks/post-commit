@@ -1,0 +1,13 @@
+#!/bin/sh
+# After each commit, a new Arch package, built in the background (scripts/arch-build-on-commit.sh).
+# Turned on per clone with `git config core.hooksPath .githooks`; off with `git config --unset core.hooksPath`.
+# Skipped while a rebase, merge or cherry-pick makes commits one after another (the next plain commit
+# builds), and with GH_WRITER_NO_ARCH_BUILD=1.
+gitdir=$(git rev-parse --absolute-git-dir)
+[ -n "${GH_WRITER_NO_ARCH_BUILD:-}" ] && exit 0
+for busy in rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD; do
+  [ -e "$gitdir/$busy" ] && exit 0
+done
+touch "$gitdir/arch-build.pending"
+setsid -f "$(git rev-parse --show-toplevel)/scripts/arch-build-on-commit.sh" </dev/null >/dev/null 2>&1
+exit 0
