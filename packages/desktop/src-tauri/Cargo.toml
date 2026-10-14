@@ -3,6 +3,7 @@ name = "gh-writer"
 version = "0.1.0"
 description = "gh-writer's desktop app: the server bundle on its own Node and git, in a window (D9)"
 license = "MIT"
+authors = ["Jeff Wikstrom"]
 repository = "https://github.com/heffrey78/gh-writer"
 edition = "2024"
 rust-version = "1.85"
@@ -23,3 +24,9 @@ serde_json = "1"
 
 [target.'cfg(unix)'.dependencies]
 tokio = { version = "1", features = ["signal"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

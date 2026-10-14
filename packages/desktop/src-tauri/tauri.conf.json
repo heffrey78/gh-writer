@@ -17,9 +17,17 @@
     "active": true,
     "category": "Productivity",
     "shortDescription": "Plan and write a novel with GitHub",
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
     "resources": {
       "../../../dist/server/": "server/"
-    }
+    },
+    "publisher": "Jeff Wikstrom",
+    "copyright": "Copyright (c) 2026 Jeff Wikstrom"
   }
 }

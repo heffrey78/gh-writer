@@ -21,7 +21,8 @@
     "test:e2e": "npm run test:e2e -w @gh-writer/editor && npm run test:e2e -w @gh-writer/web",
     "build:server": "npm run build && node scripts/build-server.ts",
     "fetch:runtime": "node scripts/fetch-runtime.ts",
-    "desktop": "npm run build:server && npm run fetch:runtime && npm run dev -w @gh-writer/desktop"
+    "desktop": "npm run build:server && npm run fetch:runtime && npm run dev -w @gh-writer/desktop",
+    "desktop:arch": "npm run build:server && npm run fetch:runtime && packages/desktop/arch/build.sh"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

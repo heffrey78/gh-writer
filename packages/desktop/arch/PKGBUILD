@@ -1,0 +1,23 @@
+# gh-writer for Arch Linux, from the .deb the desktop build makes, using the system's WebKitGTK.
+# Build with `npm run desktop:arch` (which builds the .deb, then runs makepkg here), then install
+# with `sudo pacman -U packages/desktop/arch/gh-writer-*.pkg.tar.zst`.
+pkgname=gh-writer
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Plan and write a novel with GitHub"
+arch=('x86_64')
+url="https://github.com/heffrey78/gh-writer"
+# gh-writer is MIT; the git inside it is GPL-2.0 (its licence and source offer are in
+# /usr/lib/gh-writer/runtime/licenses).
+license=('MIT' 'GPL-2.0-only')
+# The keychain needs libsecret (and a Secret Service, such as GNOME Keyring or KWallet); the git
+# inside uses the system's libcurl for https.
+depends=('webkit2gtk-4.1' 'gtk3' 'libsecret' 'curl')
+# Node's and git's own binaries ship as their makers built them.
+options=('!strip' '!debug')
+source=("gh-writer_${pkgver}_amd64.deb")
+sha256sums=('SKIP')
+
+package() {
+  bsdtar -xf data.tar.gz -C "$pkgdir"
+}

@@ -89,6 +89,15 @@ The shell (`src-tauri/src`) does the following:
 - If the app itself dies, the closed pipe stops the server.
 - If the server stops on its own, the app offers to restart it.
 
+Installers for Linux:
+
+| Command | Makes | Size |
+|---|---|---|
+| `npm run desktop:arch` | an Arch package (`packages/desktop/arch/gh-writer-*.pkg.tar.zst`; install with `sudo pacman -U`), repackaged from the .deb by `arch/PKGBUILD` | about 58 MB |
+| `npm run build:server && npm run fetch:runtime`, then `npx tauri build` in `packages/desktop` | the .deb and the AppImage (`src-tauri/target/release/bundle/`) | about 82 MB and 165 MB |
+
+The .deb and the Arch package use the system's WebKitGTK. The AppImage carries WebKitGTK and its libraries itself, which is most of its size. It runs with FUSE 3 alone, or with `--appimage-extract-and-run`.
+
 The server's messages go to `server.log` in the app's log folder (`~/.local/share/io.github.heffrey78.ghwriter/logs` on Linux). The previous run's are in `server.previous.log`. `cargo test` in `src-tauri` runs the shell's unit tests.
 
 ## Conventions

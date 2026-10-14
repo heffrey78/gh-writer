@@ -7,3 +7,7 @@ playwright-report/
 *.tsbuildinfo
 packages/desktop/src-tauri/target/
 packages/desktop/src-tauri/gen/
+packages/desktop/arch/*.deb
+packages/desktop/arch/*.pkg.tar.zst
+packages/desktop/arch/src/
+packages/desktop/arch/pkg/
