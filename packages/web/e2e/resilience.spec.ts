@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
-import { expect, test, type App } from "./fixtures.ts";
+import { caretAtEnd, expect, test, type App } from "./fixtures.ts";
 
 /**
  * #2's promises, met the way an author would meet them: the real app on real servers, git only read
@@ -36,8 +36,7 @@ async function openNovel(page: Page, launchUrl: string) {
 
 /** Type at the end of the open text (the chapter's last scene, or the scene). */
 async function typeAtEnd(page: Page, words: string) {
-  await text(page).focus();
-  await page.keyboard.press("Control+End");
+  await caretAtEnd(page, text(page));
   await page.keyboard.type(words);
 }
 

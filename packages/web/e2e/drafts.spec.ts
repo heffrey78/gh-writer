@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { axe, expect, test } from "./fixtures.ts";
+import { axe, caretAtEnd, expect, test } from "./fixtures.ts";
 
 const BRIDGE = "manuscript/01-return/01-arrival/02-the-bridge.md";
 const drafts = (page: Page) => page.getByRole("dialog", { name: "Drafts" });
@@ -24,8 +24,7 @@ test("Drafts lists each version with its own checkpoints, warns before bringing 
   await drafts(page).getByRole("button", { name: "Start version" }).click();
   await expect(page.getByRole("button", { name: "Drafts: Night ending is open" })).toBeVisible();
 
-  await text.click();
-  await page.keyboard.press("Control+End");
+  await caretAtEnd(page, text);
   await page.keyboard.type(" It was night.");
   await expect.poll(() => readFileSync(join(dir, BRIDGE), "utf8"), { timeout: 10_000 }).toContain("It was night.");
   await page.getByRole("button", { name: "Drafts: Night ending is open" }).click();

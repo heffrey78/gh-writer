@@ -72,9 +72,12 @@ test("moves a scene by dragging it before another", async ({ page, app }) => {
   await item(page, "Ben's Ledger").dragTo(item(page, "Tomas's Workshop"), { targetPosition: { x: 20, y: 3 } });
   await expect.poll(() => novel.read(`${OLD_DEBTS}/_chapter.yaml`)).toContain("scenes: [sc_1edger, sc_w0rk5h]");
   await expect(notice(page)).toContainText("Moved “Ben's Ledger”");
-  // And onto a chapter: to its end.
-  await item(page, "Ben's Ledger").dragTo(item(page, "Arrival"));
-  await expect.poll(() => novel.read(`${ARRIVAL}/_chapter.yaml`)).toContain("scenes: [sc_5tat1n, sc_br1dg3, sc_1edger]");
+  // And onto a chapter: to its end. The tree may still be redrawing from the first move (WebKit is
+  // slower to), so the drag is tried again until it lands; a second drop puts it at the end again.
+  await expect(async () => {
+    await item(page, "Ben's Ledger").dragTo(item(page, "Arrival"));
+    expect(novel.read(`${ARRIVAL}/_chapter.yaml`)).toContain("scenes: [sc_5tat1n, sc_br1dg3, sc_1edger]");
+  }).toPass({ timeout: 15_000 });
 });
 
 test("adds, renames and deletes a scene, and Undo brings it back", async ({ page, app }) => {

@@ -112,9 +112,13 @@ export function RightSidebar({ content, toText }: { content: Record<SidebarTab, 
       }
       const { open, sheet } = useRightSidebar.getState();
       if (e.key === "F6" && !mod && !e.altKey && (wide() ? open : sheet)) {
+        // Handled here only: the text mustn't see the key too, or WebKit hands it focus back.
         e.preventDefault();
-        if (aside.current?.contains(document.activeElement)) toText();
-        else tabs.current[useRightSidebar.getState().tab]?.focus();
+        e.stopPropagation();
+        if (aside.current?.contains(document.activeElement)) return toText();
+        const tab = () => tabs.current[useRightSidebar.getState().tab];
+        tab()?.focus();
+        requestAnimationFrame(() => document.activeElement !== tab() && tab()?.focus());
       }
     };
     window.addEventListener("keydown", onKey, true);

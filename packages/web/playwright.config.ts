@@ -15,7 +15,7 @@ export default defineConfig({
     { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: /performance/ },
     // WebKit: the engine of the desktop app's window on macOS and Linux (#187). Its own Linux user
     // agent, like the Linux webview's (a Safari one would make the app use the Mac's shortcuts).
-    ...(browsers.includes("webkit") ? [{ name: "webkit", use: { browserName: "webkit" as const, viewport: { width: 1280, height: 720 } }, testIgnore: /performance/ }] : []),
+    ...(browsers.includes("webkit") ? [{ name: "webkit", use: { browserName: "webkit" as const, viewport: { width: 1280, height: 720 } }, testIgnore: /performance/, timeout: 60_000, expect: { timeout: 10_000 } }] : []),
     // The benchmarks run alone, after the rest and one at a time, so nothing competes with them for the CPU.
     { name: "performance", use: { ...devices["Desktop Chrome"] }, testMatch: /performance/, dependencies: ["chromium"], fullyParallel: false, workers: 1 },
   ],

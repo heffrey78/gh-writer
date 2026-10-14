@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { AxeBuilder } from "@axe-core/playwright";
-import { test as base, expect, type Page } from "@playwright/test";
+import { test as base, expect, type Locator, type Page } from "@playwright/test";
 import { fakeGitHub, type FakeGitHub } from "../../server/test/fake-github.ts";
 
 const repo = fileURLToPath(new URL("../../..", import.meta.url));
@@ -53,6 +53,26 @@ export const git = (dir: string, ...args: string[]) => execFileSync("git", ["-C"
 export async function axe(page: Page) {
   await page.waitForFunction(() => document.getAnimations().every((a) => !(a instanceof CSSTransition) || a.playState !== "running"));
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+}
+
+/**
+ * The caret at the end of a text box, by keyboard (Ctrl+End), checked: in WebKit a Ctrl+End pressed
+ * as the box takes focus can be lost, and the typing that follows lands where the caret was.
+ */
+export async function caretAtEnd(page: Page, box: Locator) {
+  await box.focus();
+  await expect(async () => {
+    await page.keyboard.press("Control+End");
+    const atEnd = await box.evaluate((el) => {
+      const selection = getSelection();
+      if (!selection?.rangeCount || !selection.isCollapsed || !el.contains(selection.focusNode) || !el.lastChild) return false;
+      const after = document.createRange();
+      after.setStart(selection.focusNode!, selection.focusOffset);
+      after.setEndAfter(el.lastChild);
+      return after.toString().trim() === "";
+    });
+    expect(atEnd).toBe(true);
+  }).toPass({ timeout: 5_000 });
 }
 
 /** Open the app with its launch URL, and wait until it has traded the token for a session. */

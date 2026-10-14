@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { axe, expect, test } from "./fixtures.ts";
+import { axe, caretAtEnd, expect, test } from "./fixtures.ts";
 
 const STATION = "manuscript/01-return/01-arrival/01-the-station.md";
 const BRIDGE = "manuscript/01-return/01-arrival/02-the-bridge.md";
@@ -26,8 +26,7 @@ test("compares a version with the main one, word by word, and a checkpoint with 
   await expect(notice(page)).toContainText("Started the version");
 
   // A sentence typed in the app, and a word changed in another editor.
-  await text.click();
-  await page.keyboard.press("Control+End");
+  await caretAtEnd(page, text);
   await page.keyboard.type(" The bridge fell.");
   await expect.poll(() => readFileSync(join(dir, BRIDGE), "utf8"), { timeout: 10_000 }).toContain("The bridge fell.");
   const station = join(dir, STATION);

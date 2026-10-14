@@ -14,7 +14,7 @@ export default defineConfig({
     { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: /latency/ },
     // WebKit: the engine of the desktop app's window on macOS and Linux (#187). Its own Linux user
     // agent, like the Linux webview's (a Safari one would make the app use the Mac's shortcuts).
-    ...(browsers.includes("webkit") ? [{ name: "webkit", use: { browserName: "webkit" as const, viewport: { width: 1280, height: 720 } }, testIgnore: /latency/ }] : []),
+    ...(browsers.includes("webkit") ? [{ name: "webkit", use: { browserName: "webkit" as const, viewport: { width: 1280, height: 720 } }, testIgnore: /latency/, timeout: 60_000, expect: { timeout: 10_000 } }] : []),
     // The latency benchmark runs alone, after the rest, so other tests don't compete for the CPU.
     { name: "latency", use: { ...devices["Desktop Chrome"] }, testMatch: /latency/, dependencies: ["chromium"] },
   ],

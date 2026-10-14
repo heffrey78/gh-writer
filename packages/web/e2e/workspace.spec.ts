@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { axe, expect, test, type App } from "./fixtures.ts";
+import { axe, caretAtEnd, expect, test, type App } from "./fixtures.ts";
 
 const STATION = "manuscript/01-return/01-arrival/01-the-station.md";
 const BRIDGE = "manuscript/01-return/01-arrival/02-the-bridge.md";
@@ -101,8 +101,7 @@ test("a save that meets newer text on disk in the same paragraph asks, and keeps
   await open(page, app, m.here);
   await page.getByRole("treeitem", { name: /^Walking the Span,/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Walking the Span" })).toBeVisible();
-  await text(page).click();
-  await page.keyboard.press("Control+End");
+  await caretAtEnd(page, text(page));
   await page.keyboard.type(" Typed here.");
   // Before the save goes out, another editor rewrites the same paragraph.
   const lines = m.read(m.here, BRIDGE).trimEnd().split("\n");

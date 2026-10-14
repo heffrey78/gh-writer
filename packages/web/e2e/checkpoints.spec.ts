@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { axe, expect, test, type App } from "./fixtures.ts";
+import { axe, caretAtEnd, expect, test, type App } from "./fixtures.ts";
 
 const STATION = "manuscript/01-return/01-arrival/01-the-station.md";
 const BRIDGE = "manuscript/01-return/01-arrival/02-the-bridge.md";
@@ -28,8 +28,7 @@ async function makeCheckpoint(page: Page, name: string) {
 /** Type at the end of the open text, and wait until it's on disk in `path`. */
 async function typeAtEnd(page: Page, text: string, file: () => string) {
   const box = page.getByRole("textbox", { name: /^(Chapter|Scene) text$/ });
-  await box.click();
-  await page.keyboard.press("Control+End");
+  await caretAtEnd(page, box);
   await page.keyboard.type(text);
   await expect.poll(file, { timeout: 10_000 }).toContain(text.trim());
   await saved(page);

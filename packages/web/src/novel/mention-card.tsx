@@ -77,9 +77,15 @@ export function MentionCard({ novelId, novel }: { novelId: string; novel: Novel 
     });
   }, [card]);
 
-  // By keyboard, focus goes into the card.
+  // By keyboard, focus goes into the card. WebKit can hand it back to the text as the key that opened
+  // the card finishes, so the card takes it again on the next frame if it has lost it.
   useEffect(() => {
-    if (card?.via === "keyboard" && place) ref.current?.focus();
+    if (card?.via !== "keyboard" || !place) return;
+    ref.current?.focus();
+    const frame = requestAnimationFrame(() => {
+      if (!ref.current?.contains(document.activeElement)) ref.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
   }, [card, place]);
 
   // Escape closes; so do typing, scrolling away and clicking elsewhere.

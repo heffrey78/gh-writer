@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { axe, expect, launch, test, type App } from "./fixtures.ts";
+import { axe, caretAtEnd, expect, launch, test, type App } from "./fixtures.ts";
 
 /**
  * #7's promises, walked the way a keyboard user would meet them: every flow mouse-free, focus always
@@ -128,8 +128,7 @@ for (const [name, viewport] of [
     await page.keyboard.press("Escape");
     // Closed, not closing: until it's gone its focus trap would take the keys typed next.
     await expect(panel).toHaveCount(0);
-    await text.focus();
-    await page.keyboard.press("Control+End");
+    await caretAtEnd(page, text);
     await page.keyboard.type(" Then more.");
     await expect.poll(() => readFileSync(join(here, BRIDGE), "utf8"), { timeout: 10_000 }).toContain("Then more.");
     await palette(page, "checkpoints");

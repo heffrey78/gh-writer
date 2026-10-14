@@ -14,8 +14,15 @@ async function downloaded(page: Page): Promise<{ name: string; text: string }> {
   return { name: file.suggestedFilename(), text: readFileSync((await file.path())!, "utf8") };
 }
 
-test("the graph exports as SVG and as Mermaid, as it stands at the page's scene", async ({ page, app, context }) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+test("the graph exports as SVG and as Mermaid, as it stands at the page's scene", async ({ page, app, context, browserName }) => {
+  // Chromium reads the clipboard back once allowed. WebKit has no clipboard permissions to grant and
+  // reads it only on a gesture, so there the test notes what the app writes.
+  if (browserName === "chromium") await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  else
+    await page.addInitScript(() => {
+      const write = navigator.clipboard.writeText.bind(navigator.clipboard);
+      navigator.clipboard.writeText = (text) => ((window as unknown as { __copied: string }).__copied = text, write(text));
+    });
   await open(page, app, "Relationships");
   const slider = page.getByRole("slider", { name: "Story position" });
   await slider.focus();
@@ -38,7 +45,7 @@ test("the graph exports as SVG and as Mermaid, as it stands at the page's scene"
   await page.getByRole("button", { name: "Export" }).click();
   await page.getByRole("menuitem", { name: "Copy Mermaid" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Copied the diagram as Mermaid" })).toBeVisible();
-  const mermaid = await page.evaluate(() => navigator.clipboard.readText());
+  const mermaid = await page.evaluate(() => (window as unknown as { __copied?: string }).__copied ?? navigator.clipboard.readText());
   expect(mermaid).toMatch(/^flowchart LR\n/);
   expect(mermaid).toContain('char_7f3k2q -.-|"Rivals with"| char_b3n0vs');
 });

@@ -112,6 +112,15 @@ export function ManuscriptTree({ novelId, novel, structure, current }: { novelId
       e.preventDefault();
       focusNode(target?.id);
     };
+    // The context menu from the keyboard. Chromium turns Shift+F10 into a contextmenu event by itself;
+    // WebKit (the desktop app's window on macOS and Linux) doesn't, so the tree opens it at the item.
+    if ((e.shiftKey && e.key === "F10") || e.key === "ContextMenu") {
+      e.preventDefault();
+      const item = e.target as HTMLElement;
+      const box = item.getBoundingClientRect();
+      item.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: box.left + 16, clientY: box.bottom }));
+      return;
+    }
     if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
       e.preventDefault();
       refocus.current = n.id;

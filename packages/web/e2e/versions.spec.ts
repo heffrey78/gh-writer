@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { axe, expect, test, type App } from "./fixtures.ts";
+import { axe, caretAtEnd, expect, test, type App } from "./fixtures.ts";
 
 const BRIDGE = "manuscript/01-return/01-arrival/02-the-bridge.md";
 
@@ -34,8 +34,7 @@ test("starts a version, writes in it apart from the main one, switches back and 
   await expect(notice(page)).toContainText("Started the version “A darker ending”");
   await expect(page.getByRole("button", { name: "Drafts: A darker ending is open" })).toBeVisible();
 
-  await text(page).click();
-  await page.keyboard.press("Control+End");
+  await caretAtEnd(page, text(page));
   await page.keyboard.type(" The bridge fell.");
   await expect.poll(() => novel.read(BRIDGE), { timeout: 10_000 }).toContain("The bridge fell.");
 
