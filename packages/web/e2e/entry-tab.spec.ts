@@ -38,18 +38,11 @@ test("the Entry tab: a sheet to read, Back and Forward through names opened, a p
   await ada.getByRole("button", { name: "Forward" }).click();
   await expect(place).toBeVisible();
 
-  // Kept: a name opened elsewhere says so instead of replacing it.
-  await place.getByRole("button", { name: "Keep this entry here" }).click();
-  await expect(place.getByRole("button", { name: "Keep this entry here" })).toHaveAttribute("aria-pressed", "true");
+  // Nothing holds the tab (#222): a name opened elsewhere replaces what's there, and there's no pin.
+  await expect(place.getByRole("button", { name: /^Keep this/ })).toHaveCount(0);
   await sceneTab.click();
   await station.getByRole("button", { name: "Ada Varn" }).first().click();
-  const notice = page.getByRole("status").filter({ hasText: "The Entry tab is pinned to another entry." });
-  await expect(notice).toBeVisible();
-  await entryTab.click();
-  await expect(place).toBeVisible();
-  await notice.getByRole("button", { name: "Unpin and open" }).click();
   await expect(ada).toBeFocused();
-  await expect(ada.getByRole("button", { name: "Keep this entry here" })).toHaveAttribute("aria-pressed", "false");
 
   // Edited in place, as on its page.
   await ada.getByRole("button", { name: "Edit occupation" }).click();

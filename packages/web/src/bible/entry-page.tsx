@@ -286,7 +286,7 @@ export function EntryPage({
       {!tab && <EntryIssues novelId={novelId} novel={novel} entity={entity} />}
 
       <InTheStory novelId={novelId} novel={novel} entity={entity} compact={tab} />
-      <NotesAbout novelId={novelId} novel={novel} id={entity.id} beside={tab} />
+      <NotesAbout novelId={novelId} novel={novel} id={entity.id} />
       {!tab && <TypeSections novelId={novelId} novel={novel} entity={entity} workspace={workspace} />}
 
       <RelationshipArcs novelId={novelId} novel={novel} entity={entity} compact={tab} />

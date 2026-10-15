@@ -95,17 +95,17 @@ test("notes are made from the palette, made into an event or a scene, and delete
   await expect.poll(() => app.git(dir, "log", "-1", "--format=%s").trim()).toBe("Notes: remove “What if Ben never sold the plans?”");
 });
 
-test("the book pane's Notes: newest first, found by tag or words, beside the text while writing", async ({ page, app }) => {
+test("the book pane's Notes: newest first, found by tag or words; a new note opens on its page, ready to write", async ({ page, app }) => {
   await openNovel(page, app);
   const pane = page.getByRole("region", { name: /^Notes\s*\d+$/ });
   await expect(pane.getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
 
-  // + New note while writing: made, and open beside the text.
+  // + New note while writing: made, on its own page, the caret in its prose (#222).
   await pane.getByRole("button", { name: "New note" }).click();
   await page.getByRole("dialog", { name: "New note" }).getByRole("textbox", { name: "Title" }).fill("A toll on the bridge");
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("heading", { level: 2, name: "A toll on the bridge" })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "A toll on the bridge" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Note: A toll on the bridge" })).toBeFocused();
   // Newest first: made today, after the sample's.
   await expect(pane.getByRole("link")).toHaveText(["A toll on the bridge", "What if Ben never sold the plans?"]);
   for (const colorScheme of ["light", "dark"] as const) {

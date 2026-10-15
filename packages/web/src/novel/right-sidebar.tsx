@@ -86,7 +86,9 @@ const TABS: { key: SidebarTab; label: string; icon: typeof FileText }[] = [
  * The sidebar, open or as its strip. `toText` puts the focus back in the text (Escape, F6);
  * `content` is what each tab shows.
  */
-export function RightSidebar({ content, toText }: { content: Record<SidebarTab, ReactNode>; toText: () => void }) {
+export function RightSidebar({ content, toText, labels = {} }: { content: Record<SidebarTab, ReactNode>; toText: () => void; labels?: Partial<Record<SidebarTab, string>> }) {
+  // A tab may say what it's showing (the Entry tab an event, as "Event").
+  const label = (t: (typeof TABS)[number]) => labels[t.key] ?? t.label;
   const { open: opened, sheet, tab, width, set, toggle, show } = useRightSidebar();
   const isWide = useSyncExternalStore(
     (changed) => {
@@ -138,7 +140,7 @@ export function RightSidebar({ content, toText }: { content: Record<SidebarTab, 
           <PanelRightOpen className="size-4" aria-hidden />
         </button>
         {TABS.map((t) => (
-          <button key={t.key} type="button" onClick={() => show(t.key)} aria-label={t.label} title={t.label} className="rounded-md p-2 text-muted hover:bg-paper hover:text-ink">
+          <button key={t.key} type="button" onClick={() => show(t.key)} aria-label={label(t)} title={label(t)} className="rounded-md p-2 text-muted hover:bg-paper hover:text-ink">
             <t.icon className="size-4" aria-hidden />
           </button>
         ))}
@@ -220,7 +222,7 @@ export function RightSidebar({ content, toText }: { content: Record<SidebarTab, 
                 onClick={() => set({ tab: t.key })}
                 className={cn("-mb-px border-b-2 px-3 py-2 text-sm", tab === t.key ? "border-accent font-semibold" : "border-transparent text-muted hover:text-ink")}
               >
-                {t.label}
+                {label(t)}
               </button>
             ))}
           </div>

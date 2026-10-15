@@ -297,6 +297,8 @@ test("events where the story's facts show: @ mentions and their cards, profiles'
   await axe(page);
   await card.getByRole("button", { name: "Open event" }).click();
   await expect(page.getByRole("heading", { level: 2, name: "The flood of '09" })).toBeVisible();
+  // The tab says what it's showing (#222).
+  await expect(page.getByRole("tab", { name: "Event" })).toHaveAttribute("aria-selected", "true");
 
   // The scene card says where the scene stands against the events around it.
   await page.getByRole("tab", { name: "Scene" }).click();

@@ -4,8 +4,8 @@ import { joinSceneFile } from "@gh-writer/editor";
 import { SceneEditor, type SpellService } from "@gh-writer/editor/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowUpRight, Trash2 } from "lucide-react";
-import { useEffect, useId, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router";
 import { useStore } from "zustand";
 import { api, keys } from "../api.ts";
 import { AddButton, PencilButton, TextEditor, useInPlace } from "../bible/profile.tsx";
@@ -30,7 +30,6 @@ export function NotePage({
   workspace,
   spell,
   embedded,
-  size = "page",
 }: {
   novelId: string;
   novel: Novel;
@@ -39,10 +38,7 @@ export function NotePage({
   spell?: { service: SpellService; onAddWord: (w: string) => void } | undefined;
   /** Shown in a side panel beside the text: its title is a level-2 heading with this ID. */
   embedded?: { headingId: string };
-  /** The whole page, or the right sidebar's Entry tab, which leaves out promoting and deleting and links to the page. */
-  size?: "page" | "tab";
 }) {
-  const tab = size === "tab";
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const show = useNotice((n) => n.show);
@@ -56,10 +52,19 @@ export function NotePage({
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => void workspace.open([note.file]), [workspace, note.file]);
-  useCommands(
-    () => (tab ? [] : [{ id: "note.promote", title: `Make “${note.title}” an event or a scene`, group: "Notes", keywords: ["promote", "event", "scene"], run: () => setPromoting(true) }]),
-    [tab, note.title],
-  );
+  useCommands(() => [{ id: "note.promote", title: `Make “${note.title}” an event or a scene`, group: "Notes", keywords: ["promote", "event", "scene"], run: () => setPromoting(true) }], [note.title]);
+
+  // A note just made: the caret goes into its prose, ready to write (#222).
+  const { state } = useLocation() as { state: { focusProse?: boolean } | null };
+  const prose = useRef<HTMLDivElement>(null);
+  const focused = useRef(false);
+  useEffect(() => {
+    if (!state?.focusProse || focused.current || !file) return;
+    const text = prose.current?.querySelector<HTMLElement>("[contenteditable=true]");
+    if (!text) return;
+    focused.current = true;
+    text.focus();
+  });
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: keys.novel(novelId) });
   /** The file's current hash, after anything still being saved. */
@@ -92,7 +97,7 @@ export function NotePage({
   return (
     <div className={embedded ? "grid gap-4" : "mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] gap-5 px-6 py-6"}>
       <div className="grid gap-1.5">
-        {!tab && (
+        {!embedded && (
           <div className="flex flex-wrap items-center gap-2">
             <p className="flex-1 text-sm text-muted">Note{note.created && ` · ${note.created}`}</p>
             <Button variant="ghost" size="sm" onClick={() => setPromoting(true)}>
@@ -155,7 +160,7 @@ export function NotePage({
           The note
         </h2>
         {file ? (
-          <div className="-mx-1 rounded-md px-1 focus-within:bg-panel/60">
+          <div ref={prose} className="-mx-1 rounded-md px-1 focus-within:bg-panel/60">
             <SceneEditor
               key={note.file}
               sceneId={note.file}
@@ -173,12 +178,6 @@ export function NotePage({
           <p className="text-sm text-muted">Opening…</p>
         )}
       </section>
-
-      {tab && (
-        <Link to={`/novels/${novelId}/note/${note.id}`} className="justify-self-start text-sm text-accent underline decoration-accent/35 underline-offset-[3px] hover:decoration-accent">
-          Open the full note
-        </Link>
-      )}
 
       {promoting && <PromoteNoteDialog novelId={novelId} novel={novel} note={note} flush={() => workspace.autosave.flush()} open onOpenChange={setPromoting} />}
       <Confirm open={deleting} onOpenChange={setDeleting} title={`Delete “${note.title}”?`} description="The note goes from the novel. It stays in the history." action="Delete" danger onConfirm={() => remove.mutate()} />

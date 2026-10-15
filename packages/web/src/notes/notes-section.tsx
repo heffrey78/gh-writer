@@ -3,7 +3,6 @@ import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { NavLink } from "react-router";
 import { useStore } from "zustand";
-import { useEntryPanel } from "../novel/entry-tab.tsx";
 import type { Workspace } from "../novel/workspace.ts";
 import { cn } from "../ui/cn.ts";
 import { useNewNote } from "./new-note.tsx";
@@ -20,10 +19,10 @@ function remembered(): boolean {
 
 /**
  * The book pane's Notes section (#205), a sibling of Off the page: the writer's notes newest first,
- * narrowed by a tag or by their words. Each opens its page, or, while a chapter or scene is open, the
- * right sidebar's Entry tab beside the text. Collapsed or not, remembered in this browser.
+ * narrowed by a tag or by their words. Each opens its page (a scene's notes are also on the right
+ * sidebar's Notes tab, #222). Collapsed or not, remembered in this browser.
  */
-export function NotesSection({ novelId, novel, workspace, writing }: { novelId: string; novel: Novel; workspace: Workspace; writing: boolean }) {
+export function NotesSection({ novelId, novel, workspace }: { novelId: string; novel: Novel; workspace: Workspace }) {
   const id = useId();
   const [open, setOpen] = useState(remembered);
   const [tag, setTag] = useState("");
@@ -93,12 +92,6 @@ export function NotesSection({ novelId, novel, workspace, writing }: { novelId: 
                 <li key={n.id}>
                   <NavLink
                     to={`/novels/${novelId}/note/${n.id}`}
-                    onClick={(click) => {
-                      if (!writing) return;
-                      // Beside the text, not instead of it.
-                      click.preventDefault();
-                      useEntryPanel.getState().open(n.id);
-                    }}
                     className={({ isActive }) => cn("block truncate rounded-md px-2 py-1 hover:bg-paper", isActive && "bg-accent-soft")}
                   >
                     {n.title}

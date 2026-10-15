@@ -259,7 +259,7 @@ export function EventPage({
         {dramatized && <p className="text-sm">Written as the scene {sceneLink(dramatized.id, dramatized.title)}.</p>}
       </ProfileSection>
 
-      <NotesAbout novelId={novelId} novel={novel} id={event.id} beside={tab} />
+      <NotesAbout novelId={novelId} novel={novel} id={event.id} />
 
       {tab && (
         <Link to={`/novels/${novelId}/event/${event.id}`} className="justify-self-start text-sm text-accent underline decoration-accent/35 underline-offset-[3px] hover:decoration-accent">

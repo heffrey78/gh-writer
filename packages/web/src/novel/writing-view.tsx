@@ -42,7 +42,7 @@ import { useIssueList } from "../issues/use-issues.ts";
 import { useQuickEntry } from "../bible/quick-entry.ts";
 import { mentionEntities } from "../bible/types.ts";
 import { useCurrentScene } from "./current.ts";
-import { EntryTab } from "./entry-tab.tsx";
+import { EntryTab, useEntryPanel } from "./entry-tab.tsx";
 import { leaveMention, MentionCard, useMentionCard } from "./mention-card.tsx";
 import { mentionEdits } from "./mention-sync.ts";
 import { useNotice } from "./notice.tsx";
@@ -164,6 +164,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
   // The right sidebar: the Scene tab follows the scene the author is in.
   const current = useCurrentScene((s) => s.scene);
   const sidebar = useRightSidebar();
+  const entryShown = useEntryPanel((s) => s.history[s.at]);
   const focusMode = useWritingModes((m) => m.focus);
   useCommands(
     () => [
@@ -454,6 +455,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
         !focusMode && (
           <RightSidebar
             toText={toText}
+            labels={{ entry: entryShown && novel.events.some((e) => e.id === entryShown) ? "Event" : "Entry" }}
             content={{
               scene: detailsScene ? (
                 <SceneDetails

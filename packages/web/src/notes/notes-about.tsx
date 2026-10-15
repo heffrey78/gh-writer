@@ -2,13 +2,12 @@ import { notesMentioning, type Novel } from "@gh-writer/core";
 import { useMemo } from "react";
 import { Link } from "react-router";
 import { ProfileSection } from "../bible/profile.tsx";
-import { useEntryPanel } from "../novel/entry-tab.tsx";
 
 /**
- * The writer's notes that mention an entry or an event (#205), on its profile: each opens its page, or
- * on the Entry tab (`beside`) the note in its place. Nothing when no note mentions it.
+ * The writer's notes that mention an entry or an event (#205), on its profile: each opens its page.
+ * Nothing when no note mentions it.
  */
-export function NotesAbout({ novelId, novel, id, beside }: { novelId: string; novel: Novel; id: string; beside?: boolean }) {
+export function NotesAbout({ novelId, novel, id }: { novelId: string; novel: Novel; id: string }) {
   const notes = useMemo(() => notesMentioning(novel, id), [novel, id]);
   if (!notes.length) return null;
   return (
@@ -18,11 +17,6 @@ export function NotesAbout({ novelId, novel, id, beside }: { novelId: string; no
           <li key={n.id}>
             <Link
               to={`/novels/${novelId}/note/${n.id}`}
-              onClick={(click) => {
-                if (!beside) return;
-                click.preventDefault();
-                useEntryPanel.getState().open(n.id);
-              }}
               className="text-accent underline decoration-accent/35 underline-offset-[3px] hover:decoration-accent"
             >
               {n.title}

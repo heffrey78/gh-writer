@@ -317,7 +317,8 @@ export function NovelPage() {
         novelId={novelId}
         open={newNote.open}
         onOpenChange={newNote.set}
-        onCreated={(id) => (current ? useEntryPanel.getState().open(id) : void navigate(`/novels/${novelId}/note/${id}`))}
+        // On its page, the caret in its prose (#222).
+        onCreated={(id) => void navigate(`/novels/${novelId}/note/${id}`, { state: { focusProse: true } })}
       />
       <NewEventDialog
         novelId={novelId}
