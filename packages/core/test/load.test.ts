@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { loadNovel, memorySource, mentions, notesMentioning, relationshipsAt, type Novel } from "../src/index.ts";
+import { loadNovel, memorySource, mentions, notesMentioning, notesOfScene, relationshipsAt, type Novel } from "../src/index.ts";
 import { nodeSource } from "../src/node.ts";
 
 const SAMPLE = fileURLToPath(new URL("../../../examples/sample-novel", import.meta.url));
@@ -142,5 +142,21 @@ describe("notes mentioning a record (#205)", () => {
     expect(notesMentioning(novel, "char_7f3k2q").map((n) => n.id)).toEqual(["note_w1fben"]);
     expect(notesMentioning(novel, "evt_9ab3kd").map((n) => n.id)).toEqual(["note_w1fben"]);
     expect(notesMentioning(novel, "char_b3n0vs")).toEqual([]);
+  });
+});
+
+describe("a scene's notes (#222)", () => {
+  it("lists the notes on a scene, the one pinned there first, then newest", async () => {
+    const note = (id: string, title: string, front: string) => `---\nid: ${id}\ntitle: ${title}\n${front}---\n`;
+    const files: Record<string, string> = {
+      "novel.yaml": "schema_version: 2\nid: nv_4k8h2c\ntitle: Tiny\n",
+      "notes/a.md": note("note_aaaaaa", "Older", "scenes: [sc_aaaaaa]\ncreated: 2026-01-01\n"),
+      "notes/b.md": note("note_bbbbbb", "Newer", "scenes: [sc_aaaaaa, sc_bbbbbb]\ncreated: 2026-02-01\n"),
+      "notes/c.md": note("note_cccccc", "Pinned", "scenes: [sc_aaaaaa]\npinned: [sc_aaaaaa]\ncreated: 2025-01-01\n"),
+      "notes/d.md": note("note_dddddd", "Elsewhere", "scenes: [sc_bbbbbb]\npinned: [sc_bbbbbb]\n"),
+    };
+    const novel = await loadNovel(memorySource(files));
+    expect(notesOfScene(novel, "sc_aaaaaa").map((n) => n.title)).toEqual(["Pinned", "Newer", "Older"]);
+    expect(notesOfScene(novel, "sc_bbbbbb").map((n) => n.title)).toEqual(["Elsewhere", "Newer"]);
   });
 });

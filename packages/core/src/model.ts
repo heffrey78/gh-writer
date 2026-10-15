@@ -133,6 +133,10 @@ export interface Note {
   id: string;
   title: string;
   tags: string[];
+  /** The scenes it belongs to (#222). */
+  scenes: string[];
+  /** The scenes, of those, where it's pinned to the top of their notes. */
+  pinned: string[];
   /** The ISO date the app made it. */
   created?: string;
   /** The event or scene it was promoted to, when kept. */

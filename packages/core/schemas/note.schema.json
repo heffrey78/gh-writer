@@ -4,12 +4,36 @@
   "title": "Writer's note front matter (notes/<slug>.md)",
   "type": "object",
   "properties": {
-    "id": { "$ref": "common.schema.json#/$defs/id" },
-    "title": { "$ref": "common.schema.json#/$defs/nonEmptyText" },
-    "tags": { "$ref": "common.schema.json#/$defs/tags" },
-    "created": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "The ISO date the app made it." },
-    "became": { "$ref": "common.schema.json#/$defs/id", "description": "The event or scene it was promoted to, when kept." }
+    "id": {
+      "$ref": "common.schema.json#/$defs/id"
+    },
+    "title": {
+      "$ref": "common.schema.json#/$defs/nonEmptyText"
+    },
+    "tags": {
+      "$ref": "common.schema.json#/$defs/tags"
+    },
+    "scenes": {
+      "$ref": "common.schema.json#/$defs/idList",
+      "description": "The scenes it belongs to."
+    },
+    "pinned": {
+      "$ref": "common.schema.json#/$defs/idList",
+      "description": "The scenes, of its own, where it's pinned to the top of their notes."
+    },
+    "created": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "The ISO date the app made it."
+    },
+    "became": {
+      "$ref": "common.schema.json#/$defs/id",
+      "description": "The event or scene it was promoted to, when kept."
+    }
   },
-  "required": ["id", "title"],
+  "required": [
+    "id",
+    "title"
+  ],
   "additionalProperties": false
 }

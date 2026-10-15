@@ -80,3 +80,11 @@ export function notesMentioning(novel: Novel, id: string): Note[] {
     .filter((n) => mentions(n.body).some((m) => m.id === id))
     .sort((a, b) => (b.created ?? "").localeCompare(a.created ?? "") || a.title.localeCompare(b.title));
 }
+
+/** A scene's notes (#222): the one pinned there first, then newest first. */
+export function notesOfScene(novel: Novel, sceneId: string): Note[] {
+  const pinned = (n: Note) => (n.pinned.includes(sceneId) ? 1 : 0);
+  return novel.notes
+    .filter((n) => n.scenes.includes(sceneId))
+    .sort((a, b) => pinned(b) - pinned(a) || (b.created ?? "").localeCompare(a.created ?? "") || a.title.localeCompare(b.title));
+}

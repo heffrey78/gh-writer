@@ -328,6 +328,8 @@ export async function loadNovel(source: FileSource): Promise<Novel> {
         id: str(d["id"])!,
         title: str(d["title"]) ?? "",
         tags: strList(d["tags"]),
+        scenes: strList(d["scenes"]),
+        pinned: strList(d["pinned"]),
         ...(created ? { created } : {}),
         ...(became ? { became } : {}),
         body: md.body,

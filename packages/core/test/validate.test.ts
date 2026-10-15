@@ -273,7 +273,7 @@ describe("validate", () => {
       const r = await fixture({ "notes/an-idea.md": note("note_aaaaaa", "tags: [ending]\ncreated: 2026-10-15\nbecame: sc_bbbbbb\n", "What if [Ada](#char_aaaaaa) stays?\n") });
       expect(r.diagnostics).toEqual([]);
       expect(r.novel.notes).toEqual([
-        { id: "note_aaaaaa", title: "An idea", tags: ["ending"], created: "2026-10-15", became: "sc_bbbbbb", body: "What if [Ada](#char_aaaaaa) stays?\n", bodyLine: 8, file: "notes/an-idea.md" },
+        { id: "note_aaaaaa", title: "An idea", tags: ["ending"], scenes: [], pinned: [], created: "2026-10-15", became: "sc_bbbbbb", body: "What if [Ada](#char_aaaaaa) stays?\n", bodyLine: 8, file: "notes/an-idea.md" },
       ]);
     });
 
@@ -286,6 +286,17 @@ describe("validate", () => {
         ["E_REF_TYPE", "notes/an-idea.md", "/became"],
         ["E_DANGLING_REF", "notes/an-idea.md", 6],
         ["E_ID_PREFIX", "notes/another.md", undefined],
+      ]);
+    });
+
+    it("a note's scenes and pins name scenes; a pin outside its scenes is W_NOTE_PIN", async () => {
+      const ok = await fixture({ "notes/an-idea.md": note("note_aaaaaa", "scenes: [sc_aaaaaa, sc_bbbbbb]\npinned: [sc_bbbbbb]\n") });
+      expect(ok.diagnostics).toEqual([]);
+      expect(ok.novel.notes[0]).toMatchObject({ scenes: ["sc_aaaaaa", "sc_bbbbbb"], pinned: ["sc_bbbbbb"] });
+      const bad = await fixture({ "notes/an-idea.md": note("note_aaaaaa", "scenes: [char_aaaaaa]\npinned: [sc_cccccc]\n") });
+      expect(bad.diagnostics.map((d) => [d.code, d.pointer])).toEqual([
+        ["E_REF_TYPE", "/scenes/0"],
+        ["W_NOTE_PIN", "/pinned/0"],
       ]);
     });
 

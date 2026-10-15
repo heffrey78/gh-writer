@@ -34,6 +34,7 @@ export const RULES: Readonly<Record<string, Severity>> = {
   W_MISSING_IMAGE: "warning",
   W_IMAGE_OUTSIDE: "warning",
   W_EVENTS_YAML: "warning",
+  W_NOTE_PIN: "warning",
 };
 
 export interface ValidationResult {
@@ -142,6 +143,11 @@ export function validateNovel(novel: Novel): Diagnostic[] {
   // Notes (D12): their mentions, and what they became.
   for (const n of novel.notes) {
     ref(n.became, ["event", "scene"], n.file, "/became", "became");
+    n.scenes.forEach((id, i) => ref(id, ["scene"], n.file, `/scenes/${i}`, "scenes"));
+    n.pinned.forEach((id, i) => {
+      ref(id, ["scene"], n.file, `/pinned/${i}`, "pinned");
+      if (!n.scenes.includes(id)) push("warning", "W_NOTE_PIN", n.file, `Pinned in ${id}, which isn't one of the note's scenes`, { pointer: `/pinned/${i}` });
+    });
     for (const m of mentions(n.body)) ref(m.id, MENTIONABLE, n.file, "", `Mention "${m.text}"`, n.bodyLine + m.line - 1);
     for (const pic of pictures(n.body)) outsideImages(pic, n.file, n.bodyLine);
   }
