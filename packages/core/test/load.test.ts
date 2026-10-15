@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { loadNovel, memorySource, mentions, relationshipsAt, type Novel } from "../src/index.ts";
+import { loadNovel, memorySource, mentions, notesMentioning, relationshipsAt, type Novel } from "../src/index.ts";
 import { nodeSource } from "../src/node.ts";
 
 const SAMPLE = fileURLToPath(new URL("../../../examples/sample-novel", import.meta.url));
@@ -133,5 +133,14 @@ describe("loader structure checks", () => {
   it("keeps renamed (re-slugged) entity files resolvable by ID", async () => {
     const n = await tiny({ "bible/characters/ada.md": undefined, "bible/characters/ada-varn-renamed.md": "---\nid: char_aaaaaa\nname: Ada Varn\n---\n" });
     expect(n.entities.map((e) => [e.id, e.file])).toEqual([["char_aaaaaa", "bible/characters/ada-varn-renamed.md"]]);
+  });
+});
+
+describe("notes mentioning a record (#205)", () => {
+  it("finds the sample's note by the entries and events it mentions", async () => {
+    const novel = await loadNovel(nodeSource(SAMPLE));
+    expect(notesMentioning(novel, "char_7f3k2q").map((n) => n.id)).toEqual(["note_w1fben"]);
+    expect(notesMentioning(novel, "evt_9ab3kd").map((n) => n.id)).toEqual(["note_w1fben"]);
+    expect(notesMentioning(novel, "char_b3n0vs")).toEqual([]);
   });
 });

@@ -20,7 +20,7 @@ test("the Entry tab: a sheet to read, Back and Forward through names opened, a p
   const strip = ada.getByRole("region", { name: "In the story" }).getByRole("list", { name: "Scenes, in reading order" });
   await expect(strip.getByRole("link", { name: "The Station: point of view" })).toBeVisible();
   await expect(ada.getByRole("region", { name: "Relationships" }).getByRole("list", { name: "All relationships" })).toBeVisible();
-  await expect(ada.getByRole("region", { name: "Notes" })).toContainText("Voice: short sentences when she is angry");
+  await expect(ada.getByRole("region", { name: "Notes", exact: true })).toContainText("Voice: short sentences when she is angry");
   await expect(ada.getByRole("link", { name: "Open the full entry" })).toBeVisible();
   await axe(page);
   await page.emulateMedia({ colorScheme: "dark" });

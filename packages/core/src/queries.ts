@@ -1,4 +1,4 @@
-import { mentions, sceneById, type Novel, type Relationship, type Scene, type StoryEvent } from "./model.ts";
+import { mentions, sceneById, type Note, type Novel, type Relationship, type Scene, type StoryEvent } from "./model.ts";
 
 /** How a scene refers to an entity. */
 export type SceneLink = "pov" | "characters" | "locations" | "entities" | "plotlines" | "themes" | "mention";
@@ -72,4 +72,11 @@ export function relationshipHistory(novel: Novel, id: string, other?: string): R
       relationships: holds,
     };
   });
+}
+
+/** The writer's notes that mention an entry or an event (#205), newest first. */
+export function notesMentioning(novel: Novel, id: string): Note[] {
+  return novel.notes
+    .filter((n) => mentions(n.body).some((m) => m.id === id))
+    .sort((a, b) => (b.created ?? "").localeCompare(a.created ?? "") || a.title.localeCompare(b.title));
 }

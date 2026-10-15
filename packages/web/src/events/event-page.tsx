@@ -19,6 +19,7 @@ import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { Picker } from "../ui/picker.tsx";
 import { useCommands } from "../commands.ts";
+import { NotesAbout } from "../notes/notes-about.tsx";
 import { useFormatMove } from "./format-move.tsx";
 import { WriteAsSceneDialog } from "./write-as-scene.tsx";
 
@@ -257,6 +258,8 @@ export function EventPage({
         </p>
         {dramatized && <p className="text-sm">Written as the scene {sceneLink(dramatized.id, dramatized.title)}.</p>}
       </ProfileSection>
+
+      <NotesAbout novelId={novelId} novel={novel} id={event.id} beside={tab} />
 
       {tab && (
         <Link to={`/novels/${novelId}/event/${event.id}`} className="justify-self-start text-sm text-accent underline decoration-accent/35 underline-offset-[3px] hover:decoration-accent">

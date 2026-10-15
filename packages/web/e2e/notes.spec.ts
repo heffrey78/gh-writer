@@ -97,7 +97,7 @@ test("notes are made from the palette, made into an event or a scene, and delete
 
 test("the book pane's Notes: newest first, found by tag or words, beside the text while writing", async ({ page, app }) => {
   await openNovel(page, app);
-  const pane = page.getByRole("region", { name: "Notes" });
+  const pane = page.getByRole("region", { name: /^Notes\s*\d+$/ });
   await expect(pane.getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
 
   // + New note while writing: made, and open beside the text.
@@ -126,5 +126,22 @@ test("the book pane's Notes: newest first, found by tag or words, beside the tex
   // Elsewhere, a note opens on its page.
   await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Outline" }).click();
   await pane.getByRole("link", { name: "What if Ben never sold the plans?" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "What if Ben never sold the plans?" })).toBeVisible();
+});
+
+test("an entry's and an event's profiles list the notes that mention them", async ({ page, app }) => {
+  await openNovel(page, app);
+  await palette(page, "character: ada");
+  const section = page.getByRole("region", { name: "In your notes" });
+  await expect(section.getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
+  await expect(section).toContainText("ending, ben");
+  await axe(page);
+  await palette(page, "off the page: the flood");
+  await expect(page.getByRole("region", { name: "In your notes" }).getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
+  await palette(page, "character: ben varn");
+  await expect(page.getByRole("heading", { level: 1, name: "Ben Varn" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "In your notes" })).toHaveCount(0);
+  await palette(page, "character: ada");
+  await page.getByRole("region", { name: "In your notes" }).getByRole("link", { name: "What if Ben never sold the plans?" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "What if Ben never sold the plans?" })).toBeVisible();
 });

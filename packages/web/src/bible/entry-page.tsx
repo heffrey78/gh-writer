@@ -21,6 +21,7 @@ import { Picture, PictureSlot, usePictureUrl } from "./picture.tsx";
 import { pictureAlt, shapeForType } from "./pictures.ts";
 import { AddButton, EditorButtons, EditorFrame, FieldRows, Lead, PencilButton, readField, TextEditor, useInPlace, type InPlace } from "./profile.tsx";
 import { RelationshipArcs } from "./arcs.tsx";
+import { NotesAbout } from "../notes/notes-about.tsx";
 import { InTheStory } from "./strip.tsx";
 import { TypeSections } from "./type-sections.tsx";
 import { mentionEntities, typeOf } from "./types.ts";
@@ -285,6 +286,7 @@ export function EntryPage({
       {!tab && <EntryIssues novelId={novelId} novel={novel} entity={entity} />}
 
       <InTheStory novelId={novelId} novel={novel} entity={entity} compact={tab} />
+      <NotesAbout novelId={novelId} novel={novel} id={entity.id} beside={tab} />
       {!tab && <TypeSections novelId={novelId} novel={novel} entity={entity} workspace={workspace} />}
 
       <RelationshipArcs novelId={novelId} novel={novel} entity={entity} compact={tab} />
