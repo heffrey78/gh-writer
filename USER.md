@@ -220,7 +220,7 @@ dictionary.txt       words the spell checker accepts
 manuscript/          parts, chapters (folders) and scenes (Markdown files)
 bible/               one file per character, location, plotline, theme…
 bible/relationships.yaml
-bible/events.yaml    off-page events
+bible/events/        off-page events, one file each
 diagrams/            generated diagram snapshots
 ```
 

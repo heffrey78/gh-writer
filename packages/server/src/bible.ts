@@ -4,6 +4,9 @@ import {
   backlinks,
   editFrontMatter,
   editYaml,
+  eventFile,
+  EVENTS_FOLDER,
+  mentions,
   indexById,
   loadNovel,
   nextSeriesSlot,
@@ -20,6 +23,7 @@ import {
 import { nodeSource } from "@gh-writer/core/node";
 import { parse, stringify } from "yaml";
 import { hashText, IMAGES_DIR, MAX_IMAGE_BYTES, sniffImage } from "./files.ts";
+import { migrateNovel, migrationWrites, overlay } from "./migrate.ts";
 import { OperationError, transaction, type FileWrite, type OperationResult } from "./operations.ts";
 
 /** What an entity's front matter holds, apart from its ID. */
@@ -50,6 +54,9 @@ export interface EventFields {
   characters?: string[] | null;
   locations?: string[] | null;
   plotlines?: string[] | null;
+  /** The scene that dramatizes it. */
+  scene?: string | null;
+  /** Its note: the prose of its file. */
   note?: string | null;
 }
 
@@ -82,7 +89,6 @@ function checkStyle(style: RelationshipTypeFields["style"]): void {
 }
 
 const RELATIONSHIPS = "bible/relationships.yaml";
-const EVENTS = "bible/events.yaml";
 const NOVEL = "novel.yaml";
 
 /**
@@ -308,36 +314,106 @@ export class BibleOperations {
     });
   }
 
-  /** Add an off-page event to bible/events.yaml. */
-  createEvent(fields: EventFields): Promise<OperationResult & { id: string }> {
-    return this.#run(async (novel) => {
+  /**
+   * Add an off-page event: a file of its own, bible/events/<slug>.md, its note as the prose (D11). A novel
+   * in format v1 is moved to v2 in the same commit when `migrate`, and refused with NEEDS_MIGRATION otherwise.
+   */
+  createEvent(fields: EventFields, migrate = false): Promise<OperationResult & { id: string; file: string }> {
+    return this.#eventChange(migrate, async (novel) => {
       const title = required(fields.title, "title");
       this.#checkEvent(novel, fields);
       const id = uniqueId("evt", new Set(indexById(novel).keys()));
-      const content = await this.#appendToList(EVENTS, "events", { id, ...clean({ ...fields, title }) });
-      const result = await transaction(this.root, [{ path: EVENTS, content }], `Bible: add event “${title}”`);
-      return { ...result, id };
+      const { note, ...front } = clean({ ...fields, title });
+      const file = this.#eventFileName(novel, title);
+      return { writes: [{ path: file, content: eventFile({ id, ...front }, note), base: null }], message: `Bible: add event “${title}”`, extra: { id, file } };
     });
   }
 
-  /** Edit an event's fields in place (null removes one). */
-  updateEvent(id: string, changes: EventFields): Promise<OperationResult> {
-    return this.#run(async (novel) => {
+  /**
+   * Change an event's fields (null removes one; `note` replaces its prose). A new title moves its file to
+   * match. `base`, when given, is the hash of the file the change was made from. Migrates as createEvent does.
+   */
+  updateEvent(id: string, changes: EventFields, { base, migrate = false }: { base?: string; migrate?: boolean } = {}): Promise<OperationResult & { file: string }> {
+    return this.#eventChange(migrate, async (novel, read, migrated) => {
       const event = this.#findEvent(novel, id);
       if (changes.title !== undefined) required(changes.title, "title");
       this.#checkEvent(novel, changes);
-      const tidy = Object.fromEntries(Object.entries(changes).map(([k, v]) => [k, Array.isArray(v) && !v.length ? null : v === "" ? null : v]));
-      const content = editYaml(await this.#read(EVENTS), editsAt(["events", event.index], tidy));
-      return transaction(this.root, [{ path: EVENTS, content }], `Bible: edit event “${changes.title?.trim() || event.title}”`);
+      const { note, ...fields } = changes;
+      const tidy = Object.entries(fields).map(([key, v]) => (v === null || v === "" || (Array.isArray(v) && !v.length) ? { path: [key], remove: true as const } : { path: [key], value: v }));
+      const text = (await read(event.file)) ?? "";
+      if (base !== undefined && !migrated.has(event.file) && hashText(text) !== base) throw new OperationError("STALE", `“${event.title}” changed since it was read.`, { path: event.file });
+      let content = editFrontMatter(text, tidy);
+      if (note !== undefined) content = withProse(content, note ?? "");
+      const check = migrated.has(event.file) ? {} : { base: hashText(text) };
+      const title = changes.title?.trim() || event.title;
+      const renamed = changes.title && changes.title.trim() !== event.title ? this.#eventFileName(novel, title, event.file) : event.file;
+      const writes: FileWrite[] = renamed === event.file ? [{ path: event.file, content, ...check }] : [{ path: event.file, content: null, ...check }, { path: renamed, content, base: null }];
+      const message = renamed === event.file ? `Bible: edit event “${title}”` : `Bible: rename event “${event.title}” to “${title}”`;
+      return { writes, message, extra: { file: renamed } };
     });
   }
 
-  deleteEvent(id: string): Promise<OperationResult> {
-    return this.#run(async (novel) => {
+  /**
+   * Remove an event's file. If prose mentions it (scenes, entries, other events), it's refused with every
+   * mention unless `confirm`; they're then left for the validator to report. Migrates as createEvent does.
+   */
+  deleteEvent(id: string, { base, confirm = false, migrate = false }: { base?: string; confirm?: boolean; migrate?: boolean } = {}): Promise<OperationResult> {
+    return this.#eventChange(migrate, async (novel, read, migrated) => {
       const event = this.#findEvent(novel, id);
-      const content = editYaml(await this.#read(EVENTS), [{ path: ["events", event.index], remove: true }]);
-      return transaction(this.root, [{ path: EVENTS, content }], `Bible: remove event “${event.title}”`);
+      const mentioned = (body: string) => mentions(body).some((m) => m.id === id);
+      const references = [
+        ...novel.allScenes.filter((s) => mentioned(s.body)).map((s) => ({ kind: "scene", id: s.id, title: s.title, via: ["mention"] })),
+        ...novel.entities.filter((e) => mentioned(e.body)).map((e) => ({ kind: "entity", id: e.id, title: e.name })),
+        ...novel.events.filter((e) => e.id !== id && mentioned(e.body)).map((e) => ({ kind: "event", id: e.id, title: e.title })),
+      ];
+      if (references.length && !confirm) {
+        throw new OperationError("REFERENCED", `“${event.title}” is mentioned in ${references.length} place${references.length === 1 ? "" : "s"}.`, { references });
+      }
+      const text = (await read(event.file)) ?? "";
+      if (base !== undefined && !migrated.has(event.file) && hashText(text) !== base) throw new OperationError("STALE", `“${event.title}” changed since it was read.`, { path: event.file });
+      return { writes: [{ path: event.file, content: null, ...(migrated.has(event.file) ? {} : { base: hashText(text) }) }], message: `Bible: remove event “${event.title}”`, extra: {} };
     });
+  }
+
+  /** Move the novel to the newest format (D11), on its own, in one commit. */
+  migrate(): Promise<OperationResult & { migrated: boolean }> {
+    return this.#exclusive(async () => {
+      const { migration, result } = await migrateNovel(this.root);
+      if (migration.status === "refused") throw new OperationError("BAD_REQUEST", migration.reason);
+      return { ...(result ?? { commit: null, files: [] }), migrated: migration.status === "migrate" };
+    });
+  }
+
+  /**
+   * An event change, made on the novel as format v2 has it. A v1 novel is migrated first, in the same
+   * commit, if `migrate`; otherwise it's NEEDS_MIGRATION, for the app to ask the writer. `fn` reads files
+   * as they'll be after the migration, and is told which paths the migration writes (no base to check).
+   */
+  #eventChange<T extends object>(
+    migrate: boolean,
+    fn: (novel: Novel, read: (path: string) => Promise<string | undefined>, migrated: ReadonlySet<string>) => Promise<{ writes: FileWrite[]; message: string; extra: T }>,
+  ): Promise<OperationResult & T> {
+    return this.#exclusive(async () => {
+      const { migration, writes: moved } = await migrationWrites(this.root);
+      if (migration.status === "refused") throw new OperationError("BAD_REQUEST", migration.reason);
+      if (migration.status === "migrate" && !migrate) {
+        throw new OperationError("NEEDS_MIGRATION", `Off-page events are kept differently in format v${migration.to}: the novel must move to it first.`, { from: migration.from, to: migration.to });
+      }
+      const source = overlay(nodeSource(this.root), moved);
+      const { writes, message, extra } = await fn(await loadNovel(source), (path) => source.read(path), new Set(moved.map((w) => w.path)));
+      // A file the change writes again (an event file the migration made) is written once, as the change has it.
+      const again = new Set(writes.map((w) => w.path));
+      const all = [...moved.filter((w) => !again.has(w.path)), ...writes];
+      const result = await transaction(this.root, all, migration.status === "migrate" ? `${migration.message}; ${message}` : message);
+      return { ...result, ...extra };
+    });
+  }
+
+  /** bible/events/<slug>.md for a title, unused by any other event (`own` is the event's file now, free to keep). */
+  #eventFileName(novel: Novel, title: string, own?: string): string {
+    const folder = `bible/${EVENTS_FOLDER}`;
+    const taken = new Set(novel.events.filter((e) => e.file !== own && e.file.startsWith(`${folder}/`)).map((e) => e.file.slice(folder.length + 1)));
+    return `${folder}/${uniqueFileName(slugify(title), ".md", taken)}`;
   }
 
   /**
@@ -464,8 +540,7 @@ export class BibleOperations {
   #findEvent(novel: Novel, id: string) {
     const event = novel.events.find((e) => e.id === id);
     if (!event) throw new OperationError("NOT_FOUND", `No event “${id}”.`);
-    if (event.index === undefined) throw new OperationError("BAD_REQUEST", `“${event.title}” is in a file of its own.`);
-    return { ...event, index: event.index };
+    return event;
   }
 
   /** A time, a duration and entries of the right types, where given. */
@@ -478,6 +553,7 @@ export class BibleOperations {
     if (f.duration && !/^P(?!$)(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+(\.\d+)?S)?)?$/.test(f.duration)) {
       throw new OperationError("BAD_REQUEST", "A duration is ISO 8601, like PT45M or P2D.");
     }
+    if (f.scene && !novel.allScenes.some((sc) => sc.id === f.scene)) throw new OperationError("BAD_REQUEST", `No scene “${f.scene}”.`);
     for (const [key, type] of [["characters", "character"], ["locations", "location"], ["plotlines", "plotline"]] as const) {
       for (const id of f[key] ?? []) {
         if (!novel.entities.some((e) => e.id === id && e.type === type)) throw new OperationError("BAD_REQUEST", `No ${type} “${id}”.`);
@@ -533,6 +609,13 @@ function checkFocus(focus: [number, number]): [number, number] {
 function required(value: string | undefined, field: string): string {
   if (typeof value !== "string" || !value.trim()) throw new OperationError("BAD_REQUEST", `A ${field} is required.`);
   return value.trim();
+}
+
+/** A Markdown file with its prose replaced, and its front matter kept byte for byte. */
+function withProse(text: string, prose: string): string {
+  const m = /^(\uFEFF?---[ \t]*\r?\n[\s\S]*?^---[ \t]*(?:\r?\n|$))/m.exec(text);
+  const front = m && m.index === 0 ? m[1]! : "";
+  return `${front}${front.endsWith("\n") || !front ? "" : "\n"}${prose.trim() ? `\n${prose.trim()}\n` : ""}`;
 }
 
 /** Fields with undefined, null and empty values left out. */

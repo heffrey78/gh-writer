@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import { axe, expect, test, type App, openView } from "./fixtures.ts";
@@ -63,7 +63,8 @@ test("someone in two places at once is named, with both scenes", async ({ page, 
 test("off-page events are added, edited and deleted from the timeline, and its warnings follow", async ({ page, app }) => {
   const dir = app.novelRepo("varn");
   await app.restart(dir);
-  const events = () => readFileSync(join(dir, "bible/events.yaml"), "utf8");
+  const file = join(dir, "bible/events/ada-at-the-station-again.md");
+  const event = () => (existsSync(file) ? readFileSync(file, "utf8") : "");
   await page.goto(app.launchUrl);
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
   await openView(page, "Timeline");
@@ -78,7 +79,7 @@ test("off-page events are added, edited and deleted from the timeline, and its w
   await axe(page);
   await dialog.getByRole("button", { name: "Add event" }).click();
   await expect(dialog).toHaveCount(0);
-  await expect.poll(events).toMatch(/- id: evt_[0-9a-z]{6}\n {4}title: Ada at the station again\n {4}when:\n {6}day: 1\n {6}time: "17:50"\n {4}characters:\n {6}- char_7f3k2q\n {4}locations:\n {6}- loc_5tat10\n$/);
+  await expect.poll(event).toMatch(/^---\nid: evt_[0-9a-z]{6}\ntitle: Ada at the station again\nwhen:\n {2}day: 1\n {2}time: "17:50"\ncharacters:\n {2}- char_7f3k2q\nlocations:\n {2}- loc_5tat10\n---\n$/);
   // On the bridge in Walking the Span at that time: in two places at once.
   const conflicts = page.getByRole("region", { name: "In two places at once" });
   await expect(conflicts).toContainText("Ada Varn is in “Walking the Span” and the event “Ada at the station again” at the same time");
@@ -87,14 +88,14 @@ test("off-page events are added, edited and deleted from the timeline, and its w
   await page.getByRole("button", { name: "Edit the event “Ada at the station again”" }).click();
   await page.getByRole("dialog", { name: "Edit the event" }).getByLabel("Time").fill("08:00");
   await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
-  await expect.poll(events).toContain('      time: "08:00"\n');
+  await expect.poll(event).toContain('  time: "08:00"\n');
   await expect(conflicts).toContainText("Nobody is in two places at once.");
 
   // And deleted.
   await page.getByRole("button", { name: "Edit the event “Ada at the station again”" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
-  await expect.poll(events).not.toContain("Ada at the station again");
+  await expect.poll(() => existsSync(file)).toBe(false);
   await expect(page.getByRole("button", { name: "Edit the event “Ada at the station again”" })).toHaveCount(0);
   // The file is written a moment before it's committed.
   await expect.poll(() => app.git(dir, "log", "-1", "--format=%s").trim()).toBe("Bible: remove event “Ada at the station again”");

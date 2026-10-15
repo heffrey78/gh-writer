@@ -12,7 +12,7 @@ This novel uses the [gh-writer](https://github.com/heffrey78/gh-writer) format: 
 | `manuscript/_order.yaml`, `_part.yaml`, `_chapter.yaml` | **Reading order.** Moving a scene means moving its ID in these lists. The `01-` numbers in file names are just for tidy browsing. |
 | `bible/characters/`, `locations/`, `plotlines/`, `themes/` | One file per character, place, plotline or theme. |
 | `bible/relationships.yaml` | Who is related to whom, and from which scene a relationship starts or ends. |
-| `bible/events.yaml` | Things that happen off the page: backstory, events between scenes. |
+| `bible/events/` | Things that happen off the page, one file each: backstory, events between scenes. |
 | `diagrams/layouts.yaml` | Positions of hand-arranged diagrams (maintained by the app). |
 | `diagrams/README.md`, `diagrams/*.svg` | **Generated** snapshots of the diagrams: relationships, plotlines, who is in which scene, the timeline. Browse [diagrams/](diagrams/) to see them. |
 

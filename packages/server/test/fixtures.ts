@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -55,5 +55,17 @@ export function novelRepo(dir: string): string {
   gitIn(dir, "init", "-q");
   gitIn(dir, "add", "-A");
   gitIn(dir, "commit", "-qm", "Start");
+  return dir;
+}
+
+/** The sample's off-page events as format v1 kept them, in bible/events.yaml (D11). */
+export const SAMPLE_EVENTS_V1 = readFileSync(fileURLToPath(new URL("../../core/test/fixtures/sample-events-v1.yaml", import.meta.url)), "utf8");
+
+/** Turn a copy of the sample novel in `dir` back into format v1: its events in bible/events.yaml. Not committed. */
+export function asFormatV1(dir: string): string {
+  rmSync(join(dir, "bible/events"), { recursive: true, force: true });
+  writeFileSync(join(dir, "bible/events.yaml"), SAMPLE_EVENTS_V1);
+  const config = join(dir, "novel.yaml");
+  writeFileSync(config, readFileSync(config, "utf8").replace(/^schema_version: \d+/m, "schema_version: 1"));
   return dir;
 }

@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { migration, type Migration } from "@gh-writer/core";
+import { migration, type FileSource, type Migration } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
 import { readToolBytes, TOOLS_DIR } from "./files.ts";
 import { DEFAULT_TEMPLATE } from "./new-novel.ts";
@@ -23,6 +23,34 @@ export async function migrateNovel(root: string, templateDir = DEFAULT_TEMPLATE)
   const { migration: m, writes } = await migrationWrites(root, templateDir);
   if (m.status !== "migrate") return { migration: m };
   return { migration: m, result: await transaction(root, writes, m.message) };
+}
+
+/**
+ * `base` as it will be once `writes` are made: their text read in place of what's on disk, files they
+ * remove gone, and files they add listed. (Binary writes read as nothing: no model reads them.)
+ */
+export function overlay(base: FileSource, writes: FileWrite[]): FileSource {
+  const changed = new Map(writes.map((w) => [w.path, w.content]));
+  return {
+    async list(dir) {
+      const prefix = dir ? `${dir}/` : "";
+      const entries = new Map((await base.list(dir)).map((e) => [e.name, e.dir]));
+      for (const [path, content] of changed) {
+        if (!path.startsWith(prefix) || path.split("/").some((s) => s.startsWith("."))) continue;
+        const rest = path.slice(prefix.length);
+        const slash = rest.indexOf("/");
+        if (slash >= 0) entries.set(rest.slice(0, slash), true);
+        else if (content === null) entries.delete(rest);
+        else entries.set(rest, false);
+      }
+      return [...entries].map(([name, isDir]) => ({ name, dir: isDir })).sort((a, b) => a.name.localeCompare(b.name));
+    },
+    async read(path) {
+      if (!changed.has(path)) return base.read(path);
+      const content = changed.get(path);
+      return typeof content === "string" ? content : undefined;
+    },
+  };
 }
 
 /** The template's tools that differ from the novel's, for a novel that carries tools at all. */

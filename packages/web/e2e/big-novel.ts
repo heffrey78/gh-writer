@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ID_ALPHABET } from "@gh-writer/core";
 import { sample } from "./fixtures.ts";
@@ -51,8 +51,9 @@ export function writeBigNovel(dir: string, { total = 150_000, parts = 3, chapter
   mkdirSync(dir, { recursive: true });
   cpSync(join(sample, "bible"), join(dir, "bible"), { recursive: true });
   cpSync(join(sample, "diagrams"), join(dir, "diagrams"), { recursive: true });
-  // The sample's relationships and events point at its own scenes.
-  for (const file of ["relationships.yaml", "events.yaml"]) cpSync(join(sample, "../../templates/novel/bible", file), join(dir, "bible", file));
+  // The sample's relationships point at its own scenes; its events are left out.
+  cpSync(join(sample, "../../templates/novel/bible/relationships.yaml"), join(dir, "bible/relationships.yaml"));
+  rmSync(join(dir, "bible/events"), { recursive: true, force: true });
   writeFileSync(join(dir, "novel.yaml"), readFileSync(join(sample, "novel.yaml"), "utf8").replace(/^title: .*$/m, "title: The Long Crossing").replace(/^id: .*$/m, "id: nv_b1gb1g"));
   for (let i = 0; i < extraCharacters; i++) {
     const id = character();

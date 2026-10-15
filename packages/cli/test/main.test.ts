@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { asFormatV1 } from "../../server/test/fixtures.ts";
 
 const repo = fileURLToPath(new URL("../../../", import.meta.url));
 const main = join(repo, "packages/cli/src/main.ts");
@@ -284,6 +285,7 @@ describe("gh-writer migrate", () => {
   it("moves the sample to format v2 in one commit, with the template's tools; it compiles the same and its own validator passes", () => {
     const novel = join(tmp, "migrate-me");
     cpSync(sample, novel, { recursive: true });
+    asFormatV1(novel);
     mkdirSync(join(novel, ".github/gh-writer"), { recursive: true });
     writeFileSync(join(novel, ".github/gh-writer/validate.mjs"), "// an older validator\n");
     // One date for both commits, so the compiles can be compared byte for byte.
@@ -323,6 +325,7 @@ describe("gh-writer migrate", () => {
   it("says why it can't migrate, exiting 1", () => {
     const novel = join(tmp, "migrate-clash");
     cpSync(sample, novel, { recursive: true });
+    asFormatV1(novel);
     const config = join(novel, "novel.yaml");
     writeFileSync(config, readFileSync(config, "utf8").replace("folder: artifacts", "folder: events"));
     expect(run(main, "migrate", novel)).toMatchObject({ code: 1, err: expect.stringContaining("keeps its entries in bible/events/") });

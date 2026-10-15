@@ -261,7 +261,19 @@ export interface EventFields {
   characters?: string[] | null;
   locations?: string[] | null;
   plotlines?: string[] | null;
+  /** The scene that dramatizes it. */
+  scene?: string | null;
+  /** Its note: the prose of its file. */
   note?: string | null;
+}
+
+/**
+ * How an event change goes: `base`, the hash of the event's file it was made from; `migrate`, to move a
+ * novel in format v1 to v2 in the same commit (without it, that's refused with NEEDS_MIGRATION).
+ */
+export interface EventChangeOptions {
+  base?: string;
+  migrate?: boolean;
 }
 
 export interface RelationshipFields {
@@ -277,7 +289,8 @@ export interface RelationshipFields {
 export type Reference =
   | { kind: "scene"; id: string; title: string; via: string[] }
   | { kind: "relationship"; id: string; type: string; other: string }
-  | { kind: "event"; id: string; title: string };
+  | { kind: "event"; id: string; title: string }
+  | { kind: "entity"; id: string; title: string };
 
 /** A scene, chapter or part that was deleted and can be brought back. */
 export interface DeletedItem {
@@ -561,6 +574,8 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
       (await request<{ file: string; hash: string }>("PUT", `/api/novels/${encodeURIComponent(id)}/diagrams/${encodeURIComponent(diagram)}/layout`, { positions })).data,
     /** Sync with the remote now; resolves with the status once it's done. */
     syncNow: async (id: string) => (await request<SyncStatus>("POST", `/api/novels/${encodeURIComponent(id)}/sync`)).data,
+    /** Move the novel to the newest format (D11), one commit; `migrated` false when it was already. */
+    migrate: async (id: string) => (await request<OperationResult & { migrated: boolean }>("POST", `/api/novels/${encodeURIComponent(id)}/migrate`)).data,
   };
 }
 
@@ -772,10 +787,21 @@ function bibleApi(root: (novelId: string) => string, request: Request, upload: <
       call<OperationResult & { id: string }>("POST", novelId, `/relationships/${encodeURIComponent(id)}/change`, { at, ...changes }),
     endRelationship: (novelId: string, id: string, at: string) => call<OperationResult>("POST", novelId, `/relationships/${encodeURIComponent(id)}/end`, { at }),
     deleteRelationship: (novelId: string, id: string) => call<OperationResult>("POST", novelId, `/relationships/${encodeURIComponent(id)}/delete`),
-    /** Off-page story events (bible/events.yaml), one commit each. */
-    createEvent: (novelId: string, fields: EventFields & { title: string }) => call<OperationResult & { id: string }>("POST", novelId, "/events", fields),
-    updateEvent: (novelId: string, id: string, changes: EventFields) => call<OperationResult>("PATCH", novelId, `/events/${encodeURIComponent(id)}`, { changes }),
-    deleteEvent: (novelId: string, id: string) => call<OperationResult>("POST", novelId, `/events/${encodeURIComponent(id)}/delete`),
+    /** Off-page story events, each a file in bible/events/ (D11), one commit each. */
+    createEvent: (novelId: string, fields: EventFields & { title: string }, { migrate }: EventChangeOptions = {}) =>
+      call<OperationResult & { id: string; file: string }>("POST", novelId, "/events", { ...fields, ...(migrate ? { migrate } : {}) }),
+    updateEvent: (novelId: string, id: string, changes: EventFields, options: EventChangeOptions = {}) =>
+      call<OperationResult & { file: string }>("PATCH", novelId, `/events/${encodeURIComponent(id)}`, { changes, ...options }),
+    /** Refused (not thrown) when prose mentions it: the mentions come back; pass confirm to delete anyway. */
+    deleteEvent: async (novelId: string, id: string, { confirm = false, ...options }: EventChangeOptions & { confirm?: boolean } = {}): Promise<DeleteResult> => {
+      const { status, data } = await request<OperationResult & { references?: Reference[] }>(
+        "POST",
+        `${root(novelId)}/events/${encodeURIComponent(id)}/delete`,
+        { confirm, ...options },
+        { passing: "REFERENCED" },
+      );
+      return status === 409 ? { ok: false, references: data.references ?? [] } : { ok: true, ...data };
+    },
     createEntityType: (novelId: string, fields: { key: string; prefix: string; label: string; folder?: string; color?: string }) =>
       call<OperationResult>("POST", novelId, "/entity-types", fields),
     updateEntityType: (novelId: string, key: string, changes: { label?: string; color?: string | null }) =>

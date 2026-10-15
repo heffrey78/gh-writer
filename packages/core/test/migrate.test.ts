@@ -32,22 +32,22 @@ const facts = (e: StoryEvent) => ({ id: e.id, title: e.title, when: e.when, dura
 const V1 = "schema_version: 1\nid: nv_4k8h2c\ntitle: Tiny\n";
 
 describe("migration to format v2 (D11)", () => {
-  it("moves the sample's events to files of their own, losing nothing, and validates clean", async () => {
-    const before = filesOf(SAMPLE);
+  it("moves the sample in format v1 to exactly the sample as it is, losing nothing, and validates clean", async () => {
+    const now = filesOf(SAMPLE);
+    // The sample as format v1 had it: its events in bible/events.yaml.
+    const before = Object.fromEntries(Object.entries(now).filter(([p]) => !p.startsWith("bible/events/")));
+    before["bible/events.yaml"] = readFileSync(new URL("fixtures/sample-events-v1.yaml", import.meta.url), "utf8");
+    before["novel.yaml"] = now["novel.yaml"]!.replace("schema_version: 2", "schema_version: 1");
+
     const m = await migration(memorySource(before));
     expect(m).toMatchObject({ status: "migrate", from: 1, to: 2, message: "Format v2: off-page events as files" });
     const after = applied(before, m);
-    expect(Object.keys(after).filter((p) => p.startsWith("bible/events")).sort()).toEqual([
-      "bible/events/ada-leaves-for-the-polytechnic.md",
-      "bible/events/the-flood-of-09.md",
-      "bible/events/the-plans-are-stolen.md",
-    ]);
-    expect(after["novel.yaml"]).toBe(before["novel.yaml"]!.replace("schema_version: 1", "schema_version: 2"));
+    expect(after).toEqual(now);
 
-    const [old, now] = await Promise.all([validate(memorySource(before)), validate(memorySource(after))]);
-    expect(now.diagnostics).toEqual([]);
+    const [old, migrated] = await Promise.all([validate(memorySource(before)), validate(memorySource(after))]);
+    expect(migrated.diagnostics).toEqual([]);
     const byId = (es: StoryEvent[]) => es.map(facts).sort((a, b) => a.id.localeCompare(b.id));
-    expect(byId(now.novel.events)).toEqual(byId(old.novel.events));
+    expect(byId(migrated.novel.events)).toEqual(byId(old.novel.events));
     expect(after["bible/events/the-plans-are-stolen.md"]).toBe(
       "---\nid: evt_p1an5t\ntitle: The plans are stolen\nwhen:\n  day: -5\ncharacters:\n  - char_b3n0vs\nlocations:\n  - loc_w0rk5p\nplotlines:\n  - plot_h315tz\n  - plot_gr1efa\n---\n\nOff page. Ben uses Tomas's key.\n",
     );

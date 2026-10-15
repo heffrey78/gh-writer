@@ -5,7 +5,7 @@ import type { NovelWorkspace } from "./workspace.ts";
 
 export type Env = { Variables: { ws: NovelWorkspace } };
 
-const STATUS = { BAD_REQUEST: 400, NOT_FOUND: 404, STALE: 409, REFERENCED: 409, BLOCKED: 409 } as const;
+const STATUS = { BAD_REQUEST: 400, NOT_FOUND: 404, STALE: 409, REFERENCED: 409, BLOCKED: 409, NEEDS_MIGRATION: 409 } as const;
 
 /** Answer an operation's result, or its refusal with a code (and the references or path it's about). */
 export async function operation(c: Context, run: () => Promise<object>, status: 200 | 201 = 200): Promise<Response> {
@@ -31,14 +31,16 @@ export async function body(c: Context): Promise<Record<string, unknown>> {
  * POST  /:id/bible/relationships/:rel/change   { at, type?, note? } → { id, commit }
  * POST  /:id/bible/relationships/:rel/end      { at }
  * POST  /:id/bible/relationships/:rel/delete
- * POST  /:id/bible/events                      { title, when?, duration?, characters?, locations?, plotlines?, note? } → 201 { id, commit }
- * PATCH /:id/bible/events/:event               { changes } (null removes a field)
- * POST  /:id/bible/events/:event/delete
+ * POST  /:id/bible/events                      { title, when?, duration?, characters?, locations?, plotlines?, scene?, note?, migrate? } → 201 { id, file, commit }
+ * PATCH /:id/bible/events/:event               { changes, base?, migrate? } (null removes a field; note replaces the prose) → { file, commit }
+ * POST  /:id/bible/events/:event/delete        { base?, confirm?, migrate? }
+ *       (each: a novel in format v1 is 409 NEEDS_MIGRATION { from, to } unless migrate, which moves it to v2 in the same commit)
+ * POST  /:id/migrate                           → { migrated, commit }: the novel in the newest format, one commit (D11)
  * POST  /:id/bible/entity-types                { key, prefix, label, folder?, color? }
  * PATCH /:id/bible/entity-types/:key           { label?, color? }
  * POST  /:id/bible/relationship-types          { key, label, inverse_label?, symmetric?, from_types?, to_types? }
  * PATCH /:id/bible/relationship-types/:key     { …changes }
- * Refusals: 400 BAD_REQUEST, 404 NOT_FOUND, 409 STALE { path }, 409 REFERENCED { references }, 409 BLOCKED (no git identity).
+ * Refusals: 400 BAD_REQUEST, 404 NOT_FOUND, 409 STALE { path }, 409 REFERENCED { references }, 409 BLOCKED (no git identity), 409 NEEDS_MIGRATION.
  */
 export function bibleRoutes(routes: Hono<Env>): void {
   const bible = (c: Context<Env>) => c.var.ws.bible;
@@ -72,9 +74,19 @@ export function bibleRoutes(routes: Hono<Env>): void {
     const { at } = await body(c);
     return operation(c, () => bible(c).endRelationship(c.req.param("rel"), String(at ?? "")));
   });
-  routes.post("/:id/bible/events", async (c) => operation(c, async () => bible(c).createEvent((await body(c)) as never), 201));
-  routes.patch("/:id/bible/events/:event", async (c) => operation(c, async () => bible(c).updateEvent(c.req.param("event"), ((await body(c)).changes ?? {}) as never)));
-  routes.post("/:id/bible/events/:event/delete", async (c) => operation(c, () => bible(c).deleteEvent(c.req.param("event"))));
+  routes.post("/:id/bible/events", async (c) => {
+    const { migrate, ...fields } = await body(c);
+    return operation(c, () => bible(c).createEvent(fields as never, migrate === true), 201);
+  });
+  routes.patch("/:id/bible/events/:event", async (c) => {
+    const { changes, base, migrate } = await body(c);
+    return operation(c, () => bible(c).updateEvent(c.req.param("event"), (changes ?? {}) as never, { ...(typeof base === "string" ? { base } : {}), migrate: migrate === true }));
+  });
+  routes.post("/:id/bible/events/:event/delete", async (c) => {
+    const { base, confirm, migrate } = await body(c);
+    return operation(c, () => bible(c).deleteEvent(c.req.param("event"), { ...(typeof base === "string" ? { base } : {}), confirm: confirm === true, migrate: migrate === true }));
+  });
+  routes.post("/:id/migrate", async (c) => operation(c, () => bible(c).migrate()));
   routes.post("/:id/bible/relationships/:rel/delete", async (c) => operation(c, () => bible(c).deleteRelationship(c.req.param("rel"))));
   routes.post("/:id/bible/entity-types", async (c) => operation(c, async () => bible(c).createEntityType((await body(c)) as never), 201));
   routes.patch("/:id/bible/entity-types/:key", async (c) => operation(c, async () => bible(c).updateEntityType(c.req.param("key"), (await body(c)) as never)));

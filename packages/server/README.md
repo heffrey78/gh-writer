@@ -252,11 +252,16 @@ Only files in `images/` that nothing else shows are deleted: a picture the autho
 
 ### Events
 
+Each off-page event is a file of its own, `bible/events/<slug>.md`: its fields as front matter and its note as the prose ([D11](https://github.com/heffrey78/gh-writer/issues/206)). Its note can also be edited as the file's text, like an entry's notes.
+
 | Endpoint | Does | Commit |
 |---|---|---|
-| `POST /bible/events` `{ title, when?, duration?, characters?, locations?, plotlines?, note? }` | Adds an off-page event to `bible/events.yaml`; `when` is `{ at }` (a date, optionally with a time) or `{ day, time? }`, `duration` ISO 8601, and the lists must name characters, locations and plotlines | `Bible: add event “…”` |
-| `PATCH /bible/events/:id` `{ changes }` | Edits its fields in place (null removes one) | `Bible: edit event “…”` |
-| `POST /bible/events/:id/delete` | Removes it | `Bible: remove event “…”` |
+| `POST /bible/events` `{ title, when?, duration?, characters?, locations?, plotlines?, scene?, note?, migrate? }` → `{ id, file }` | Adds an event, named from its title; `when` is `{ at }` (a date, optionally with a time) or `{ day, time? }`, `duration` ISO 8601, the lists must name characters, locations and plotlines, and `scene` (the scene that dramatizes it) a scene | `Bible: add event “…”` |
+| `PATCH /bible/events/:id` `{ changes, base?, migrate? }` → `{ file }` | Edits its fields (null removes one; `note` replaces the prose). A new title moves the file. With `base`, the file must be as it was read (`409 STALE`) | `Bible: edit event “…”`, or `Bible: rename event “…” to “…”` |
+| `POST /bible/events/:id/delete` `{ base?, confirm?, migrate? }` | Removes the file. If prose mentions it (scenes, entries, other events), it's refused (`409 REFERENCED { references }`) unless `confirm` | `Bible: remove event “…”` |
+| `POST /migrate` → `{ migrated }` | Moves the novel to the newest format, with the template's tools if it has any (`migrated` false when it was already) | `Format v2: off-page events as files` |
+
+**Format v1.** In a novel in format 1 (events in `bible/events.yaml`), each of these is refused with `409 NEEDS_MIGRATION { from, to }`, for the app to ask the writer. With `migrate: true`, the novel is moved to format 2 first, in the same commit: `Format v2: off-page events as files; Bible: …`.
 
 ### Manuscript
 
