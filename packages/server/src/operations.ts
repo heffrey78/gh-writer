@@ -14,7 +14,7 @@ export interface FileWrite {
   tool?: true;
 }
 
-export type OperationErrorCode = "BAD_REQUEST" | "NOT_FOUND" | "STALE" | "REFERENCED" | "BLOCKED" | "NEEDS_MIGRATION";
+export type OperationErrorCode = "BAD_REQUEST" | "NOT_FOUND" | "STALE" | "REFERENCED" | "BLOCKED" | "NEEDS_MIGRATION" | "NOTES_LEFT";
 
 export class OperationError extends Error {
   readonly code: OperationErrorCode;

@@ -456,3 +456,60 @@ describe("notes (D12)", () => {
     await expect(bible.deleteEntity(ADA, hash(ADA_FILE))).rejects.toMatchObject({ code: "REFERENCED", details: { references: expect.arrayContaining([{ kind: "note", id: "note_w1fben", title: "What if Ben never sold the plans?" }]) } });
   });
 });
+
+describe("scene notes (#222)", () => {
+  const STATION = "sc_5tat1n";
+  const SPAN = "sc_br1dg3";
+  const manuscript = () => new ManuscriptOperations(dir, (fn) => fn());
+  const front = (path: string) => read(path).split("---\n")[1]!;
+
+  it("makes a note on a scene, and pins one note per scene, unpinning the other in the same commit", async () => {
+    const a = await bible.createNote({ title: "Flags", scenes: [STATION] });
+    expect(read(a.file)).toContain(`scenes:\n  - ${STATION}\n`);
+    await bible.updateNote("note_w1fben", { scenes: [STATION, SPAN] });
+    await bible.pinNote(a.id, STATION, true);
+    expect(front(a.file)).toContain(`pinned:\n  - ${STATION}\n`);
+    await bible.pinNote("note_w1fben", STATION, true);
+    expect(lastCommit()).toBe("Notes: pin “What if Ben never sold the plans?” in “The Station”");
+    expect(changedInLastCommit()).toEqual([`M\t${a.file}`, "M\tnotes/what-if-ben-never-sold.md"].sort());
+    expect(front(a.file)).not.toContain("pinned");
+    expect(front("notes/what-if-ben-never-sold.md")).toContain(`pinned:\n  - ${STATION}\n`);
+    // Taking the scene off the note takes its pin too.
+    await bible.updateNote("note_w1fben", { scenes: [SPAN] });
+    expect(front("notes/what-if-ben-never-sold.md")).not.toContain("pinned");
+    clean();
+    expect(validateNovel(await valid()).filter((d) => d.code === "W_NOTE_PIN")).toEqual([]);
+  });
+
+  it("deleting a scene takes it off its notes; notes left on no scene are kept or deleted as asked", async () => {
+    const only = await bible.createNote({ title: "Flags", scenes: [STATION] });
+    await bible.updateNote("note_w1fben", { scenes: [STATION, SPAN] });
+    await bible.pinNote("note_w1fben", STATION, true);
+    const head = gitIn(dir, "rev-parse", "HEAD");
+    await expect(manuscript().delete(STATION)).rejects.toMatchObject({ code: "NOTES_LEFT", details: { notes: [{ id: only.id, title: "Flags" }] } });
+    expect(gitIn(dir, "rev-parse", "HEAD")).toBe(head);
+
+    await manuscript().delete(STATION, { notes: "keep" });
+    expect(front(only.file)).not.toContain("scenes");
+    expect(front("notes/what-if-ben-never-sold.md")).toContain(`scenes:\n  - ${SPAN}\n`);
+    expect(front("notes/what-if-ben-never-sold.md")).not.toContain("pinned");
+    clean();
+    await valid();
+
+    await bible.updateNote(only.id, { scenes: [SPAN] });
+    await manuscript().delete("ch_arr1va", { notes: "delete" });
+    expect(existsSync(join(dir, only.file))).toBe(false);
+    expect(existsSync(join(dir, "notes/what-if-ben-never-sold.md"))).toBe(false);
+    clean();
+    await valid();
+  });
+
+  it("merging scenes puts the merged one's notes on the scene that stays", async () => {
+    await bible.updateNote("note_w1fben", { scenes: [SPAN] });
+    await bible.pinNote("note_w1fben", SPAN, true);
+    await manuscript().merge(STATION);
+    expect(front("notes/what-if-ben-never-sold.md")).toContain(`scenes:\n  - ${STATION}\npinned:\n  - ${STATION}\n`);
+    clean();
+    await valid();
+  });
+});

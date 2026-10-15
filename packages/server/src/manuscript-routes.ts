@@ -7,7 +7,8 @@ import { body, operation, type Env } from "./bible-routes.ts";
  * POST /:id/manuscript/parts                 { title, after? } → 201 { id, commit }
  * POST /:id/manuscript/items/:item/rename    { title }
  * POST /:id/manuscript/items/:item/move      { to?, index }
- * POST /:id/manuscript/items/:item/delete
+ * POST /:id/manuscript/items/:item/delete    { notes?: "keep" | "delete" }: notes left on no scene kept unattached or deleted;
+ *                                             without it, 409 NOTES_LEFT { notes } when there are any
  * POST /:id/manuscript/scenes/:scene/split   { paragraph, title } → { id, commit }
  * POST /:id/manuscript/scenes/:scene/merge   (with the next scene)
  * GET  /:id/manuscript/deleted               { deleted }: recently deleted, newest first
@@ -39,7 +40,10 @@ export function manuscriptRoutes(routes: Hono<Env>): void {
     const index = b.index;
     return operation(c, () => m(c).move(c.req.param("item"), { ...(b.to !== undefined ? { to: typeof b.to === "string" ? b.to : null } : {}), index }));
   });
-  routes.post("/:id/manuscript/items/:item/delete", async (c) => operation(c, () => m(c).delete(c.req.param("item"))));
+  routes.post("/:id/manuscript/items/:item/delete", async (c) => {
+    const { notes } = await body(c);
+    return operation(c, () => m(c).delete(c.req.param("item"), notes === "keep" || notes === "delete" ? { notes } : {}));
+  });
   routes.post("/:id/manuscript/scenes/:scene/split", async (c) => {
     const b = await body(c);
     return operation(c, () => m(c).split(c.req.param("scene"), { paragraph: Number(b.paragraph), title: str(b.title) }));

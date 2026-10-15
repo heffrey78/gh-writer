@@ -258,9 +258,34 @@ export class ManuscriptOperations {
   }
 
   /** Delete a scene, chapter or part (with what's in it). It stays in history: see recentlyDeleted. */
-  delete(id: string): Promise<OperationResult> {
+  /**
+   * Delete a scene, chapter or part. Its scenes are taken off the notes on them (#222); a note left on no
+   * scene is kept unattached or deleted as `notes` says, and without it the delete is refused
+   * (NOTES_LEFT { notes }) for the app to ask.
+   */
+  delete(id: string, { notes }: { notes?: "keep" | "delete" } = {}): Promise<OperationResult> {
     return this.#run(async (novel, o) => {
       const item = this.#find(novel, id);
+      const gone = new Set(
+        item.kind === "scene"
+          ? [id]
+          : novel.allScenes.filter((s) => (item.kind === "chapter" ? s.chapterId === id : novel.allChapters.some((c) => c.id === s.chapterId && c.partId === id))).map((s) => s.id),
+      );
+      const touched = novel.notes.filter((n) => n.scenes.some((s) => gone.has(s)) || n.pinned.some((s) => gone.has(s)));
+      const left = touched.filter((n) => n.scenes.every((s) => gone.has(s)));
+      if (left.length && !notes) {
+        throw new OperationError("NOTES_LEFT", `${left.length === 1 ? "A note is" : `${left.length} notes are`} only on what's being deleted.`, { notes: left.map((n) => ({ id: n.id, title: n.title })) });
+      }
+      for (const n of touched) {
+        const text = (await o.read(n.file)) ?? "";
+        if (left.includes(n) && notes === "delete") {
+          o.set(n.file, null);
+          continue;
+        }
+        const scenes = n.scenes.filter((s) => !gone.has(s));
+        const pinned = n.pinned.filter((s) => !gone.has(s));
+        o.set(n.file, editFrontMatter(text, [scenes.length ? { path: ["scenes"], value: scenes } : { path: ["scenes"], remove: true }, pinned.length ? { path: ["pinned"], value: pinned } : { path: ["pinned"], remove: true }]));
+      }
       if (item.kind === "scene") {
         o.set(item.scene.file, null);
         await this.#removeFrom(o, { kind: "chapter", chapter: this.#chapter(novel, item.scene.chapterId!) }, id);
@@ -461,8 +486,15 @@ export class ManuscriptOperations {
     await o.move(all);
   }
 
-  /** Relationships that start or end at `from` now do at `to` (merged scenes). */
+  /** Relationships that start or end at `from` now do at `to`, and notes on it are on `to` (merged scenes). */
   async #retarget(o: Overlay, novel: Novel, from: string, to: string): Promise<void> {
+    // Notes on it are on the merged scene now (#222); a pin goes too, unless that scene has one already.
+    const pinnedThere = novel.notes.some((n) => n.pinned.includes(to));
+    for (const n of novel.notes.filter((x) => x.scenes.includes(from) || x.pinned.includes(from))) {
+      const scenes = [...new Set(n.scenes.map((s) => (s === from ? to : s)))];
+      const pinned = [...new Set(n.pinned.flatMap((s) => (s !== from ? [s] : pinnedThere ? [] : [to])))];
+      o.set(n.file, editFrontMatter((await o.read(n.file)) ?? "", [{ path: ["scenes"], value: scenes }, pinned.length ? { path: ["pinned"], value: pinned } : { path: ["pinned"], remove: true }]));
+    }
     const path = "bible/relationships.yaml";
     let text = await o.read(path);
     if (text === null) return;

@@ -68,6 +68,8 @@ export interface EventFields {
 export interface NoteFields {
   title?: string;
   tags?: string[] | null;
+  /** The scenes it belongs to (#222); taking a scene off takes its pin too. */
+  scenes?: string[] | null;
   note?: string | null;
 }
 
@@ -414,6 +416,7 @@ export class BibleOperations {
         { path: ["id"], value: id },
         { path: ["title"], value: title },
         ...(fields.tags?.length ? [{ path: ["tags"], value: fields.tags }] : []),
+        ...(fields.scenes?.length ? [{ path: ["scenes"], value: this.#checkScenes(novel, fields.scenes) }] : []),
         { path: ["created"], value: new Date().toLocaleDateString("en-CA") },
       ]);
       const content = withProse(`---\n${front}---\n`, fields.note ?? "");
@@ -431,6 +434,12 @@ export class BibleOperations {
       const edits: YamlEdit[] = [];
       if (changes.title !== undefined) edits.push({ path: ["title"], value: changes.title.trim() });
       if (changes.tags !== undefined) edits.push(changes.tags?.length ? { path: ["tags"], value: changes.tags } : { path: ["tags"], remove: true });
+      if (changes.scenes !== undefined) {
+        const scenes = this.#checkScenes(novel, changes.scenes ?? []);
+        const pinned = note.pinned.filter((id) => scenes.includes(id));
+        edits.push(scenes.length ? { path: ["scenes"], value: scenes } : { path: ["scenes"], remove: true });
+        if (pinned.length !== note.pinned.length) edits.push(pinned.length ? { path: ["pinned"], value: pinned } : { path: ["pinned"], remove: true });
+      }
       let content = editFrontMatter(text, edits);
       if (changes.note !== undefined) content = withProse(content, changes.note ?? "");
       const title = changes.title?.trim() || note.title;
@@ -438,6 +447,31 @@ export class BibleOperations {
       const writes: FileWrite[] = file === note.file ? [{ path: note.file, content, base: hashText(text) }] : [{ path: note.file, content: null, base: hashText(text) }, { path: file, content, base: null }];
       const message = title !== note.title ? `Notes: rename “${note.title}” to “${title}”` : `Notes: edit “${title}”`;
       return { ...(await transaction(this.root, writes, message)), file };
+    });
+  }
+
+  /**
+   * Pin a note to the top of a scene's notes, or unpin it (#222). A scene has one pinned note: pinning
+   * this one unpins the scene's other, in the same commit. Pinning in a scene the note isn't on puts it there.
+   */
+  pinNote(id: string, scene: string, pinned: boolean): Promise<OperationResult> {
+    return this.#run(async (novel) => {
+      const note = this.#findNote(novel, id);
+      this.#checkScenes(novel, [scene]);
+      const writes: FileWrite[] = [];
+      const edit = async (n: Novel["notes"][number], scenes: string[], pins: string[]) => {
+        const text = await this.#read(n.file);
+        const edits: YamlEdit[] = [];
+        if (scenes.join() !== n.scenes.join()) edits.push(scenes.length ? { path: ["scenes"], value: scenes } : { path: ["scenes"], remove: true });
+        if (pins.join() !== n.pinned.join()) edits.push(pins.length ? { path: ["pinned"], value: pins } : { path: ["pinned"], remove: true });
+        if (edits.length) writes.push({ path: n.file, content: editFrontMatter(text, edits), base: hashText(text) });
+      };
+      if (pinned) {
+        for (const other of novel.notes) if (other.id !== id && other.pinned.includes(scene)) await edit(other, other.scenes, other.pinned.filter((s) => s !== scene));
+        await edit(note, note.scenes.includes(scene) ? note.scenes : [...note.scenes, scene], note.pinned.includes(scene) ? note.pinned : [...note.pinned, scene]);
+      } else await edit(note, note.scenes, note.pinned.filter((s) => s !== scene));
+      const title = novel.allScenes.find((s) => s.id === scene)?.title ?? scene;
+      return transaction(this.root, writes, pinned ? `Notes: pin “${note.title}” in “${title}”` : `Notes: unpin “${note.title}” in “${title}”`);
     });
   }
 
@@ -517,6 +551,12 @@ export class BibleOperations {
       const result = await transaction(this.root, all, migration.status === "migrate" ? `${migration.message}; ${message}` : message);
       return { ...result, ...extra };
     });
+  }
+
+  /** Scene IDs that are scenes, each once; anything else is refused. */
+  #checkScenes(novel: Novel, ids: string[]): string[] {
+    for (const id of ids) if (!novel.allScenes.some((s) => s.id === id)) throw new OperationError("BAD_REQUEST", `No scene “${id}”.`);
+    return [...new Set(ids)];
   }
 
   #findNote(novel: Novel, id: string) {

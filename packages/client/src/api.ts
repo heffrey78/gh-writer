@@ -271,6 +271,8 @@ export interface EventFields {
 export interface NoteFields {
   title?: string;
   tags?: string[] | null;
+  /** The scenes it belongs to (#222). */
+  scenes?: string[] | null;
   note?: string | null;
 }
 
@@ -587,6 +589,9 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
       create: (id: string, fields: NoteFields & { title: string }) => request<OperationResult & { id: string; file: string }>("POST", `/api/novels/${encodeURIComponent(id)}/notes`, fields).then((r) => r.data),
       update: (id: string, note: string, changes: NoteFields, base?: string) =>
         request<OperationResult & { file: string }>("PATCH", `/api/novels/${encodeURIComponent(id)}/notes/${encodeURIComponent(note)}`, { changes, ...(base ? { base } : {}) }).then((r) => r.data),
+      /** Pin it to the top of a scene's notes (the scene's other unpinned), or unpin it. */
+      pin: (id: string, note: string, scene: string, pinned: boolean) =>
+        request<OperationResult>("POST", `/api/novels/${encodeURIComponent(id)}/notes/${encodeURIComponent(note)}/pin`, { scene, pinned }).then((r) => r.data),
       delete: (id: string, note: string, base?: string) => request<OperationResult>("POST", `/api/novels/${encodeURIComponent(id)}/notes/${encodeURIComponent(note)}/delete`, base ? { base } : {}).then((r) => r.data),
       /** To an off-page event, or a scene at the end of `chapter`; the note kept (naming it) or removed. */
       promote: (id: string, note: string, target: { to: "event" } | { to: "scene"; chapter: string }, { keep, migrate }: { keep: boolean; migrate?: boolean }) =>
@@ -850,7 +855,11 @@ function manuscriptApi(root: (novelId: string) => string, request: Request) {
     rename: (novelId: string, id: string, title: string) => call<OperationResult>("POST", novelId, `${item(id)}/rename`, { title }),
     /** To position `index` in container `to` (a chapter for a scene, a part for a chapter; omitted: where it is). */
     move: (novelId: string, id: string, index: number, to?: string | null) => call<OperationResult>("POST", novelId, `${item(id)}/move`, { index, ...(to !== undefined ? { to } : {}) }),
-    delete: (novelId: string, id: string) => call<OperationResult>("POST", novelId, `${item(id)}/delete`),
+    /**
+     * Notes left on no scene by the delete are kept unattached or deleted as `notes` says; without it,
+     * a delete that would leave some is refused (409 NOTES_LEFT { notes }) for the app to ask (#222).
+     */
+    delete: (novelId: string, id: string, notes?: "keep" | "delete") => call<OperationResult>("POST", novelId, `${item(id)}/delete`, notes ? { notes } : undefined),
     /** Before paragraph `paragraph` (0-based); the rest becomes a new scene titled `title`. */
     split: (novelId: string, scene: string, paragraph: number, title: string) => call<OperationResult & { id: string }>("POST", novelId, `/scenes/${encodeURIComponent(scene)}/split`, { paragraph, title }),
     /** With the next scene in its chapter. */

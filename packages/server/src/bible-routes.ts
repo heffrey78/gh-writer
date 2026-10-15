@@ -5,7 +5,7 @@ import type { NovelWorkspace } from "./workspace.ts";
 
 export type Env = { Variables: { ws: NovelWorkspace } };
 
-const STATUS = { BAD_REQUEST: 400, NOT_FOUND: 404, STALE: 409, REFERENCED: 409, BLOCKED: 409, NEEDS_MIGRATION: 409 } as const;
+const STATUS = { BAD_REQUEST: 400, NOT_FOUND: 404, STALE: 409, REFERENCED: 409, BLOCKED: 409, NEEDS_MIGRATION: 409, NOTES_LEFT: 409 } as const;
 
 /** Answer an operation's result, or its refusal with a code (and the references or path it's about). */
 export async function operation(c: Context, run: () => Promise<object>, status: 200 | 201 = 200): Promise<Response> {
@@ -36,8 +36,9 @@ export async function body(c: Context): Promise<Record<string, unknown>> {
  * POST  /:id/bible/events/:event/delete        { base?, confirm?, migrate? }
  *       (each: a novel in format v1 is 409 NEEDS_MIGRATION { from, to } unless migrate, which moves it to v2 in the same commit)
  * POST  /:id/bible/events/:event/scene         { chapter, keep, migrate? } → 201 { scene, file }: written as a scene at the chapter's end; kept (naming it) or removed
- * POST  /:id/notes                              { title, tags?, note? } → 201 { id, file }: a writer's note (D12)
- * PATCH /:id/notes/:note                       { changes: { title?, tags?, note? }, base? } → { file }
+ * POST  /:id/notes                              { title, tags?, scenes?, note? } → 201 { id, file }: a writer's note (D12)
+ * PATCH /:id/notes/:note                       { changes: { title?, tags?, scenes?, note? }, base? } → { file }
+ * POST  /:id/notes/:note/pin                   { scene, pinned }: pinned to the top of the scene's notes (its other unpinned), or not
  * POST  /:id/notes/:note/delete                { base? }
  * POST  /:id/notes/:note/promote               { to: "event" | "scene", chapter?, keep, migrate? } → 201 { id, file }: what it became
  * POST  /:id/migrate                           → { migrated, commit }: the novel in the newest format, one commit (D11)
@@ -99,6 +100,10 @@ export function bibleRoutes(routes: Hono<Env>): void {
   routes.patch("/:id/notes/:note", async (c) => {
     const { changes, base } = await body(c);
     return operation(c, () => bible(c).updateNote(c.req.param("note"), (changes ?? {}) as never, typeof base === "string" ? { base } : {}));
+  });
+  routes.post("/:id/notes/:note/pin", async (c) => {
+    const { scene, pinned } = await body(c);
+    return operation(c, () => bible(c).pinNote(c.req.param("note"), String(scene ?? ""), pinned !== false));
   });
   routes.post("/:id/notes/:note/delete", async (c) => {
     const { base } = await body(c);
