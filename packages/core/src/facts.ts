@@ -1,6 +1,6 @@
 import { DEFAULT_GAP, presentIn } from "./diagrams.ts";
 import type { Novel, Relationship } from "./model.ts";
-import { storyInstant } from "./time.ts";
+import { storyInstant, storyTimeline } from "./time.ts";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -62,6 +62,24 @@ export function sceneFacts(novel: Novel, sceneId: string): string[] {
       else if (here.start === latest.end) facts.push(`Follows straight on from “${latest.title}”.`);
       else facts.push(`${readableSpan(here.start - latest.end)} after “${latest.title}”.`);
     }
+  }
+
+  // An off-page event right before or after it in story time, with no scene between (#165).
+  if (here) {
+    const items = storyTimeline(novel).items;
+    const i = items.findIndex((x) => x.kind === "scene" && x.scene.id === sceneId);
+    const neighbour = (j: number) => {
+      const x = items[j];
+      return x?.kind === "event" && x.at.dated === here.dated && x.event.scene !== sceneId ? { title: x.event.title, ...x.at } : undefined;
+    };
+    const before = neighbour(i - 1);
+    const after = neighbour(i + 1);
+    if (before) {
+      if (here.start < before.end) facts.push(`During the off-page event “${before.title}”.`);
+      else if (here.start === before.end) facts.push(`Straight after the off-page event “${before.title}”.`);
+      else facts.push(`${readableSpan(here.start - before.end)} after the off-page event “${before.title}”.`);
+    }
+    if (after) facts.push(after.start <= here.end ? `The off-page event “${after.title}” begins during it.` : `${readableSpan(after.start - here.end)} before the off-page event “${after.title}”.`);
   }
 
   // Characters: first seen here, or back after a long absence.

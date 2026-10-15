@@ -95,6 +95,14 @@ describe("compiling the manuscript", () => {
     expect(words(book.chapters[1]!)).toContain(`Tomas did not look up from the lathe when she came in.`);
   });
 
+  it("sets a mention of an off-page event as its words, like an entry's", async () => {
+    const station = sample[STATION]!;
+    const { novel, source } = await open({ [STATION]: `${station.trimEnd()}\n\nShe thought of [the flood](#evt_9ab3kd) again.\n` });
+    const book = await compileBook(novel, source);
+    expect(text(book)).not.toContain("#evt_");
+    expect(words(book.chapters[0]!)).toContain("She thought of the flood again.");
+  });
+
   it("keeps italic and bold, line breaks, quotes and breaks written in a scene", async () => {
     const station = sample[STATION]!.replace(/\n---\n[\s\S]*$/, "\n---\n");
     const { novel, source } = await open({

@@ -146,7 +146,7 @@ export function InTheStory({ novelId, novel, entity, compact }: { novelId: strin
             {presence.events.map((e, i) => (
               <span key={e.id}>
                 {i > 0 && ", "}
-                <Link to={`/novels/${novelId}/story-map/timeline`} className="text-accent underline decoration-accent/35 underline-offset-[3px] hover:decoration-accent">
+                <Link to={`/novels/${novelId}/event/${e.id}`} className="text-accent underline decoration-accent/35 underline-offset-[3px] hover:decoration-accent">
                   {e.title}
                 </Link>
               </span>

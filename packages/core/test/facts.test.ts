@@ -24,7 +24,8 @@ describe("sceneFacts", () => {
   it("says what holds of each of the sample's scenes", async () => {
     const book = await novel();
     expect(Object.fromEntries(book.scenes.map((s) => [s.title, sceneFacts(book, s.id)]))).toEqual({
-      "The Station": ["The book's first scene.", "First appearance of Ada Varn.", "The Sale begins here."],
+      // Off-page events right before or after a scene in story time, with no scene between.
+      "The Station": ["The book's first scene.", "6 days after the off-page event “The plans are stolen”.", "First appearance of Ada Varn.", "The Sale begins here."],
       "Walking the Span": ["8 h 10 min after “The Station”.", "First appearance of Ben Varn.", "Ben's Debt begins here."],
       "Tomas's Workshop": ["15 h 40 min after “Walking the Span”.", "First appearance of Tomas Hale."],
       "Ben's Ledger": ["11 h after “Tomas's Workshop”."],
@@ -36,7 +37,11 @@ describe("sceneFacts", () => {
         "Starts here: Mirela Kost: holds The Original Plans.",
       ],
       // Fourteen years back; and the next scene is measured from where the story was before it.
-      "The Flood": ["A flashback: 14 years before “The Betrayal”."],
+      "The Flood": [
+        "A flashback: 14 years before “The Betrayal”.",
+        "During the off-page event “The flood of '09”.",
+        "3 years before the off-page event “Ada leaves for the polytechnic”.",
+      ],
       "Mirela's Offer": ["15 h 45 min after “The Betrayal”.", "First appearance of Mirela Kost."],
       "The Last Rivet": [
         "The book's last scene.",
@@ -75,7 +80,7 @@ describe("sceneFacts", () => {
       "manuscript/01-return/01-arrival/_chapter.yaml": sample["manuscript/01-return/01-arrival/_chapter.yaml"]!.replace("scenes: [sc_5tat1n, sc_br1dg3]", "scenes: [sc_5tat1n]"),
     });
     expect(book.scenes.map((s) => s.id)).toEqual(["sc_5tat1n"]);
-    expect(sceneFacts(book, "sc_5tat1n")).toEqual(["The book's only scene.", "First appearance of Ada Varn.", "The Sale begins and ends here."]);
+    expect(sceneFacts(book, "sc_5tat1n")).toEqual(["The book's only scene.", "6 days after the off-page event “The plans are stolen”.", "First appearance of Ada Varn.", "The Sale begins and ends here."]);
     expect(sceneFacts(book, "sc_br1dg3")).toEqual([]);
     expect(sceneFacts(book, "sc_nope00")).toEqual([]);
   });

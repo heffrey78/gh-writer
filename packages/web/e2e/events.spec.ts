@@ -2,7 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import { asFormatV1 } from "../../server/test/fixtures.ts";
-import { axe, caretAtEnd, expect, test, type App } from "./fixtures.ts";
+import { axe, caretAtEnd, expect, selectionSettled, test, type App } from "./fixtures.ts";
 
 /** Off-page events as pages of their own (#165, #210). */
 
@@ -265,4 +265,47 @@ test("an event written as a scene: the scene made from it opens, and the event k
   expect(existsSync(join(dir, "bible/events/ada-leaves-for-the-polytechnic.md"))).toBe(false);
   expect(app.git(dir, "log", "-1", "--format=%s").trim()).toBe("Manuscript: write “Ada leaves for the polytechnic” as a scene, removing the event");
   expect(app.git(dir, "status", "--porcelain")).toBe("");
+});
+
+test("events where the story's facts show: @ mentions and their cards, profiles' Off the page, the scene card's From the story", async ({ page, app }) => {
+  const dir = await openNovel(page, app);
+  const station = () => readFileSync(join(dir, "manuscript/01-return/01-arrival/01-the-station.md"), "utf8");
+
+  // @ offers events after the entries, under Off the page.
+  await page.getByRole("textbox", { name: "Chapter text" }).getByText(/the way you count stitches in a wound\./).click();
+  await page.keyboard.press("End");
+  await page.keyboard.type(" Since @flood");
+  const suggestions = page.getByRole("listbox", { name: "Mention suggestions" });
+  await expect(suggestions.getByRole("option", { selected: true })).toHaveText(/The flood of '09/);
+  await expect(suggestions).toContainText("Off the page");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("nothing.");
+  await expect.poll(station, { timeout: 10_000 }).toContain("in a wound. Since [The flood of '09](#evt_9ab3kd) nothing.");
+  // Not a character or a place: the scene's lists are left alone.
+  expect(station()).not.toMatch(/^(characters|locations|entities):.*evt_/m);
+
+  // Its card, by keyboard, and on to the Entry tab.
+  await page.keyboard.press("ArrowLeft");
+  for (let i = 0; i < "nothing.".length; i++) await page.keyboard.press("ArrowLeft");
+  await selectionSettled(page);
+  await page.keyboard.press("Alt+Enter");
+  const card = page.getByRole("dialog", { name: "The flood of '09" });
+  await expect(card).toBeFocused();
+  await expect(card).toContainText("Off the page");
+  await expect(card).toContainText("2009-11-02 · 3 days");
+  await expect(card).toContainText("whoAda Varn, Ben Varn, Tomas Hale");
+  await axe(page);
+  await card.getByRole("button", { name: "Open event" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "The flood of '09" })).toBeVisible();
+
+  // The scene card says where the scene stands against the events around it.
+  await page.getByRole("tab", { name: "Scene" }).click();
+  await expect(page.getByText("6 days after the off-page event “The plans are stolen”.")).toBeVisible();
+
+  // A profile's Off the page line opens the event.
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.keyboard.type("character: ben varn");
+  await page.keyboard.press("Enter");
+  await page.getByRole("link", { name: "The plans are stolen" }).last().click();
+  await expect(page.getByRole("heading", { level: 1, name: "The plans are stolen" })).toBeVisible();
 });

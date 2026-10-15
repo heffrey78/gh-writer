@@ -1,4 +1,4 @@
-import { relationshipsAt, type Novel, type Scene } from "@gh-writer/core";
+import { proseText, relationshipsAt, type Novel, type Scene } from "@gh-writer/core";
 import type { MentionTarget } from "@gh-writer/editor";
 import type { Editor } from "@tiptap/core";
 import { X } from "lucide-react";
@@ -8,7 +8,8 @@ import { Picture, usePictureUrl } from "../bible/picture.tsx";
 import { pictureAlt, shapeForType } from "../bible/pictures.ts";
 import { FieldRows, Lead } from "../bible/profile.tsx";
 import { RelationshipLines } from "../bible/relationship-types.tsx";
-import { typeOf } from "../bible/types.ts";
+import { OFF_THE_PAGE, typeOf } from "../bible/types.ts";
+import { whenOf } from "./scene-details.tsx";
 import { Button } from "../ui/button.tsx";
 import { useEntryPanel } from "./entry-tab.tsx";
 
@@ -63,6 +64,8 @@ export function MentionCard({ novelId, novel }: { novelId: string; novel: Novel 
   const [place, setPlace] = useState<{ left: number; top: number }>();
 
   const entity = card && novel.entities.find((e) => e.id === card.id);
+  // An off-page event (#165): when, who and where, and its note.
+  const event = card && !entity ? novel.events.find((e) => e.id === card.id) : undefined;
   const picture = usePictureUrl(novelId, entity?.image);
 
   // Placed under the mention, or above it when there's no room.
@@ -131,17 +134,45 @@ export function MentionCard({ novelId, novel }: { novelId: string; novel: Novel 
       <div className="flex items-start justify-between gap-2">
         {entity && picture && <Picture src={picture} alt={pictureAlt(shapeForType(entity.type), entity.name)} focus={entity.imageFocus} className="size-13 shrink-0 rounded-full" />}
         <div className="flex-1">
-          <p className="text-xs text-muted">{type?.label ?? "Unknown entry"}</p>
+          <p className="text-xs text-muted">{event ? OFF_THE_PAGE : (type?.label ?? "Unknown entry")}</p>
           <h2 id={headingId} className="font-semibold">
-            {entity?.name ?? card.id}
+            {entity?.name ?? event?.title ?? card.id}
           </h2>
         </div>
         <button type="button" onClick={() => hide(true)} aria-label="Close" className="rounded p-1 text-muted hover:bg-panel">
           <X className="size-4" aria-hidden />
         </button>
       </div>
-      {!entity ? (
-        <p className="text-muted">No entry has this ID. It may have been deleted.</p>
+      {event ? (
+        <>
+          {(() => {
+            const time = whenOf({ when: event.when, duration: event.duration });
+            return time.when && <Lead size="card">{[time.when, time.duration].filter(Boolean).join(" · ")}</Lead>;
+          })()}
+          <FieldRows
+            compact
+            fields={(
+              [
+                ["who", event.characters],
+                ["where", event.locations],
+              ] as const
+            ).flatMap(([label, ids]) => (ids?.length ? [[label, ids.map((id) => novel.entities.find((e) => e.id === id)?.name ?? id).join(", ")] as [string, string]] : []))}
+          />
+          {proseText(event.body).trim() && <p className="line-clamp-3 text-muted">{proseText(event.body).trim()}</p>}
+          <div>
+            <Button
+              size="sm"
+              onClick={() => {
+                useMentionCard.setState({ card: null });
+                openEntry(event.id);
+              }}
+            >
+              Open event
+            </Button>
+          </div>
+        </>
+      ) : !entity ? (
+        <p className="text-muted">No entry or event has this ID. It may have been deleted.</p>
       ) : (
         <>
           {entity.summary && <Lead size="card">{entity.summary}</Lead>}
