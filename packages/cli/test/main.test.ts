@@ -318,7 +318,7 @@ describe("gh-writer migrate", () => {
     expect(compiled().equals(before)).toBe(true);
 
     expect(run(main, "migrate", novel)).toMatchObject({ code: 0, out: "Already in the newest format: nothing to do.\n" });
-  });
+  }, 30_000); // Runs the CLI five times and two compiles: about 3 s alone, past 5 s on a busy machine.
 
   it("says why it can't migrate, exiting 1", () => {
     const novel = join(tmp, "migrate-clash");

@@ -102,6 +102,28 @@ describe("GET /api/novels/:id", () => {
   });
 });
 
+describe("a novel in a newer format (D11)", () => {
+  it("reads, but refuses every change but a sync with 409 TOO_NEW, leaving the files alone", async () => {
+    const config = readFileSync(join(root, "novel.yaml"), "utf8");
+    writeFileSync(join(root, "novel.yaml"), config.replace(/^schema_version: \d+/m, "schema_version: 99"));
+    const model = json<{ novel: { diagnostics: { code: string }[] } }>(await api("GET", ""));
+    expect(model.novel.diagnostics.map((d) => d.code)).toEqual(["E_SCHEMA_VERSION"]);
+
+    const { hash } = await getFile(SCENE);
+    const before = readFileSync(join(root, SCENE), "utf8");
+    for (const [method, path, body] of [
+      ["PUT", `/files/${SCENE}`, { content: "Mine.\n", base: hash }],
+      ["POST", "/bible/entities", { type: "character", fields: { name: "Zed" } }],
+      ["POST", "/checkpoints", { name: "Before" }],
+    ] as const) {
+      const r = await api(method, path, body);
+      expect([path, r.status, json(r)]).toEqual([path, 409, { code: "TOO_NEW", error: "This novel is in format v99, newer than this copy of gh-writer reads (v2). Update gh-writer to change it." }]);
+    }
+    expect(readFileSync(join(root, SCENE), "utf8")).toBe(before);
+    expect((await api("POST", "/sync")).status).toBe(200);
+  });
+});
+
 describe("files", () => {
   it("reads a scene file raw, with its hash", async () => {
     const file = await getFile(SCENE);

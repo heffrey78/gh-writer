@@ -248,6 +248,13 @@ export function NovelPage() {
   }
 
   const book = novel.data.novel;
+  if (book.diagnostics.some((d) => d.code === "E_SCHEMA_VERSION")) {
+    return (
+      <Shell heading={heading} actions={actions} title={book.config?.title ?? "Untitled"}>
+        <TooNew />
+      </Shell>
+    );
+  }
   return (
     <Shell wide heading={heading} actions={actions} menu={menu} chrome={!focus} title={book.config?.title ?? "Untitled"}>
       {!connected && (
@@ -337,6 +344,31 @@ function Missing({ what }: { what: string }) {
     <div className="p-8">
       <h1 className="text-xl font-semibold">No such {what}</h1>
       <p className="mt-2 text-muted">It may have been moved or deleted. Choose another from the manuscript.</p>
+    </div>
+  );
+}
+
+const LATEST_RELEASE = "https://github.com/heffrey78/gh-writer/releases/latest";
+
+/** A novel in a newer format than this copy reads: shown, never written, lest it be written wrong (D11). */
+function TooNew() {
+  return (
+    <div className="mx-auto max-w-xl px-6 py-10">
+      <h1 className="text-2xl font-semibold">This novel needs a newer gh-writer</h1>
+      <p className="mt-3">
+        It was saved in a newer format than this copy of gh-writer can read, probably by a newer copy on another computer. To keep from saving it wrongly, this copy won't open it.
+      </p>
+      <p className="mt-3">
+        <a href={LATEST_RELEASE} target="_blank" rel="noreferrer" className="text-accent underline">
+          Get the latest gh-writer
+        </a>
+        , then open the novel again. Nothing in it has changed.
+      </p>
+      <p className="mt-6">
+        <Link to="/" className="text-accent underline">
+          Back to your novels
+        </Link>
+      </p>
     </div>
   );
 }

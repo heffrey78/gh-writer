@@ -1,6 +1,6 @@
 import { readdir, readFile, unlink } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
-import { loadNovel, picturePath, pictures, slugify, uniqueFileName, type FileSource, type Novel } from "@gh-writer/core";
+import { loadNovel, parseYaml, picturePath, pictures, SCHEMA_VERSION, slugify, uniqueFileName, type FileSource, type Novel } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
 import { watch, type FSWatcher } from "chokidar";
 import { BibleOperations } from "./bible.ts";
@@ -167,6 +167,17 @@ export class NovelWorkspace {
     } finally {
       this.#exclusive = undefined;
     }
+  }
+
+  /**
+   * The format the novel is in (novel.yaml's schema_version), when it's newer than this server reads:
+   * nothing may be written to it then, lest it be written as an older format (D11). Undefined otherwise.
+   */
+  async tooNew(): Promise<number | undefined> {
+    const text = await readFile(join(this.root, "novel.yaml"), "utf8").catch(() => undefined);
+    const data = text === undefined ? undefined : parseYaml(text, "novel.yaml").data;
+    const version = typeof data === "object" && data !== null ? (data as Record<string, unknown>)["schema_version"] : undefined;
+    return typeof version === "number" && version > SCHEMA_VERSION ? version : undefined;
   }
 
   /**

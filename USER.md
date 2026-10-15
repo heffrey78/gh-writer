@@ -226,6 +226,8 @@ diagrams/            generated diagram snapshots
 
 Write each paragraph on one line, and don't change the IDs (`char_7f3k2q`). The novel's own README explains more, and the [format spec](docs/format/v2.md) says everything.
 
+The format has a version, `schema_version` in `novel.yaml`. A newer gh-writer may move a novel to a newer format (it asks first). An older copy, on another computer say, then won't open the novel: it says to update gh-writer rather than show it wrongly or save over it. Syncing still works.
+
 ## The command line
 
 From the gh-writer folder:

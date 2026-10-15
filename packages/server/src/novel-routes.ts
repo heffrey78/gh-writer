@@ -1,3 +1,4 @@
+import { SCHEMA_VERSION } from "@gh-writer/core";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
@@ -24,6 +25,8 @@ const HEARTBEAT_MS = 25_000;
 type NovelEnv = { Variables: { ws: NovelWorkspace } };
 
 /**
+ * Any change to a novel in a newer format than this server reads (all but GET and sync) → 409 TOO_NEW.
+ *
  * GET /api/novels/:id               { novel, files }: the story model and the hash of each file it was read from
  * GET /api/novels/:id/files/<path>  { path, content, hash }
  * PUT /api/novels/:id/files/<path>  { content, base } → 200 { hash }, or 409 { current } when base is stale
@@ -47,6 +50,13 @@ export function novelRoutes(library: Library, workspaces: Workspaces, github?: G
     const ws = workspaces.get(c.req.param("id")!);
     if (!ws) return c.json({ code: "UNKNOWN_NOVEL", error: "No such novel in the library." }, 404);
     c.set("ws", ws);
+    // A novel in a newer format is read only: written by this server, it would be written wrong. Syncing may still bring it.
+    if (c.req.method !== "GET" && c.req.method !== "HEAD" && !c.req.path.endsWith("/sync")) {
+      const version = await ws.tooNew();
+      if (version !== undefined) {
+        return c.json({ code: "TOO_NEW", error: `This novel is in format v${version}, newer than this copy of gh-writer reads (v${SCHEMA_VERSION}). Update gh-writer to change it.` }, 409);
+      }
+    }
     await next();
   });
 
