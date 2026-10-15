@@ -114,9 +114,16 @@ export interface Relationship extends RelationshipRecord {
   index: number;
 }
 
-export interface StoryEvent extends EventRecord {
+/** An off-page event: a file of its own in bible/events/ (format v2), or an item of bible/events.yaml (v1). */
+export interface StoryEvent extends Omit<EventRecord, "note"> {
+  /** The scene that dramatizes it. */
+  scene?: string;
+  /** Its note: Markdown prose with mentions (in bible/events.yaml, the one-line `note`). */
+  body: string;
+  bodyLine: number;
   file: string;
-  index: number;
+  /** Index within bible/events.yaml, for diagnostics; undefined for an event file. */
+  index?: number;
 }
 
 export type RecordKind = "novel" | "part" | "chapter" | "scene" | "entity" | "relationship" | "event";

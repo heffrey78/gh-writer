@@ -5,7 +5,7 @@ import type { FileSource } from "./source.ts";
 import { overlaps, storyTimeline, type TimelineItem } from "./time.ts";
 import type { Diagnostic, Severity } from "./types.ts";
 
-/** Every diagnostic code, with its severity. docs/format/v1.md documents each one. */
+/** Every diagnostic code, with its severity. docs/format/v2.md documents each one. */
 export const RULES: Readonly<Record<string, Severity>> = {
   E_MISSING_FILE: "error",
   E_PARSE: "error",
@@ -33,6 +33,7 @@ export const RULES: Readonly<Record<string, Severity>> = {
   W_TIME_OVERLAP: "warning",
   W_MISSING_IMAGE: "warning",
   W_IMAGE_OUTSIDE: "warning",
+  W_EVENTS_YAML: "warning",
 };
 
 export interface ValidationResult {
@@ -49,6 +50,9 @@ export async function validate(source: FileSource): Promise<ValidationResult> {
   const errors = diagnostics.filter((d) => d.severity === "error").length;
   return { novel, diagnostics, errors, warnings: diagnostics.length - errors };
 }
+
+/** What a mention in prose may name: any bible entry, or an off-page event (format v2). */
+const MENTIONABLE = ["*entity", "event"];
 
 /** Cross-reference checks and advisory warnings on a loaded novel. */
 export function validateNovel(novel: Novel): Diagnostic[] {
@@ -111,7 +115,7 @@ export function validateNovel(novel: Novel): Diagnostic[] {
     if (s.pov && !s.characters.includes(s.pov)) {
       push("warning", "W_POV_NOT_PRESENT", s.file, `POV character ${s.pov} is not listed in characters`, { pointer: "/pov" });
     }
-    for (const m of mentions(s.body)) ref(m.id, ["*entity"], s.file, "", `Mention "${m.text}"`, s.bodyLine + m.line - 1);
+    for (const m of mentions(s.body)) ref(m.id, MENTIONABLE, s.file, "", `Mention "${m.text}"`, s.bodyLine + m.line - 1);
     for (const p of pictures(s.body)) outsideImages(p, s.file, s.bodyLine);
     for (const line of hardWrappedLines(s.body)) {
       push("warning", "W_HARD_WRAP", s.file, "Paragraph continues on the next line; keep each paragraph on one line", { line: s.bodyLine + line - 1 });
@@ -120,16 +124,24 @@ export function validateNovel(novel: Novel): Diagnostic[] {
 
   // Bible entries: mentions in notes.
   for (const e of novel.entities) {
-    for (const m of mentions(e.body)) ref(m.id, ["*entity"], e.file, "", `Mention "${m.text}"`, e.bodyLine + m.line - 1);
+    for (const m of mentions(e.body)) ref(m.id, MENTIONABLE, e.file, "", `Mention "${m.text}"`, e.bodyLine + m.line - 1);
     for (const p of pictures(e.body)) outsideImages(p, e.file, e.bodyLine);
   }
 
-  // Events.
+  // Events: items of bible/events.yaml (v1), or files of their own with a note in prose (v2).
   for (const ev of novel.events) {
-    const p = `/events/${ev.index}`;
+    const p = ev.index === undefined ? "" : `/events/${ev.index}`;
     ev.characters?.forEach((id, i) => ref(id, ["character"], ev.file, `${p}/characters/${i}`, "characters"));
     ev.locations?.forEach((id, i) => ref(id, ["location"], ev.file, `${p}/locations/${i}`, "locations"));
     ev.plotlines?.forEach((id, i) => ref(id, ["plotline"], ev.file, `${p}/plotlines/${i}`, "plotlines"));
+    ref(ev.scene, ["scene"], ev.file, `${p}/scene`, "scene");
+    if (ev.index !== undefined) continue;
+    for (const m of mentions(ev.body)) ref(m.id, MENTIONABLE, ev.file, "", `Mention "${m.text}"`, ev.bodyLine + m.line - 1);
+    for (const pic of pictures(ev.body)) outsideImages(pic, ev.file, ev.bodyLine);
+  }
+  if ((novel.config?.schema_version ?? 1) >= 2) {
+    const leftover = novel.events.find((e) => e.index !== undefined);
+    if (leftover) push("warning", "W_EVENTS_YAML", leftover.file, "Events in bible/events.yaml are format v1's: run gh-writer migrate to give each its own file in bible/events/");
   }
 
   // Relationship types.
@@ -235,6 +247,7 @@ async function missingImages(novel: Novel, source: FileSource): Promise<Diagnost
     ...novel.entities.flatMap((e) => (e.image ? [{ path: e.image, file: e.file, pointer: "/image", what: `${e.name}'s picture` }] : [])),
     ...novel.allScenes.flatMap((s) => inProse(s.body, s.file, s.bodyLine)),
     ...novel.entities.flatMap((e) => inProse(e.body, e.file, e.bodyLine)),
+    ...novel.events.flatMap((e) => (e.index === undefined ? inProse(e.body, e.file, e.bodyLine) : [])),
   ];
   const out: Diagnostic[] = [];
   for (const w of wanted) {

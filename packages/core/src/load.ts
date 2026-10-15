@@ -6,7 +6,10 @@ import { joinPath, type FileSource } from "./source.ts";
 import type { CompileFile, Diagnostic, NovelFile, RelationshipTypeFile, SceneStatus, StoryTime } from "./types.ts";
 
 /** Highest novel repository schema version this build understands. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
+
+/** The folder under bible/ that holds event files (format v2), reserved from entity types. */
+export const EVENTS_FOLDER = "events";
 
 const SCENE_STATUSES: readonly SceneStatus[] = ["idea", "outlined", "drafted", "revised", "final"];
 
@@ -239,6 +242,10 @@ export async function loadNovel(source: FileSource): Promise<Novel> {
     for (const entry of await source.list("bible")) {
       const path = joinPath("bible", entry.name);
       if (!entry.dir) continue;
+      if (entry.name === EVENTS_FOLDER) {
+        for (const f of await source.list(path)) if (!f.dir && f.name.endsWith(".md")) await loadEvent(joinPath(path, f.name));
+        continue;
+      }
       const type = novel.entityTypes.find((t) => t.folder === entry.name);
       const files = (await source.list(path)).filter((f) => !f.dir && f.name.endsWith(".md"));
       if (!type) {
@@ -272,12 +279,35 @@ export async function loadNovel(source: FileSource): Promise<Novel> {
         characters: strList(e["characters"]),
         locations: strList(e["locations"]),
         plotlines: strList(e["plotlines"]),
-        note: str(e["note"]),
+        body: str(e["note"]) ?? "",
+        bodyLine: 0,
         file: "bible/events.yaml",
         index,
       };
       novel.events.push(ev);
     });
+  }
+
+  /** An event file (format v2): front matter, and its note as prose. */
+  async function loadEvent(file: string) {
+    const md = await markdownFile(file, "event");
+    if (!md || !str(md.data["id"])) return;
+    const d = md.data;
+    const ev: StoryEvent = {
+      id: str(d["id"])!,
+      title: str(d["title"]) ?? "",
+      when: storyTime(d["when"]),
+      duration: str(d["duration"]),
+      characters: strList(d["characters"]),
+      locations: strList(d["locations"]),
+      plotlines: strList(d["plotlines"]),
+      body: md.body,
+      bodyLine: md.bodyLine,
+      file,
+    };
+    const scene = str(d["scene"]);
+    if (scene) ev.scene = scene;
+    novel.events.push(ev);
   }
 
   async function loadEntity(file: string, type: string) {
@@ -345,7 +375,7 @@ function entityTypes(raw: unknown, diagnostics: Diagnostic[]): EntityTypeDef[] {
     const clash =
       types.find((x) => x.key === key) ? `key "${key}"` :
       RESERVED_PREFIXES.has(prefix) || types.find((x) => x.prefix === prefix) ? `prefix "${prefix}"` :
-      types.find((x) => x.folder === folder) ? `folder "${folder}"` : undefined;
+      folder === EVENTS_FOLDER || types.find((x) => x.folder === folder) ? `folder "${folder}"` : undefined;
     if (clash) {
       diagnostics.push({ ...error("E_ENTITY_TYPE", "novel.yaml", `Entity type ${clash} is reserved or already used`), pointer: `/entity_types/${i}` });
       return;

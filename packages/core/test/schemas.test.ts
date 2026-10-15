@@ -75,7 +75,7 @@ describe("schemas", () => {
 });
 
 describe("format spec examples", () => {
-  const spec = readFileSync(new URL("../../../docs/format/v1.md", import.meta.url), "utf8");
+  const spec = readFileSync(new URL("../../../docs/format/v2.md", import.meta.url), "utf8");
 
   /** Fenced yaml/markdown blocks under the "## ..." heading that starts with `heading`. */
   function blocks(heading: string): string[] {
@@ -92,7 +92,7 @@ describe("format spec examples", () => {
     ["Scenes", ["scene"]],
     ["Bible entries", ["entity"]],
     ["`bible/relationships.yaml`", ["relationships"]],
-    ["`bible/events.yaml`", ["events"]],
+    ["Off-page events: `bible/events/`", ["event"]],
     ["`diagrams/layouts.yaml`", ["layouts"]],
   ];
 

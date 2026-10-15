@@ -1,6 +1,6 @@
 # The Bridge at Varn (sample novel)
 
-A tiny novel in the [gh-writer format](../../docs/format/v1.md), used for tests and demos. It exercises every part of the format:
+A tiny novel in the [gh-writer format](../../docs/format/v2.md), used for tests and demos. It exercises every part of the format:
 
 - **Parts, chapters and scenes**: 2 parts, 4 chapters, 8 scenes, in `manuscript/`.
 - **A flashback**: [The Flood](manuscript/02-the-sale/01-night-crossing/02-the-flood.md) is set in 2009 but read in part two.

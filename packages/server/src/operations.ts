@@ -1,7 +1,7 @@
 import { readdir, rmdir, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { hasGitIdentity, IDENTITY_MESSAGE } from "./committer.ts";
-import { atomicWrite, readBytes, writableImagePath, writablePath } from "./files.ts";
+import { atomicWrite, readBytes, readToolBytes, writableImagePath, writablePath, writableToolPath } from "./files.ts";
 import { git } from "./git.ts";
 
 /** One file an operation writes (new text, or an image's bytes) or deletes (null). */
@@ -10,6 +10,8 @@ export interface FileWrite {
   content: string | Uint8Array | null;
   /** The hash the caller read: the change is refused if the file is different now. Null: must not exist. Omitted: not checked. */
   base?: string | null;
+  /** One of the novel's vendored tools (.github/gh-writer/), written only by a format migration. */
+  tool?: true;
 }
 
 export type OperationErrorCode = "BAD_REQUEST" | "NOT_FOUND" | "STALE" | "REFERENCED" | "BLOCKED";
@@ -47,7 +49,7 @@ export async function transaction(root: string, changes: FileWrite[], message: s
   // What's there now, for the base checks and to put back: as bytes, since images are among them.
   const before = new Map<string, Buffer | null>();
   for (const change of changes) {
-    const current = await readBytes(root, change.path);
+    const current = change.tool ? await readToolBytes(root, change.path) : await readBytes(root, change.path);
     if (change.base !== undefined && (current?.hash ?? null) !== change.base) {
       throw new OperationError("STALE", `“${change.path}” changed since it was read.`, { path: change.path });
     }
@@ -59,6 +61,7 @@ export async function transaction(root: string, changes: FileWrite[], message: s
     for (const change of changes) {
       const { content } = change;
       if (content === null) await remove(root, change.path);
+      else if (change.tool) await atomicWrite(await writableToolPath(root, change.path), content);
       else if (typeof content === "string") await atomicWrite(await writablePath(root, change.path, content), content);
       else await atomicWrite(await writableImagePath(root, change.path, content), content);
       done.push(change.path);

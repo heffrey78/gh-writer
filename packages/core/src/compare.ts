@@ -341,7 +341,7 @@ function compareEvents(before: Novel, after: Novel): EventComparison[] {
       field("Characters", names(before, x.characters), names(after, y.characters)),
       field("Locations", names(before, x.locations), names(after, y.locations)),
       field("Plotlines", names(before, x.plotlines), names(after, y.plotlines)),
-      field("Note", x.note, y.note),
+      field("Note", x.body, y.body),
     ].filter((f): f is FieldChange => !!f);
   for (const y of after.events) {
     const x = a.get(y.id);

@@ -23,7 +23,7 @@ export function EventDialog({ novelId, novel, event, onClose }: { novelId: strin
   const [time, setTime] = useState(w ? ("at" in w ? w.at.slice(11, 16) : (w.time ?? "")) : "");
   const [duration, setDuration] = useState(event?.duration ?? "");
   const [chosen, setChosen] = useState({ characters: event?.characters ?? [], locations: event?.locations ?? [], plotlines: event?.plotlines ?? [] });
-  const [note, setNote] = useState(event?.note ?? "");
+  const [note, setNote] = useState(event?.body ?? "");
 
   const fields = (): EventFields & { title: string } => ({
     title: title.trim(),

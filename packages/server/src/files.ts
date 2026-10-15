@@ -84,7 +84,21 @@ export function isVisible(path: string): boolean {
 
 /** The absolute path of `path` under `root`, refusing symlinks that lead out of the novel. */
 async function resolveInside(root: string, path: string): Promise<string> {
-  const full = join(root, ...checkPath(path).split("/"));
+  return resolveChecked(root, checkPath(path));
+}
+
+/** The novel's vendored tools (the novel template's .github/gh-writer/), which a format migration refreshes (D11). */
+export const TOOLS_DIR = ".github/gh-writer";
+
+/** Check that a path is one of the novel's vendored tools, and return its full path. Only migrations write these. */
+export async function writableToolPath(root: string, path: string): Promise<string> {
+  if (!path.startsWith(`${TOOLS_DIR}/`)) throw new FileError("NOT_WRITABLE", `Not one of the novel's tools: "${path}"`);
+  checkPath(path.slice(TOOLS_DIR.length + 1));
+  return resolveChecked(root, path);
+}
+
+async function resolveChecked(root: string, path: string): Promise<string> {
+  const full = join(root, ...path.split("/"));
   const realRoot = await realpath(root);
   // The deepest existing ancestor must still be inside the root once symlinks are followed.
   let dir = dirname(full);
@@ -125,7 +139,18 @@ export async function readText(root: string, path: string): Promise<TextFile | u
 
 /** A file's bytes, or undefined if it doesn't exist. */
 export async function readBytes(root: string, path: string, max = MAX_IMAGE_BYTES): Promise<{ bytes: Buffer; hash: string } | undefined> {
-  const full = await resolveInside(root, path);
+  return bytesAt(await resolveInside(root, path), path, max);
+}
+
+/** One of the novel's vendored tools, as bytes and their hash, or undefined if it isn't there. */
+export async function readToolBytes(root: string, path: string): Promise<{ bytes: Buffer; hash: string } | undefined> {
+  return bytesAt(await writableToolPath(root, path), path, MAX_TOOL_BYTES);
+}
+
+/** The vendored compiler with its type is the largest tool, at about 1.4 MB. */
+const MAX_TOOL_BYTES = 20 * 1024 * 1024;
+
+async function bytesAt(full: string, path: string, max: number): Promise<{ bytes: Buffer; hash: string } | undefined> {
   const info = await stat(full).catch(() => undefined);
   if (!info) return undefined;
   if (info.size > max) throw new FileError("TOO_LARGE", `"${path}" is larger than ${max} bytes.`);

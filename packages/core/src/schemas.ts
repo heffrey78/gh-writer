@@ -9,6 +9,7 @@ import scene from "../schemas/scene.schema.json" with { type: "json" };
 import entity from "../schemas/entity.schema.json" with { type: "json" };
 import relationships from "../schemas/relationships.schema.json" with { type: "json" };
 import events from "../schemas/events.schema.json" with { type: "json" };
+import event from "../schemas/event.schema.json" with { type: "json" };
 import layouts from "../schemas/layouts.schema.json" with { type: "json" };
 import compile from "../schemas/compile.schema.json" with { type: "json" };
 import type { Diagnostic } from "./types.ts";
@@ -22,6 +23,7 @@ export const SCHEMAS = {
   entity,
   relationships,
   events,
+  event,
   layouts,
   compile,
 } as const;

@@ -1,6 +1,6 @@
 # @gh-writer/editor
 
-The scene prose editor: a TipTap (ProseMirror) schema for scene prose, a lossless round-trip between it and the Markdown in a novel repository ([format spec](../../docs/format/v1.md)), and a React editor component.
+The scene prose editor: a TipTap (ProseMirror) schema for scene prose, a lossless round-trip between it and the Markdown in a novel repository ([format spec](../../docs/format/v2.md)), and a React editor component.
 
 ## React component
 
@@ -105,7 +105,7 @@ const spell = createWorkerSpellService({ aff, dic }, knownWords(novel, await rea
 Misspelled words are underlined as an inline decoration with `aria-invalid="spelling"`. Mod+. (or a right-click) opens a menu of suggestions, with "Add to dictionary" and "Ignore". In the menu, arrows move, Enter chooses and Escape returns to the text. The "Spell check" command turns checking off and on; the setting persists with the writing modes.
 
 - **Engine:** nspell, a Hunspell-compatible checker, running in a Web Worker. The browser's own checker can't learn the story's names, has no API for suggestions and differs between webviews. The app supplies the Hunspell dictionary (`aff` and `dic` text); the playground uses `dictionary-en`, which is US English. `createLocalSpellService` runs the same engine on the main thread, for tests.
-- **Known words:** every word of the bible's names and aliases, plus the novel's `dictionary.txt` (see the [format spec](../../docs/format/v1.md)), from `knownWords` in `@gh-writer/core/dictionary`. "Add to dictionary" calls `onAddWord`, for the app to save with `addToDictionary`, which inserts in sorted order so the change is one line. "Ignore" lasts the session. Possessives of known words ("Mirela's") are accepted.
+- **Known words:** every word of the bible's names and aliases, plus the novel's `dictionary.txt` (see the [format spec](../../docs/format/v2.md)), from `knownWords` in `@gh-writer/core/dictionary`. "Add to dictionary" calls `onAddWord`, for the app to save with `addToDictionary`, which inserts in sorted order so the change is one line. "Ignore" lasts the session. Possessives of known words ("Mirela's") are accepted.
 - **Not checked:** mention labels, raw Markdown, words with digits, underscores or dots (numbers, IDs, abbreviations), and single letters.
 - **Cost:** paragraphs are checked after typing pauses (500 ms), and only those that changed, because results are cached per node. On the 10,600-word chapter benchmark, the 95th-percentile keystroke latency with spell check on is 21 ms.
 

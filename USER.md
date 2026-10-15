@@ -195,11 +195,11 @@ Issues are for the work around the book: plot holes, continuity errors, research
 - **E-book (EPUB)** for readers and e-readers.
 - **PDF**, laid out like the Word file.
 
-A scene's headings, lists, tables and pictures come out as themselves in all three, set beneath the chapter's heading. Compile the whole book or a range of chapters. Anything you've just typed is saved first. The **Cover** row shows the book's cover, if it has one, with *Change…* and *Remove* (or *Add a cover…*): it's the e-book's cover and the PDF's first page, and Word manuscripts go out without one, as agents expect. Presets in a `compile.yaml` file in the novel set the title page details, chapter headings ("Chapter Four: The Flood", or just the number or title), the scene break marker, and front and back matter such as a dedication; see the [format spec](docs/format/v1.md#compileyaml).
+A scene's headings, lists, tables and pictures come out as themselves in all three, set beneath the chapter's heading. Compile the whole book or a range of chapters. Anything you've just typed is saved first. The **Cover** row shows the book's cover, if it has one, with *Change…* and *Remove* (or *Add a cover…*): it's the e-book's cover and the PDF's first page, and Word manuscripts go out without one, as agents expect. Presets in a `compile.yaml` file in the novel set the title page details, chapter headings ("Chapter Four: The Flood", or just the number or title), the scene break marker, and front and back matter such as a dedication; see the [format spec](docs/format/v2.md#compileyaml).
 
 **On GitHub**, every named checkpoint you make becomes a Release of the novel's repository with the three files attached, and *Actions → Compile → Run workflow* compiles on demand. The files are identical to the app's for the same saved version.
 
-> **A novel started before compiling existed** doesn't have the Compile workflow yet. [Upgrading a novel's tools](docs/format/v1.md#upgrading-a-novels-tools) says which files to copy in from the template.
+> **A novel started before compiling existed** doesn't have the Compile workflow yet. [Upgrading a novel's tools](docs/format/v2.md#upgrading-a-novels-tools) says which files to copy in from the template.
 
 ![The Compile dialog](docs/screenshots/compile.png)
 
@@ -224,7 +224,7 @@ bible/events.yaml    off-page events
 diagrams/            generated diagram snapshots
 ```
 
-Write each paragraph on one line, and don't change the IDs (`char_7f3k2q`). The novel's own README explains more, and the [format spec](docs/format/v1.md) says everything.
+Write each paragraph on one line, and don't change the IDs (`char_7f3k2q`). The novel's own README explains more, and the [format spec](docs/format/v2.md) says everything.
 
 ## The command line
 
@@ -236,6 +236,7 @@ From the gh-writer folder:
 | `npx gh-writer validate [dir]` | Check a novel's files for broken references and other problems |
 | `npx gh-writer snapshots [dir]` | Redraw the diagram snapshots in `diagrams/` |
 | `npx gh-writer compile [dir]` | Compile to `compiled/` in the novel. `--format docx,epub,pdf`, `--preset`, `--from`/`--to` (chapter IDs), `--out` |
+| `npx gh-writer migrate [dir]` | Move a novel to the newest format as one commit, and update its tools in `.github/gh-writer/` ([format spec](docs/format/v2.md#versioning)) |
 | `npx gh-writer new-id <prefix>` | A new ID, for editing files by hand |
 
 In a novel's own folder, without gh-writer installed, the same tools run as `node .github/gh-writer/validate.mjs`, `snapshots.mjs` and `compile.mjs`.

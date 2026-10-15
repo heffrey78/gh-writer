@@ -82,7 +82,7 @@
 
 ### Your files, your way
 
-Everything is in plain files: one Markdown file per scene, one per bible entry, YAML for structure and relationships. You can edit them on github.com or in any text editor, and a validator (run on every push) catches broken references. The format is specified in [docs/format/v1.md](docs/format/v1.md).
+Everything is in plain files: one Markdown file per scene, one per bible entry, YAML for structure and relationships. You can edit them on github.com or in any text editor, and a validator (run on every push) catches broken references. The format is specified in [docs/format/v2.md](docs/format/v2.md).
 
 The app stays calm as it grows: a sidebar grouped by what you're doing (write, plan, world, revise) that folds away to icons, and a top bar with just the book, its version, save and sync status, and a ⋯ menu for the rest. It's keyboard-first and accessible: a command palette (Ctrl+K / ⌘K) reaches everything, every view works without a mouse, it follows your light or dark setting, and its screens are checked with axe in the test suite.
 

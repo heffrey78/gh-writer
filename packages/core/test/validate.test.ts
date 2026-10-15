@@ -214,6 +214,58 @@ describe("validate", () => {
     expect(only((await fixture({ "novel.yaml": `${NOVEL}plotline_gap: { pages: 3 }\n` })).diagnostics)).toContain("E_SCHEMA");
   });
 
+  describe("off-page events as files (format v2, D11)", () => {
+    const V2 = NOVEL.replace("schema_version: 1", "schema_version: 2");
+    const event = (id: string, front = "", body = "") => `---\nid: ${id}\ntitle: Flood\n${front}---\n${body}`;
+
+    it("loads an event file, its note as prose, and validates mentions of events", async () => {
+      const r = await fixture({
+        "novel.yaml": V2,
+        "bible/events/flood.md": event("evt_aaaaaa", "when: {at: 2009-11-02}\ncharacters: [char_aaaaaa]\nscene: sc_bbbbbb\n", "\n[Ada](#char_aaaaaa) holds the pier.\n"),
+        "manuscript/01-one/02-b.md": scene("sc_bbbbbb", "B", "", "After [the flood](#evt_aaaaaa).\n"),
+        "bible/characters/ada.md": "---\nid: char_aaaaaa\nname: Ada\n---\nShe remembers [the flood](#evt_aaaaaa).\n",
+      });
+      expect(r.diagnostics).toEqual([]);
+      const [ev] = r.novel.events;
+      expect(ev).toMatchObject({ id: "evt_aaaaaa", title: "Flood", when: { at: "2009-11-02" }, characters: ["char_aaaaaa"], scene: "sc_bbbbbb", file: "bible/events/flood.md", bodyLine: 8 });
+      expect(ev!.body).toBe("\n[Ada](#char_aaaaaa) holds the pier.\n");
+      expect(ev!.index).toBeUndefined();
+    });
+
+    it("checks an event file's references, its scene and the mentions in its note, by pointer and line", async () => {
+      const r = await fixture({
+        "novel.yaml": V2,
+        "bible/events/flood.md": event("evt_aaaaaa", "locations: [char_aaaaaa]\nscene: char_aaaaaa\n", "\nThen [Zed](#char_zzzzzz).\n"),
+      });
+      expect(r.diagnostics.map((d) => [d.code, d.file, d.pointer ?? d.line])).toEqual([
+        ["E_REF_TYPE", "bible/events/flood.md", "/locations/0"],
+        ["E_REF_TYPE", "bible/events/flood.md", "/scene"],
+        ["E_DANGLING_REF", "bible/events/flood.md", 8],
+      ]);
+    });
+
+    it("an event's prefix must be evt_; a v1 events.yaml left in a v2 novel is W_EVENTS_YAML", async () => {
+      const r = await fixture({
+        "novel.yaml": V2,
+        "bible/events/flood.md": event("sc_dddddd"),
+        "bible/events.yaml": "events:\n  - {id: evt_bbbbbb, title: Leaving}\n",
+      });
+      expect(only(r.diagnostics)).toEqual(["W_EVENTS_YAML", "E_ID_PREFIX"]);
+      expect(r.novel.events.map((e) => e.id).sort()).toEqual(["evt_bbbbbb", "sc_dddddd"]);
+    });
+
+    it("bible/events.yaml in a v1 novel is fine, its note the event's prose", async () => {
+      const r = await fixture({ "bible/events.yaml": "events:\n  - {id: evt_bbbbbb, title: Leaving, note: By the night train.}\n" });
+      expect(r.diagnostics).toEqual([]);
+      expect(r.novel.events[0]).toMatchObject({ body: "By the night train.", index: 0, file: "bible/events.yaml" });
+    });
+
+    it("events is no custom type's folder", async () => {
+      const r = await fixture({ "novel.yaml": `${V2}entity_types:\n  - {key: happening, prefix: hap, folder: events, label: Happening}\n` });
+      expect(only(r.diagnostics)).toEqual(["E_ENTITY_TYPE"]);
+    });
+  });
+
   it("skips cross-reference checks for a newer schema version", async () => {
     const r = await fixture({ "novel.yaml": "schema_version: 9\nid: nv_4k8h2c\ntitle: Future\n", "manuscript/01-one/02-b.md": scene("sc_bbbbbb", "B", "pov: char_zzzzzz\n") });
     expect(only(r.diagnostics)).toEqual(["E_SCHEMA_VERSION"]);
@@ -250,7 +302,7 @@ describe("hardWrappedLines", () => {
 
 describe("rule documentation", () => {
   it("documents exactly the codes the validator can emit, with matching severities", () => {
-    const spec = readFileSync(new URL("../../../docs/format/v1.md", import.meta.url), "utf8");
+    const spec = readFileSync(new URL("../../../docs/format/v2.md", import.meta.url), "utf8");
     const documented = Object.fromEntries(
       [...spec.matchAll(/^\| `([EW]_[A-Z_]+)` \|/gm)].map((m) => [m[1]!, m[1]!.startsWith("E_") ? "error" : "warning"]),
     );

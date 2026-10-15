@@ -2,6 +2,7 @@
 import { parseArgs } from "node:util";
 import { newId, SCHEMA_VERSION } from "@gh-writer/core";
 import { runCompile } from "./compile-command.ts";
+import { runMigrate } from "./migrate-command.ts";
 import { runServe } from "./serve-command.ts";
 import { runSnapshots } from "./snapshots-command.ts";
 import { runValidate } from "./validate-command.ts";
@@ -25,6 +26,8 @@ Commands:
       --from <chapter>      The first chapter to compile, by ID (default: the first)
       --to <chapter>        The last, by ID (default: the last)
       --out <dir>           Where the files go (default: compiled/ in the novel)
+  migrate [dir]             Move a novel to the newest format, as one commit (and update its
+                            tools in .github/gh-writer/)
   new-id <prefix>           Print a new random ID, e.g. "gh-writer new-id char"
 
 Options:
@@ -86,6 +89,8 @@ async function main(argv: string[]): Promise<number> {
       const { format, preset, from, to, out } = values;
       return runCompile(rest[0] ?? ".", { format, preset, from, to, out });
     }
+    case "migrate":
+      return runMigrate(rest[0] ?? ".");
     case "new-id": {
       const prefix = rest[0];
       if (!prefix || !/^[a-z]{2,8}$/.test(prefix)) {

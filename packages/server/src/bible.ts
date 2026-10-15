@@ -464,7 +464,8 @@ export class BibleOperations {
   #findEvent(novel: Novel, id: string) {
     const event = novel.events.find((e) => e.id === id);
     if (!event) throw new OperationError("NOT_FOUND", `No event “${id}”.`);
-    return event;
+    if (event.index === undefined) throw new OperationError("BAD_REQUEST", `“${event.title}” is in a file of its own.`);
+    return { ...event, index: event.index };
   }
 
   /** A time, a duration and entries of the right types, where given. */

@@ -100,7 +100,7 @@ describe("loader structure checks", () => {
   });
 
   it("stops at a newer schema version", async () => {
-    expect(codes(await tiny({ "novel.yaml": "schema_version: 2\nid: nv_4k8h2c\ntitle: Tiny\n" }))).toEqual(["E_SCHEMA_VERSION"]);
+    expect(codes(await tiny({ "novel.yaml": "schema_version: 3\nid: nv_4k8h2c\ntitle: Tiny\n" }))).toEqual(["E_SCHEMA_VERSION"]);
   });
 
   it("reports order problems", async () => {

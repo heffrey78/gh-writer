@@ -280,6 +280,55 @@ describe("server bundle", () => {
   });
 });
 
+describe("gh-writer migrate", () => {
+  it("moves the sample to format v2 in one commit, with the template's tools; it compiles the same and its own validator passes", () => {
+    const novel = join(tmp, "migrate-me");
+    cpSync(sample, novel, { recursive: true });
+    mkdirSync(join(novel, ".github/gh-writer"), { recursive: true });
+    writeFileSync(join(novel, ".github/gh-writer/validate.mjs"), "// an older validator\n");
+    // One date for both commits, so the compiles can be compared byte for byte.
+    const date = { GIT_AUTHOR_DATE: "2026-10-01T12:00:00Z", GIT_COMMITTER_DATE: "2026-10-01T12:00:00Z" };
+    const git = (...args: string[]) => spawnSync("git", ["-C", novel, ...args], { encoding: "utf8", env: { ...process.env, ...date } }).stdout;
+    for (const args of [["init", "-q"], ["config", "user.name", "t"], ["config", "user.email", "t@t"], ["add", "-A"], ["commit", "-qm", "Draft"]]) git(...args);
+    const compiled = () => {
+      expect(run(main, "compile", novel, "--format", "docx", "--out", join(tmp, "migrate-out")).code).toBe(0);
+      return readFileSync(join(tmp, "migrate-out/the-bridge-at-varn.docx"));
+    };
+    const before = compiled();
+
+    const r = spawnSync("node", [main, "migrate", novel], { encoding: "utf8", env: { ...env(), ...date } });
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/^Moved from format v1 to v2, in commit [0-9a-f]{7}: “Format v2: off-page events as files”\.\n/);
+    expect(git("log", "-1", "--format=%s")).toBe("Format v2: off-page events as files\n");
+    expect(git("status", "--porcelain")).toBe("");
+    expect(git("show", "--name-status", "--format=", "HEAD").split("\n").filter(Boolean).sort()).toEqual([
+      "A\t.github/gh-writer/compile.mjs",
+      ...["LICENSE-LiberationSerif.txt", "LiberationSerif-Bold.ttf", "LiberationSerif-BoldItalic.ttf", "LiberationSerif-Italic.ttf", "LiberationSerif-Regular.ttf"].map((f) => `A\t.github/gh-writer/fonts/${f}`),
+      "A\t.github/gh-writer/init.mjs",
+      "A\t.github/gh-writer/snapshots.mjs",
+      "A\tbible/events/ada-leaves-for-the-polytechnic.md",
+      "A\tbible/events/the-flood-of-09.md",
+      "A\tbible/events/the-plans-are-stolen.md",
+      "D\tbible/events.yaml",
+      "M\t.github/gh-writer/validate.mjs",
+      "M\tnovel.yaml",
+    ].sort());
+    expect(readFileSync(join(novel, ".github/gh-writer/validate.mjs")).equals(readFileSync(join(repo, "templates/novel/.github/gh-writer/validate.mjs")))).toBe(true);
+    expect(run(join(novel, ".github/gh-writer/validate.mjs"), novel)).toMatchObject({ code: 0, out: expect.stringContaining("0 errors, 0 warnings") });
+    expect(compiled().equals(before)).toBe(true);
+
+    expect(run(main, "migrate", novel)).toMatchObject({ code: 0, out: "Already in the newest format: nothing to do.\n" });
+  });
+
+  it("says why it can't migrate, exiting 1", () => {
+    const novel = join(tmp, "migrate-clash");
+    cpSync(sample, novel, { recursive: true });
+    const config = join(novel, "novel.yaml");
+    writeFileSync(config, readFileSync(config, "utf8").replace("folder: artifacts", "folder: events"));
+    expect(run(main, "migrate", novel)).toMatchObject({ code: 1, err: expect.stringContaining("keeps its entries in bible/events/") });
+  });
+});
+
 describe("gh-writer compile", () => {
   it("writes each format into compiled/ (which ignores itself), dated from the commit, chapters as asked", () => {
     const novel = join(tmp, "compile-me");
