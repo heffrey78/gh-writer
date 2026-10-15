@@ -94,3 +94,37 @@ test("notes are made from the palette, made into an event or a scene, and delete
   await expect.poll(() => existsSync(join(dir, IDEA))).toBe(false);
   await expect.poll(() => app.git(dir, "log", "-1", "--format=%s").trim()).toBe("Notes: remove “What if Ben never sold the plans?”");
 });
+
+test("the book pane's Notes: newest first, found by tag or words, beside the text while writing", async ({ page, app }) => {
+  await openNovel(page, app);
+  const pane = page.getByRole("region", { name: "Notes" });
+  await expect(pane.getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
+
+  // + New note while writing: made, and open beside the text.
+  await pane.getByRole("button", { name: "New note" }).click();
+  await page.getByRole("dialog", { name: "New note" }).getByRole("textbox", { name: "Title" }).fill("A toll on the bridge");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { level: 2, name: "A toll on the bridge" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeVisible();
+  // Newest first: made today, after the sample's.
+  await expect(pane.getByRole("link")).toHaveText(["A toll on the bridge", "What if Ben never sold the plans?"]);
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    await axe(page);
+  }
+
+  // By tag, by words.
+  await pane.getByRole("combobox", { name: "Tag" }).selectOption("ending");
+  await expect(pane.getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
+  await pane.getByRole("combobox", { name: "Tag" }).selectOption("");
+  await pane.getByRole("searchbox", { name: "Find in notes" }).fill("flood");
+  await expect(pane.getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
+  await pane.getByRole("searchbox", { name: "Find in notes" }).fill("nothing like this");
+  await expect(pane.getByRole("status")).toHaveText("No note matches.");
+  await pane.getByRole("searchbox", { name: "Find in notes" }).fill("");
+
+  // Elsewhere, a note opens on its page.
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Outline" }).click();
+  await pane.getByRole("link", { name: "What if Ben never sold the plans?" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "What if Ben never sold the plans?" })).toBeVisible();
+});

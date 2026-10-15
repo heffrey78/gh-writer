@@ -7,6 +7,7 @@ import { plural } from "../bible/types.ts";
 import { useCommands } from "../commands.ts";
 import { cn } from "../ui/cn.ts";
 import { OffThePage } from "../events/off-the-page.tsx";
+import { NotesSection } from "../notes/notes-section.tsx";
 import { ManuscriptSidebar } from "./manuscript-tree.tsx";
 import type { Workspace } from "./workspace.ts";
 
@@ -120,6 +121,7 @@ function Expanded({ novelId, novel, workspace, current, onGitHub, toggle }: { no
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
           <ManuscriptSidebar novelId={novelId} novel={novel} workspace={workspace} current={current} />
           <OffThePage novelId={novelId} novel={novel} writing={current !== undefined} />
+          <NotesSection novelId={novelId} novel={novel} writing={current !== undefined} />
         </div>
       </section>
       <nav aria-label="Views" className="grid shrink-0 gap-3 border-t border-rule px-3 py-3 text-sm">
