@@ -17,6 +17,8 @@ import { BiblePage } from "../bible/bible-page.tsx";
 import { EntryPage } from "../bible/entry-page.tsx";
 import { EventPage } from "../events/event-page.tsx";
 import { NewEventDialog, useNewEvent } from "../events/new-event.tsx";
+import { NewNoteDialog, useNewNote } from "../notes/new-note.tsx";
+import { NotePage } from "../notes/note-page.tsx";
 import { NewEntryDialog } from "../bible/new-entry.tsx";
 import { cn } from "../ui/cn.ts";
 import { DraftsButton, useDrafts } from "./drafts.tsx";
@@ -66,6 +68,7 @@ export function NovelPage() {
   const [compiling, setCompiling] = useState(false);
   const [newEntry, setNewEntry] = useState<string | null>(null);
   const newEvent = useNewEvent();
+  const newNote = useNewNote();
   const focus = useWritingModes((m) => m.focus);
   const collapsed = useSidebar((s) => s.collapsed);
   const spell = useSpell(api, novelId, novel.data?.novel);
@@ -178,6 +181,8 @@ export function NovelPage() {
             { id: "novel.newIssue", title: "New issue", group: "GitHub", keywords: ["github", "note", "plot hole"], run: () => void navigate(`/novels/${novelId}/issues?new=1`) },
           ]
         : []),
+      { id: "novel.newNote", title: "New note", group: "Notes", keywords: ["idea", "brainstorm", "what if"], run: () => useNewNote.getState().set(true) },
+      ...(model?.notes ?? []).map((n) => ({ id: `novel.note.${n.id}`, title: `Note: ${n.title}`, group: "Go to", keywords: n.tags, run: () => void navigate(`/novels/${novelId}/note/${n.id}`) })),
       { id: "novel.newEvent", title: "New off-page event", group: "Story bible", keywords: ["event", "backstory", "timeline"], run: () => useNewEvent.getState().set(true) },
       ...(model?.entityTypes ?? []).map((t) => ({ id: `novel.newEntry.${t.key}`, title: `New ${t.label.toLowerCase()}`, group: "Story bible", run: () => setNewEntry(t.key) })),
       ...(model?.entities ?? []).map((e) => ({
@@ -296,6 +301,7 @@ export function NovelPage() {
               <Route path="issues/:number" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssueRoute novelId={novelId} novel={book} workspace={workspace} />}</GitHubOnly>} />
               <Route path="bible/:entityId" element={<EntryRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
               <Route path="event/:eventId" element={<EventRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
+              <Route path="note/:noteId" element={<NoteRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
               <Route path="*" element={<Missing what="page" />} />
             </Routes>
           </ErrorBoundary>
@@ -307,6 +313,12 @@ export function NovelPage() {
       <SaveConflicts novel={book} workspace={workspace} />
       <NoticeBar />
       <NewEntryDialog novelId={novelId} novel={book} type={newEntry ?? undefined} open={newEntry !== null} onOpenChange={(o) => !o && setNewEntry(null)} />
+      <NewNoteDialog
+        novelId={novelId}
+        open={newNote.open}
+        onOpenChange={newNote.set}
+        onCreated={(id) => (current ? useEntryPanel.getState().open(id) : void navigate(`/novels/${novelId}/note/${id}`))}
+      />
       <NewEventDialog
         novelId={novelId}
         novel={book}
@@ -337,6 +349,12 @@ function EventRoute(props: RouteProps) {
   const { eventId } = useParams();
   const event = props.novel.events.find((e) => e.id === eventId);
   return event ? <EventPage key={event.id} {...props} event={event} /> : <Missing what="event" />;
+}
+
+function NoteRoute(props: RouteProps) {
+  const { noteId } = useParams();
+  const note = props.novel.notes.find((n) => n.id === noteId);
+  return note ? <NotePage key={note.id} {...props} note={note} /> : <Missing what="note" />;
 }
 
 function SceneRoute(props: RouteProps) {

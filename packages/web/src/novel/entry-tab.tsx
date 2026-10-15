@@ -5,6 +5,7 @@ import { useEffect, useId, useRef } from "react";
 import { create } from "zustand";
 import { EntryPage } from "../bible/entry-page.tsx";
 import { EventPage } from "../events/event-page.tsx";
+import { NotePage } from "../notes/note-page.tsx";
 import { typeOf } from "../bible/types.ts";
 import { cn } from "../ui/cn.ts";
 import { useNotice } from "./notice.tsx";
@@ -89,6 +90,8 @@ export function EntryTab({
   const entity = id ? novel.entities.find((e) => e.id === id) : undefined;
   // An off-page event opens here too (#165).
   const event = id && !entity ? novel.events.find((e) => e.id === id) : undefined;
+  // And a writer's note (#205).
+  const note = id && !entity && !event ? novel.notes.find((n) => n.id === id) : undefined;
 
   // To the profile as it opens; or, with its name ready to edit, the profile has put the focus there.
   useEffect(() => {
@@ -115,12 +118,12 @@ export function EntryTab({
         <button type="button" disabled={at >= history.length - 1} onClick={() => step(1)} aria-label="Forward" title="Forward" className="rounded p-1 text-muted hover:bg-paper hover:text-ink disabled:opacity-40">
           <ChevronRight className="size-4" aria-hidden />
         </button>
-        <span className="flex-1 text-xs text-muted">{event ? "Off the page" : (type?.label ?? "Entry")}</span>
+        <span className="flex-1 text-xs text-muted">{event ? "Off the page" : note ? "Note" : (type?.label ?? "Entry")}</span>
         <button
           type="button"
           onClick={() => setPinned(!pinned)}
           aria-pressed={pinned}
-          aria-label={event ? "Keep this event here" : "Keep this entry here"}
+          aria-label={event ? "Keep this event here" : note ? "Keep this note here" : "Keep this entry here"}
           title={pinned ? "Kept here: names opened elsewhere won't replace it" : "Keep this entry here"}
           className={cn("rounded p-1 hover:bg-paper hover:text-ink", pinned ? "text-accent" : "text-muted")}
         >
@@ -141,6 +144,8 @@ export function EntryTab({
         />
       ) : event ? (
         <EventPage key={`${event.id}:${opened}`} novelId={novelId} novel={novel} event={event} workspace={workspace} spell={spell} embedded={{ headingId }} size="tab" />
+      ) : note ? (
+        <NotePage key={`${note.id}:${opened}`} novelId={novelId} novel={novel} note={note} workspace={workspace} spell={spell} embedded={{ headingId }} size="tab" />
       ) : (
         <p id={headingId}>This entry no longer exists.</p>
       )}

@@ -108,6 +108,10 @@ Events show wherever the story's facts do. Type @ in prose to mention one (they'
 
 Each event is a file of its own, `bible/events/<title>.md`. A novel made before that kept them all in `bible/events.yaml`: the first time you change an event, gh-writer asks to move the novel to the new format, in one commit. Copies of gh-writer from before then won't open it afterwards.
 
+### Notes
+
+Notes are your own thinking, kept with the book: ideas, what-ifs, questions to answer later. **New note** in the palette makes one (*Note:* opens one). A note has a title, tags and prose, each edited in place, and the prose takes @ mentions like a scene's. Notes are never part of the manuscript, the compile or the Story map. When one earns its place in the story, **Make it an event or a scene** turns it into an off-page event (the note as its note) or a new scene at the end of a chapter (the note as its synopsis), and keeps the note, saying what it became, or removes it. Each note is a file of its own, `notes/<title>.md`.
+
 **Relationships**, under World, draws the story bible's relationships as a graph. Drag the *Story position* slider, or press **Play**, to see relationships begin and end as the story goes. Arrange entries by dragging; the layout is saved.
 
 Each has an **Export** button for SVG; the relationships and the timeline also export Mermaid.
@@ -229,6 +233,7 @@ manuscript/          parts, chapters (folders) and scenes (Markdown files)
 bible/               one file per character, location, plotline, theme…
 bible/relationships.yaml
 bible/events/        off-page events, one file each
+notes/               your notes, one file each (not part of the story)
 diagrams/            generated diagram snapshots
 ```
 
