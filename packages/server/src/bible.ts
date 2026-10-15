@@ -7,6 +7,7 @@ import {
   eventFile,
   EVENTS_FOLDER,
   mentions,
+  NOTES_FOLDER,
   proseText,
   indexById,
   loadNovel,
@@ -20,6 +21,7 @@ import {
   type Novel,
   type Relationship,
   type SeriesSlot,
+  type YamlEdit,
 } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
 import { parse, stringify } from "yaml";
@@ -59,6 +61,13 @@ export interface EventFields {
   /** The scene that dramatizes it. */
   scene?: string | null;
   /** Its note: the prose of its file. */
+  note?: string | null;
+}
+
+/** A writer's note's fields (null removes one); `note` is its prose. */
+export interface NoteFields {
+  title?: string;
+  tags?: string[] | null;
   note?: string | null;
 }
 
@@ -174,6 +183,7 @@ export class BibleOperations {
         ...links.scenes.map((s) => ({ kind: "scene", id: s.scene.id, title: s.scene.title, via: s.via })),
         ...links.relationships.map((r) => ({ kind: "relationship", id: r.id, type: r.type, other: r.from === id ? r.to : r.from })),
         ...links.events.map((e) => ({ kind: "event", id: e.id, title: e.title })),
+        ...mentionsOf(novel, id).filter((r) => r.kind === "note"),
       ];
       if (references.length && !confirm) {
         throw new OperationError("REFERENCED", `“${entity.name}” is referred to in ${references.length} place${references.length === 1 ? "" : "s"}.`, { references });
@@ -362,12 +372,7 @@ export class BibleOperations {
   deleteEvent(id: string, { base, confirm = false, migrate = false }: { base?: string; confirm?: boolean; migrate?: boolean } = {}): Promise<OperationResult> {
     return this.#eventChange(migrate, async (novel, read, migrated) => {
       const event = this.#findEvent(novel, id);
-      const mentioned = (body: string) => mentions(body).some((m) => m.id === id);
-      const references = [
-        ...novel.allScenes.filter((s) => mentioned(s.body)).map((s) => ({ kind: "scene", id: s.id, title: s.title, via: ["mention"] })),
-        ...novel.entities.filter((e) => mentioned(e.body)).map((e) => ({ kind: "entity", id: e.id, title: e.name })),
-        ...novel.events.filter((e) => e.id !== id && mentioned(e.body)).map((e) => ({ kind: "event", id: e.id, title: e.title })),
-      ];
+      const references = mentionsOf(novel, id);
       if (references.length && !confirm) {
         throw new OperationError("REFERENCED", `“${event.title}” is mentioned in ${references.length} place${references.length === 1 ? "" : "s"}.`, { references });
       }
@@ -387,12 +392,7 @@ export class BibleOperations {
     return this.#eventChange(migrate, async (novel, read) => {
       const event = this.#findEvent(novel, id);
       if (!keep) {
-        const mentioned = (body: string) => mentions(body).some((m) => m.id === id);
-        const references = [
-          ...novel.allScenes.filter((s) => mentioned(s.body)).map((s) => ({ kind: "scene", id: s.id, title: s.title, via: ["mention"] })),
-          ...novel.entities.filter((e) => mentioned(e.body)).map((e) => ({ kind: "entity", id: e.id, title: e.name })),
-          ...novel.events.filter((e) => e.id !== id && mentioned(e.body)).map((e) => ({ kind: "event", id: e.id, title: e.title })),
-        ];
+        const references = mentionsOf(novel, id);
         if (references.length) throw new OperationError("REFERENCED", `“${event.title}” is mentioned in ${references.length} place${references.length === 1 ? "" : "s"}, so it's kept.`, { references });
       }
       const synopsis = proseText(event.body).replace(/\s+/g, " ").trim();
@@ -401,6 +401,87 @@ export class BibleOperations {
       const text = (await read(event.file)) ?? "";
       const writes: FileWrite[] = [...scene.writes, keep ? { path: event.file, content: editFrontMatter(text, [{ path: ["scene"], value: scene.id }]) } : { path: event.file, content: null }];
       return { writes, message: `Manuscript: write “${event.title}” as a scene${keep ? "" : ", removing the event"}`, extra: { scene: scene.id, file: scene.file } };
+    });
+  }
+
+  /** Add a writer's note (D12): notes/<slug>.md, dated today, with `note` as its prose. */
+  createNote(fields: NoteFields): Promise<OperationResult & { id: string; file: string }> {
+    return this.#run(async (novel) => {
+      const title = required(fields.title, "title");
+      const id = uniqueId("note", new Set(indexById(novel).keys()));
+      const file = this.#noteFileName(novel, title);
+      const front = editYaml("", [
+        { path: ["id"], value: id },
+        { path: ["title"], value: title },
+        ...(fields.tags?.length ? [{ path: ["tags"], value: fields.tags }] : []),
+        { path: ["created"], value: new Date().toLocaleDateString("en-CA") },
+      ]);
+      const content = withProse(`---\n${front}---\n`, fields.note ?? "");
+      return { ...(await transaction(this.root, [{ path: file, content, base: null }], `Notes: add “${title}”`)), id, file };
+    });
+  }
+
+  /** Change a note's title (its file moves to match), tags or prose (`note`). `base`: the file's hash as read. */
+  updateNote(id: string, changes: NoteFields, { base }: { base?: string } = {}): Promise<OperationResult & { file: string }> {
+    return this.#run(async (novel) => {
+      const note = this.#findNote(novel, id);
+      if (changes.title !== undefined) required(changes.title, "title");
+      const text = await this.#read(note.file);
+      if (base !== undefined && hashText(text) !== base) throw new OperationError("STALE", `“${note.title}” changed since it was read.`, { path: note.file });
+      const edits: YamlEdit[] = [];
+      if (changes.title !== undefined) edits.push({ path: ["title"], value: changes.title.trim() });
+      if (changes.tags !== undefined) edits.push(changes.tags?.length ? { path: ["tags"], value: changes.tags } : { path: ["tags"], remove: true });
+      let content = editFrontMatter(text, edits);
+      if (changes.note !== undefined) content = withProse(content, changes.note ?? "");
+      const title = changes.title?.trim() || note.title;
+      const file = title !== note.title ? this.#noteFileName(novel, title, note.file) : note.file;
+      const writes: FileWrite[] = file === note.file ? [{ path: note.file, content, base: hashText(text) }] : [{ path: note.file, content: null, base: hashText(text) }, { path: file, content, base: null }];
+      const message = title !== note.title ? `Notes: rename “${note.title}” to “${title}”` : `Notes: edit “${title}”`;
+      return { ...(await transaction(this.root, writes, message)), file };
+    });
+  }
+
+  deleteNote(id: string, { base }: { base?: string } = {}): Promise<OperationResult> {
+    return this.#run(async (novel) => {
+      const note = this.#findNote(novel, id);
+      const text = await this.#read(note.file);
+      if (base !== undefined && hashText(text) !== base) throw new OperationError("STALE", `“${note.title}” changed since it was read.`, { path: note.file });
+      return transaction(this.root, [{ path: note.file, content: null, base: hashText(text) }], `Notes: remove “${note.title}”`);
+    });
+  }
+
+  /**
+   * Promote a note (#205): to an off-page event (its title, and its prose as the event's note), or to a
+   * scene at the end of `chapter` (its title, and its prose as the synopsis). The note is kept, `became`
+   * naming what it became, or removed; one commit. To an event in a novel in format v1, migrates as createEvent does.
+   */
+  promoteNote(
+    id: string,
+    to: { to: "event" } | { to: "scene"; chapter: string },
+    { keep, migrate = false }: { keep: boolean; migrate?: boolean },
+    manuscript: ManuscriptOperations,
+  ): Promise<OperationResult & { id: string; file: string }> {
+    const noteWrite = async (novel: Novel, read: (path: string) => Promise<string | undefined>, made: string): Promise<FileWrite> => {
+      const note = this.#findNote(novel, id);
+      const text = (await read(note.file)) ?? "";
+      return keep ? { path: note.file, content: editFrontMatter(text, [{ path: ["became"], value: made }]), base: hashText(text) } : { path: note.file, content: null, base: hashText(text) };
+    };
+    if (to.to === "event") {
+      return this.#eventChange(migrate, async (novel, read) => {
+        const note = this.#findNote(novel, id);
+        const made = uniqueId("evt", new Set(indexById(novel).keys()));
+        const file = this.#eventFileName(novel, note.title);
+        const writes = [{ path: file, content: eventFile({ id: made, title: note.title }, note.body), base: null }, await noteWrite(novel, read, made)];
+        return { writes, message: `Notes: promote “${note.title}” to an off-page event${keep ? "" : ", removing the note"}`, extra: { id: made, file } };
+      });
+    }
+    return this.#run(async (novel) => {
+      const note = this.#findNote(novel, id);
+      const synopsis = proseText(note.body).replace(/\s+/g, " ").trim();
+      const scene = await manuscript.sceneWrites(novel, to.chapter, { title: note.title, front: synopsis ? { synopsis } : {} });
+      const writes = [...scene.writes, await noteWrite(novel, (path) => this.#read(path), scene.id)];
+      const message = `Notes: write “${note.title}” as a scene${keep ? "" : ", removing the note"}`;
+      return { ...(await transaction(this.root, writes, message)), id: scene.id, file: scene.file };
     });
   }
 
@@ -436,6 +517,18 @@ export class BibleOperations {
       const result = await transaction(this.root, all, migration.status === "migrate" ? `${migration.message}; ${message}` : message);
       return { ...result, ...extra };
     });
+  }
+
+  #findNote(novel: Novel, id: string) {
+    const note = novel.notes.find((n) => n.id === id);
+    if (!note) throw new OperationError("NOT_FOUND", `No note “${id}”.`);
+    return note;
+  }
+
+  /** notes/<slug>.md for a title, unused by any other note (`own` is the note's file now, free to keep). */
+  #noteFileName(novel: Novel, title: string, own?: string): string {
+    const taken = new Set(novel.notes.filter((n) => n.file !== own).map((n) => n.file.slice(NOTES_FOLDER.length + 1)));
+    return `${NOTES_FOLDER}/${uniqueFileName(slugify(title), ".md", taken)}`;
   }
 
   /** bible/events/<slug>.md for a title, unused by any other event (`own` is the event's file now, free to keep). */
@@ -638,6 +731,17 @@ function checkFocus(focus: [number, number]): [number, number] {
 function required(value: string | undefined, field: string): string {
   if (typeof value !== "string" || !value.trim()) throw new OperationError("BAD_REQUEST", `A ${field} is required.`);
   return value.trim();
+}
+
+/** The prose that mentions a record: scenes, entries, other events and notes, for a delete to list. */
+function mentionsOf(novel: Novel, id: string) {
+  const mentioned = (body: string) => mentions(body).some((m) => m.id === id);
+  return [
+    ...novel.allScenes.filter((s) => mentioned(s.body)).map((s) => ({ kind: "scene", id: s.id, title: s.title, via: ["mention"] })),
+    ...novel.entities.filter((e) => e.id !== id && mentioned(e.body)).map((e) => ({ kind: "entity", id: e.id, title: e.name })),
+    ...novel.events.filter((e) => e.id !== id && mentioned(e.body)).map((e) => ({ kind: "event", id: e.id, title: e.title })),
+    ...novel.notes.filter((n) => mentioned(n.body)).map((n) => ({ kind: "note", id: n.id, title: n.title })),
+  ];
 }
 
 /** A Markdown file with its prose replaced, and its front matter kept byte for byte. */

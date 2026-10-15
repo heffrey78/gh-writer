@@ -274,7 +274,7 @@ export function EventPage({
             <AlertDialog.Description className="text-sm text-muted">These mentions will point at an event that no longer exists, and the validator will list them until they're changed:</AlertDialog.Description>
             <ul className="grid gap-1 text-sm">
               {references?.map((r) => (
-                <li key={`${r.kind}:${r.id}`}>{r.kind === "scene" ? `Scene “${r.title}”` : r.kind === "entity" ? `Entry “${r.title}”` : r.kind === "event" ? `Event “${r.title}”` : r.id}</li>
+                <li key={`${r.kind}:${r.id}`}>{r.kind === "scene" ? `Scene “${r.title}”` : r.kind === "entity" ? `Entry “${r.title}”` : r.kind === "event" ? `Event “${r.title}”` : r.kind === "note" ? `Note “${r.title}”` : r.id}</li>
               ))}
             </ul>
             <div className="flex justify-end gap-2">

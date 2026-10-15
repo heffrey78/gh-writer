@@ -311,7 +311,13 @@ describe("events", () => {
     gitIn(dir, "commit", "-qam", "Mentions");
     await expect(bible.deleteEvent("evt_9ab3kd")).rejects.toMatchObject({
       code: "REFERENCED",
-      details: { references: [{ kind: "scene", id: "sc_5tat1n", title: "The Station", via: ["mention"] }, { kind: "entity", id: ADA, title: "Ada Varn" }] },
+      details: {
+        references: [
+          { kind: "scene", id: "sc_5tat1n", title: "The Station", via: ["mention"] },
+          { kind: "entity", id: ADA, title: "Ada Varn" },
+          { kind: "note", id: "note_w1fben", title: "What if Ben never sold the plans?" },
+        ],
+      },
     });
     expect(existsSync(join(dir, FLOOD))).toBe(true);
     await bible.deleteEvent("evt_9ab3kd", { confirm: true });
@@ -395,5 +401,58 @@ describe("events", () => {
     await expect(bible.createEvent({ title: "X", duration: "an hour" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     await expect(bible.createEvent({ title: "X", characters: ["loc_br1dg3"] })).rejects.toMatchObject({ code: "BAD_REQUEST" });
     await expect(bible.updateEvent("evt_zzzzzz", { title: "Y" })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+describe("notes (D12)", () => {
+  const IDEA = "notes/what-if-ben-never-sold.md";
+  const today = new Date().toLocaleDateString("en-CA");
+
+  it("adds a note dated today, its prose the note, as one commit", async () => {
+    const { id, file } = await bible.createNote({ title: "A toll on the bridge", tags: ["money"], note: "Who sets it? [Ben](#char_b3n0vs)?" });
+    expect(id).toMatch(/^note_[0-9a-hjkmnp-tv-z]{6}$/);
+    expect(file).toBe("notes/a-toll-on-the-bridge.md");
+    expect(read(file)).toBe(`---\nid: ${id}\ntitle: A toll on the bridge\ntags:\n  - money\ncreated: ${today}\n---\n\nWho sets it? [Ben](#char_b3n0vs)?\n`);
+    expect(lastCommit()).toBe("Notes: add “A toll on the bridge”");
+    clean();
+    expect((await valid()).notes.map((n) => n.id)).toContain(id);
+  });
+
+  it("edits tags and prose against the file as read, renames with a new title, and removes it", async () => {
+    const before = read(IDEA);
+    await bible.updateNote("note_w1fben", { tags: null, note: "Then the bridge stands." }, { base: hashText(before) });
+    expect(read(IDEA)).toBe("---\nid: note_w1fben\ntitle: What if Ben never sold the plans?\ncreated: 2026-10-15\n---\n\nThen the bridge stands.\n");
+    await expect(bible.updateNote("note_w1fben", { tags: ["x"] }, { base: hashText(before) })).rejects.toMatchObject({ code: "STALE" });
+    const { file } = await bible.updateNote("note_w1fben", { title: "Ben keeps the plans" });
+    expect(file).toBe("notes/ben-keeps-the-plans.md");
+    expect(existsSync(join(dir, IDEA))).toBe(false);
+    expect(lastCommit()).toBe("Notes: rename “What if Ben never sold the plans?” to “Ben keeps the plans”");
+    await bible.deleteNote("note_w1fben");
+    expect(existsSync(join(dir, file))).toBe(false);
+    expect(lastCommit()).toBe("Notes: remove “Ben keeps the plans”");
+    clean();
+  });
+
+  it("promotes a note to an off-page event, keeping it (became names the event)", async () => {
+    const { id, file } = await bible.promoteNote("note_w1fben", { to: "event" }, { keep: true }, new ManuscriptOperations(dir, (fn) => fn()));
+    expect(file).toBe("bible/events/what-if-ben-never-sold-the-plans.md");
+    expect(read(file)).toBe(`---\nid: ${id}\ntitle: What if Ben never sold the plans?\n---\n\nThen [Ada](#char_7f3k2q) has no reason to come home, and the bridge stands. Unless the debt goes back to [the flood](#evt_9ab3kd).\n`);
+    expect(read(IDEA)).toContain(`\nbecame: ${id}\n---\n`);
+    expect(lastCommit()).toBe("Notes: promote “What if Ben never sold the plans?” to an off-page event");
+    clean();
+    await valid();
+  });
+
+  it("writes a note as a scene, removing the note", async () => {
+    const { id, file } = await bible.promoteNote("note_w1fben", { to: "scene", chapter: "ch_h01d50" }, { keep: false }, new ManuscriptOperations(dir, (fn) => fn()));
+    expect(read(file)).toBe(`---\nid: ${id}\ntitle: What if Ben never sold the plans?\nsynopsis: Then Ada has no reason to come home, and the bridge stands. Unless the debt goes back to the flood.\nstatus: idea\n---\n`);
+    expect(existsSync(join(dir, IDEA))).toBe(false);
+    expect(lastCommit()).toBe("Notes: write “What if Ben never sold the plans?” as a scene, removing the note");
+    clean();
+    await valid();
+  });
+
+  it("an entry a note mentions is only deleted once confirmed", async () => {
+    await expect(bible.deleteEntity(ADA, hash(ADA_FILE))).rejects.toMatchObject({ code: "REFERENCED", details: { references: expect.arrayContaining([{ kind: "note", id: "note_w1fben", title: "What if Ben never sold the plans?" }]) } });
   });
 });

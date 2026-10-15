@@ -267,6 +267,13 @@ export interface EventFields {
   note?: string | null;
 }
 
+/** A writer's note's fields (null removes one); `note` is its prose. */
+export interface NoteFields {
+  title?: string;
+  tags?: string[] | null;
+  note?: string | null;
+}
+
 /**
  * How an event change goes: `base`, the hash of the event's file it was made from; `migrate`, to move a
  * novel in format v1 to v2 in the same commit (without it, that's refused with NEEDS_MIGRATION).
@@ -290,7 +297,8 @@ export type Reference =
   | { kind: "scene"; id: string; title: string; via: string[] }
   | { kind: "relationship"; id: string; type: string; other: string }
   | { kind: "event"; id: string; title: string }
-  | { kind: "entity"; id: string; title: string };
+  | { kind: "entity"; id: string; title: string }
+  | { kind: "note"; id: string; title: string };
 
 /** A scene, chapter or part that was deleted and can be brought back. */
 export interface DeletedItem {
@@ -574,6 +582,16 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
       (await request<{ file: string; hash: string }>("PUT", `/api/novels/${encodeURIComponent(id)}/diagrams/${encodeURIComponent(diagram)}/layout`, { positions })).data,
     /** Sync with the remote now; resolves with the status once it's done. */
     syncNow: async (id: string) => (await request<SyncStatus>("POST", `/api/novels/${encodeURIComponent(id)}/sync`)).data,
+    /** The writer's notes (D12), one commit each. */
+    notes: {
+      create: (id: string, fields: NoteFields & { title: string }) => request<OperationResult & { id: string; file: string }>("POST", `/api/novels/${encodeURIComponent(id)}/notes`, fields).then((r) => r.data),
+      update: (id: string, note: string, changes: NoteFields, base?: string) =>
+        request<OperationResult & { file: string }>("PATCH", `/api/novels/${encodeURIComponent(id)}/notes/${encodeURIComponent(note)}`, { changes, ...(base ? { base } : {}) }).then((r) => r.data),
+      delete: (id: string, note: string, base?: string) => request<OperationResult>("POST", `/api/novels/${encodeURIComponent(id)}/notes/${encodeURIComponent(note)}/delete`, base ? { base } : {}).then((r) => r.data),
+      /** To an off-page event, or a scene at the end of `chapter`; the note kept (naming it) or removed. */
+      promote: (id: string, note: string, target: { to: "event" } | { to: "scene"; chapter: string }, { keep, migrate }: { keep: boolean; migrate?: boolean }) =>
+        request<OperationResult & { id: string; file: string }>("POST", `/api/novels/${encodeURIComponent(id)}/notes/${encodeURIComponent(note)}/promote`, { ...target, keep, ...(migrate ? { migrate } : {}) }).then((r) => r.data),
+    },
     /** Move the novel to the newest format (D11), one commit; `migrated` false when it was already. */
     migrate: async (id: string) => (await request<OperationResult & { migrated: boolean }>("POST", `/api/novels/${encodeURIComponent(id)}/migrate`)).data,
   };

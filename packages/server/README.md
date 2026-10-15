@@ -264,6 +264,19 @@ Each off-page event is a file of its own, `bible/events/<slug>.md`: its fields a
 
 **Format v1.** In a novel in format 1 (events in `bible/events.yaml`), each of these is refused with `409 NEEDS_MIGRATION { from, to }`, for the app to ask the writer. With `migrate: true`, the novel is moved to format 2 first, in the same commit: `Format v2: off-page events as files; Bible: …`.
 
+### Notes
+
+The writer's notes ([D12](https://github.com/heffrey78/gh-writer/issues/215)) are files of their own, `notes/<slug>.md`. A note's prose can also be edited as the file's text.
+
+| Endpoint | Does | Commit |
+|---|---|---|
+| `POST /notes` `{ title, tags?, note? }` → `{ id, file }` | Adds a note, dated today, named from its title | `Notes: add “…”` |
+| `PATCH /notes/:id` `{ changes: { title?, tags?, note? }, base? }` → `{ file }` | Edits it (null removes tags; `note` replaces the prose). A new title moves the file. With `base`, the file must be as it was read (`409 STALE`) | `Notes: edit “…”`, or `Notes: rename “…” to “…”` |
+| `POST /notes/:id/delete` `{ base? }` | Removes the file | `Notes: remove “…”` |
+| `POST /notes/:id/promote` `{ to: "event" \| "scene", chapter?, keep, migrate? }` → `{ id, file }` | Makes an off-page event of it (its prose the event's note) or a scene at the end of `chapter` (its prose the synopsis). The note is kept, `became` naming what it became, or removed. To an event in a novel in format 1: as for events, `409 NEEDS_MIGRATION` unless `migrate` | `Notes: promote “…” to an off-page event`, or `Notes: write “…” as a scene` (`, removing the note`) |
+
+Deleting an entry or an event that a note mentions is refused (`409 REFERENCED`) like one that prose mentions.
+
 ### Manuscript
 
 | Endpoint | Does | Commit |
