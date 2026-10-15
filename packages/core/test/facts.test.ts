@@ -63,6 +63,11 @@ describe("sceneFacts", () => {
     expect(sceneFacts(book, "sc_0ffer5")).toEqual(["15 h 45 min after “The Betrayal”.", "Mirela Kost is back after 5 scenes away."]);
   });
 
+  it("names the off-page event a scene was written from", async () => {
+    const book = await novel(edit("bible/events/the-plans-are-stolen.md", "---\n\nOff page", "scene: sc_1edger\n---\n\nOff page"));
+    expect(sceneFacts(book, "sc_1edger")).toContain("Dramatizes the off-page event “The plans are stolen”.");
+  });
+
   it("knows a book of one scene, and nothing of a scene outside the reading order", async () => {
     const book = await novel({
       "manuscript/_order.yaml": "parts: [pt_r3tvrn]\n",

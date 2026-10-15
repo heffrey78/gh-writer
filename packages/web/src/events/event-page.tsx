@@ -4,7 +4,7 @@ import { readFrontMatter, sceneNeighbours, storyTimeline, type Novel, type Story
 import { joinSceneFile } from "@gh-writer/editor";
 import { SceneEditor, type SpellService } from "@gh-writer/editor/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { PenLine, Trash2 } from "lucide-react";
 import { AlertDialog } from "radix-ui";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
@@ -18,7 +18,9 @@ import type { Workspace } from "../novel/workspace.ts";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { Picker } from "../ui/picker.tsx";
+import { useCommands } from "../commands.ts";
 import { useFormatMove } from "./format-move.tsx";
+import { WriteAsSceneDialog } from "./write-as-scene.tsx";
 
 /** Who, where and which plotlines: the lists an event names, with their entry types. */
 const LISTS = [
@@ -87,6 +89,8 @@ export function EventPage({
   };
 
   const [references, setReferences] = useState<Reference[]>();
+  const [writing, setWriting] = useState(false);
+  useCommands(() => (tab ? [] : [{ id: "event.writeAsScene", title: `Write “${event.title}” as a scene`, group: "Off the page", run: () => setWriting(true) }]), [tab, event.title]);
   const remove = useMutation({
     mutationFn: async (confirm: boolean) => {
       const b = await base();
@@ -129,6 +133,9 @@ export function EventPage({
               </Link>{" "}
               · Off the page
             </p>
+            <Button variant="ghost" size="sm" onClick={() => setWriting(true)}>
+              <PenLine className="size-4" aria-hidden /> Write it as a scene
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => ensure(() => remove.mutate(false))} disabled={remove.isPending}>
               <Trash2 className="size-4" aria-hidden /> Delete
             </Button>
@@ -258,6 +265,7 @@ export function EventPage({
       )}
 
       {dialog}
+      {writing && <WriteAsSceneDialog novelId={novelId} novel={novel} event={event} open onOpenChange={setWriting} />}
       <AlertDialog.Root open={references !== undefined} onOpenChange={(o) => !o && setReferences(undefined)}>
         <AlertDialog.Portal>
           <AlertDialog.Overlay className="fixed inset-0 z-[60] bg-black/40" />

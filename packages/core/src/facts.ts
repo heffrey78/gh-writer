@@ -43,6 +43,9 @@ export function sceneFacts(novel: Novel, sceneId: string): string[] {
   else if (at === 0) facts.push("The book's first scene.");
   else if (at === scenes.length - 1) facts.push("The book's last scene.");
 
+  // Off-page events it was written from, and kept (#165).
+  for (const e of novel.events) if (e.scene === sceneId) facts.push(`Dramatizes the off-page event “${e.title}”.`);
+
   // Story time, against the latest point the story had reached before it (the scene before, or
   // after a flashback the one it went back from), on the same scale.
   const calendar = novel.config?.calendar?.start;

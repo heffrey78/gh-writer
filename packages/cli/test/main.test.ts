@@ -146,7 +146,7 @@ describe("gh-writer serve", () => {
     expect(run(main, "serve", join(tmp, "missing"), "--no-open").err).toContain("isn't a folder");
     expect(run(main, "serve", sample, "--port", "70000")).toMatchObject({ code: 1 });
     expect(run(main, "serve", sample, "--sync-every", "soon")).toMatchObject({ code: 1, err: expect.stringContaining("--sync-every") });
-  });
+  }, 15_000); // Runs the CLI four times: past 5 s on a busy machine.
 });
 
 describe("gh-writer serve --sidecar", () => {

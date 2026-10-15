@@ -792,6 +792,12 @@ function bibleApi(root: (novelId: string) => string, request: Request, upload: <
       call<OperationResult & { id: string; file: string }>("POST", novelId, "/events", { ...fields, ...(migrate ? { migrate } : {}) }),
     updateEvent: (novelId: string, id: string, changes: EventFields, options: EventChangeOptions = {}) =>
       call<OperationResult & { file: string }>("PATCH", novelId, `/events/${encodeURIComponent(id)}`, { changes, ...options }),
+    /**
+     * Write an event as a scene at the end of `chapter`: its details filled in, its note the synopsis. The
+     * event is kept (naming the scene) or removed; removing one that prose mentions is refused (REFERENCED).
+     */
+    writeAsScene: (novelId: string, id: string, { chapter, keep, migrate }: { chapter: string; keep: boolean; migrate?: boolean }) =>
+      call<OperationResult & { scene: string; file: string }>("POST", novelId, `/events/${encodeURIComponent(id)}/scene`, { chapter, keep, ...(migrate ? { migrate } : {}) }),
     /** Refused (not thrown) when prose mentions it: the mentions come back; pass confirm to delete anyway. */
     deleteEvent: async (novelId: string, id: string, { confirm = false, ...options }: EventChangeOptions & { confirm?: boolean } = {}): Promise<DeleteResult> => {
       const { status, data } = await request<OperationResult & { references?: Reference[] }>(

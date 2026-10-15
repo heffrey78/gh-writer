@@ -89,16 +89,31 @@ export class ManuscriptOperations {
 
   /** A new scene in a chapter, after `after` (null: first; omitted: last). */
   createScene(chapterId: string, { title, after }: { title: string; after?: string | null }): Promise<OperationResult & { id: string }> {
-    return this.#run(async (novel, o) => {
-      const chapter = this.#chapter(novel, chapterId);
-      const name = required(title, "title");
-      const id = uniqueId("sc", new Set(indexById(novel).keys()));
-      const path = `${chapter.dir}/${slugify(name)}.md`;
-      o.set(path, `---\n${stringify({ id, title: name, status: "idea" }, { lineWidth: 0 })}---\n`);
-      await this.#insert(o, { kind: "chapter", chapter }, id, after);
-      await this.#renumber(o, novel, { kind: "chapter", chapter }, new Map([[id, path]]));
-      return { message: `Manuscript: add scene “${name}”`, id };
+    return this.#exclusive(async () => {
+      const { id, title: name, writes } = await this.sceneWrites(await loadNovel(nodeSource(this.root)), chapterId, { title, ...(after !== undefined ? { after } : {}) });
+      return { ...(await transaction(this.root, writes, `Manuscript: add scene “${name}”`)), id };
     });
+  }
+
+  /**
+   * What adding a scene to a chapter writes, for an operation to commit with its own changes: the
+   * scene's file, with `front` after its ID, title and status, and the chapter's order and numbering.
+   */
+  async sceneWrites(novel: Novel, chapterId: string, { title, after, front = {} }: { title: string; after?: string | null; front?: Record<string, unknown> }): Promise<{ id: string; title: string; file: string; writes: FileWrite[] }> {
+    const o = new Overlay(this.root);
+    const chapter = this.#chapter(novel, chapterId);
+    const name = required(title, "title");
+    const id = uniqueId("sc", new Set(indexById(novel).keys()));
+    const path = `${chapter.dir}/${slugify(name)}.md`;
+    // In a scene's usual order: ID, title, synopsis and status, then the rest.
+    const { synopsis, status = "idea", ...rest } = front;
+    o.set(path, `---\n${stringify({ id, title: name, ...(synopsis ? { synopsis } : {}), status, ...rest }, { lineWidth: 0 })}---\n`);
+    await this.#insert(o, { kind: "chapter", chapter }, id, after);
+    await this.#renumber(o, novel, { kind: "chapter", chapter }, new Map([[id, path]]));
+    const writes = o.changes();
+    // Where it is once numbered.
+    const file = writes.find((w) => typeof w.content === "string" && w.path.endsWith(".md") && w.content.startsWith(`---\nid: ${id}\n`))!.path;
+    return { id, title: name, file, writes };
   }
 
   /** A new, empty chapter in a part (or at the top level), after `after`. */

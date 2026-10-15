@@ -35,6 +35,7 @@ export async function body(c: Context): Promise<Record<string, unknown>> {
  * PATCH /:id/bible/events/:event               { changes, base?, migrate? } (null removes a field; note replaces the prose) → { file, commit }
  * POST  /:id/bible/events/:event/delete        { base?, confirm?, migrate? }
  *       (each: a novel in format v1 is 409 NEEDS_MIGRATION { from, to } unless migrate, which moves it to v2 in the same commit)
+ * POST  /:id/bible/events/:event/scene         { chapter, keep, migrate? } → 201 { scene, file }: written as a scene at the chapter's end; kept (naming it) or removed
  * POST  /:id/migrate                           → { migrated, commit }: the novel in the newest format, one commit (D11)
  * POST  /:id/bible/entity-types                { key, prefix, label, folder?, color? }
  * PATCH /:id/bible/entity-types/:key           { label?, color? }
@@ -85,6 +86,10 @@ export function bibleRoutes(routes: Hono<Env>): void {
   routes.post("/:id/bible/events/:event/delete", async (c) => {
     const { base, confirm, migrate } = await body(c);
     return operation(c, () => bible(c).deleteEvent(c.req.param("event"), { ...(typeof base === "string" ? { base } : {}), confirm: confirm === true, migrate: migrate === true }));
+  });
+  routes.post("/:id/bible/events/:event/scene", async (c) => {
+    const { chapter, keep, migrate } = await body(c);
+    return operation(c, () => bible(c).writeAsScene(c.req.param("event"), { chapter: String(chapter ?? ""), keep: keep === true, migrate: migrate === true }, c.var.ws.manuscript), 201);
   });
   routes.post("/:id/migrate", async (c) => operation(c, () => bible(c).migrate()));
   routes.post("/:id/bible/relationships/:rel/delete", async (c) => operation(c, () => bible(c).deleteRelationship(c.req.param("rel"))));

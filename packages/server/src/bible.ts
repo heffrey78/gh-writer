@@ -7,6 +7,7 @@ import {
   eventFile,
   EVENTS_FOLDER,
   mentions,
+  proseText,
   indexById,
   loadNovel,
   nextSeriesSlot,
@@ -23,6 +24,7 @@ import {
 import { nodeSource } from "@gh-writer/core/node";
 import { parse, stringify } from "yaml";
 import { hashText, IMAGES_DIR, MAX_IMAGE_BYTES, sniffImage } from "./files.ts";
+import type { ManuscriptOperations } from "./manuscript.ts";
 import { migrateNovel, migrationWrites, overlay } from "./migrate.ts";
 import { OperationError, transaction, type FileWrite, type OperationResult } from "./operations.ts";
 
@@ -372,6 +374,33 @@ export class BibleOperations {
       const text = (await read(event.file)) ?? "";
       if (base !== undefined && !migrated.has(event.file) && hashText(text) !== base) throw new OperationError("STALE", `“${event.title}” changed since it was read.`, { path: event.file });
       return { writes: [{ path: event.file, content: null, ...(migrated.has(event.file) ? {} : { base: hashText(text) }) }], message: `Bible: remove event “${event.title}”`, extra: {} };
+    });
+  }
+
+  /**
+   * Write an off-page event as a scene (#165): a new scene at the end of `chapter` with the event's
+   * title, time, duration, characters, locations and plotlines, and its note as the synopsis. The event
+   * is kept, its `scene` naming the new one, or removed: refused (REFERENCED) while prose mentions it.
+   * One commit; migrates as createEvent does.
+   */
+  writeAsScene(id: string, { chapter, keep, migrate = false }: { chapter: string; keep: boolean; migrate?: boolean }, manuscript: ManuscriptOperations): Promise<OperationResult & { scene: string; file: string }> {
+    return this.#eventChange(migrate, async (novel, read) => {
+      const event = this.#findEvent(novel, id);
+      if (!keep) {
+        const mentioned = (body: string) => mentions(body).some((m) => m.id === id);
+        const references = [
+          ...novel.allScenes.filter((s) => mentioned(s.body)).map((s) => ({ kind: "scene", id: s.id, title: s.title, via: ["mention"] })),
+          ...novel.entities.filter((e) => mentioned(e.body)).map((e) => ({ kind: "entity", id: e.id, title: e.name })),
+          ...novel.events.filter((e) => e.id !== id && mentioned(e.body)).map((e) => ({ kind: "event", id: e.id, title: e.title })),
+        ];
+        if (references.length) throw new OperationError("REFERENCED", `“${event.title}” is mentioned in ${references.length} place${references.length === 1 ? "" : "s"}, so it's kept.`, { references });
+      }
+      const synopsis = proseText(event.body).replace(/\s+/g, " ").trim();
+      const front = clean({ synopsis, characters: event.characters, locations: event.locations, plotlines: event.plotlines, when: event.when, duration: event.duration });
+      const scene = await manuscript.sceneWrites(novel, chapter, { title: event.title, front });
+      const text = (await read(event.file)) ?? "";
+      const writes: FileWrite[] = [...scene.writes, keep ? { path: event.file, content: editFrontMatter(text, [{ path: ["scene"], value: scene.id }]) } : { path: event.file, content: null }];
+      return { writes, message: `Manuscript: write “${event.title}” as a scene${keep ? "" : ", removing the event"}`, extra: { scene: scene.id, file: scene.file } };
     });
   }
 

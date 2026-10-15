@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { loadNovel, relationshipsAt, relationshipStyle, validateNovel } from "@gh-writer/core";
 import { nodeSource } from "@gh-writer/core/node";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { BibleOperations, createServer, hashText, Library, sessionCookie, transaction } from "../src/index.ts";
+import { BibleOperations, createServer, hashText, Library, ManuscriptOperations, sessionCookie, transaction } from "../src/index.ts";
 import { asFormatV1, gitIn, novelRepo, scratch } from "./fixtures.ts";
 import { send } from "./http.ts";
 
@@ -317,6 +317,33 @@ describe("events", () => {
     await bible.deleteEvent("evt_9ab3kd", { confirm: true });
     expect(existsSync(join(dir, FLOOD))).toBe(false);
     clean();
+  });
+
+  it("writes an event as a scene at a chapter's end, keeping the event (naming the scene) or removing it, in one commit", async () => {
+    const manuscript = new ManuscriptOperations(dir, (fn) => fn());
+    const { scene, file } = await bible.writeAsScene("evt_p1an5t", { chapter: "ch_01dde6", keep: true }, manuscript);
+    expect(file).toMatch(/^manuscript\/01-return\/02-[a-z-]+\/0\d-the-plans-are-stolen\.md$/);
+    expect(read(file)).toBe(`---\nid: ${scene}\ntitle: The plans are stolen\nsynopsis: Off page. Ben uses Tomas's key.\nstatus: idea\ncharacters:\n  - char_b3n0vs\nlocations:\n  - loc_w0rk5p\nplotlines:\n  - plot_h315tz\n  - plot_gr1efa\nwhen:\n  day: -5\n---\n`);
+    expect(read("bible/events/the-plans-are-stolen.md")).toContain(`\nscene: ${scene}\n---\n`);
+    expect(lastCommit()).toBe("Manuscript: write “The plans are stolen” as a scene");
+    clean();
+    const novel = await valid();
+    expect(novel.chapters.find((c) => c.id === "ch_01dde6")?.sceneIds.at(-1)).toBe(scene);
+
+    await bible.writeAsScene("evt_1eave5", { chapter: "ch_01dde6", keep: false }, manuscript);
+    expect(existsSync(join(dir, LEAVING))).toBe(false);
+    expect(lastCommit()).toBe("Manuscript: write “Ada leaves for the polytechnic” as a scene, removing the event");
+    clean();
+    await valid();
+  });
+
+  it("won't remove an event the prose mentions when writing it as a scene", async () => {
+    const scene = "manuscript/01-return/01-arrival/01-the-station.md";
+    writeFileSync(join(dir, scene), `${read(scene).trimEnd()}\n\nShe thought of [the flood](#evt_9ab3kd).\n`);
+    gitIn(dir, "commit", "-qam", "Mention");
+    const head = gitIn(dir, "rev-parse", "HEAD");
+    await expect(bible.writeAsScene("evt_9ab3kd", { chapter: "ch_01dde6", keep: false }, new ManuscriptOperations(dir, (fn) => fn()))).rejects.toMatchObject({ code: "REFERENCED" });
+    expect(gitIn(dir, "rev-parse", "HEAD")).toBe(head);
   });
 
   describe("in a novel in format v1", () => {

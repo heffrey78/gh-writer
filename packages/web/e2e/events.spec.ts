@@ -218,3 +218,51 @@ test("the outline in story time places the off-page events among the scenes; rea
   await expect(page.getByRole("list", { name: "In story time" })).toHaveCount(0);
   await expect(page.getByRole("listitem", { name: "The flood of '09, off the page" })).toHaveCount(0);
 });
+
+test("an event written as a scene: the scene made from it opens, and the event kept names it, or goes", async ({ page, app }) => {
+  const dir = await openNovel(page, app, (d) => {
+    const scene = join(d, "manuscript/01-return/01-arrival/01-the-station.md");
+    writeFileSync(scene, `${readFileSync(scene, "utf8").trimEnd()}\n\nShe thought of [the flood](#evt_9ab3kd).\n`);
+  });
+
+  // Mentioned in the prose: kept.
+  await openEvent(page, "The flood of '09");
+  await page.getByRole("button", { name: "Write it as a scene" }).click();
+  let dialog = page.getByRole("dialog", { name: "Write “The flood of '09” as a scene" });
+  await expect(dialog.getByRole("radio", { name: "Remove it: the scene takes its place" })).toBeDisabled();
+  await expect(dialog).toContainText("The story mentions it, so it's kept.");
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    await axe(page);
+  }
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+
+  // Kept, naming its scene: in the chapter chosen, with the event's details.
+  await openEvent(page, "The plans are stolen");
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.keyboard.type("write “the plans are stolen” as a scene");
+  await page.keyboard.press("Enter");
+  dialog = page.getByRole("dialog", { name: "Write “The plans are stolen” as a scene" });
+  await dialog.getByRole("combobox", { name: "Chapter" }).selectOption("ch_01dde6");
+  await dialog.getByRole("button", { name: "Write the scene" }).click();
+  await expect(page.getByRole("textbox", { name: /Scene text/ })).toBeVisible();
+  const event = readFileSync(join(dir, "bible/events/the-plans-are-stolen.md"), "utf8");
+  const sceneId = /\nscene: (sc_[0-9a-z]{6})\n/.exec(event)?.[1];
+  expect(sceneId).toBeDefined();
+  const scene = readFileSync(join(dir, "manuscript/01-return/02-old-debts/03-the-plans-are-stolen.md"), "utf8");
+  expect(scene).toBe(`---\nid: ${sceneId}\ntitle: The plans are stolen\nsynopsis: Off page. Ben uses Tomas's key.\nstatus: idea\ncharacters:\n  - char_b3n0vs\nlocations:\n  - loc_w0rk5p\nplotlines:\n  - plot_h315tz\n  - plot_gr1efa\nwhen:\n  day: -5\n---\n`);
+  await expect(page.getByText("Dramatizes the off-page event “The plans are stolen”.")).toBeVisible();
+  await openEvent(page, "The plans are stolen");
+  await expect(page.getByRole("region", { name: "In story time" })).toContainText("Written as the scene “The plans are stolen”.");
+
+  // Removed: the scene takes its place.
+  await openEvent(page, "Ada leaves for the polytechnic");
+  await page.getByRole("button", { name: "Write it as a scene" }).click();
+  dialog = page.getByRole("dialog", { name: "Write “Ada leaves for the polytechnic” as a scene" });
+  await dialog.getByRole("radio", { name: "Remove it: the scene takes its place" }).check();
+  await dialog.getByRole("button", { name: "Write the scene" }).click();
+  await expect(page.getByRole("textbox", { name: /Scene text/ })).toBeVisible();
+  expect(existsSync(join(dir, "bible/events/ada-leaves-for-the-polytechnic.md"))).toBe(false);
+  expect(app.git(dir, "log", "-1", "--format=%s").trim()).toBe("Manuscript: write “Ada leaves for the polytechnic” as a scene, removing the event");
+  expect(app.git(dir, "status", "--porcelain")).toBe("");
+});
