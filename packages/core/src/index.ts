@@ -12,7 +12,7 @@ export { addDays, daysBetween, LONG, median, PACE_DAYS, projection, sceneWords, 
 export { merge2, merge3, resolveMerge, type MergeChunk, type MergeResult, type Resolution } from "./merge.ts";
 export { editFrontMatter, editYaml, numberedName, readFrontMatter, slugify, uniqueFileName, uniqueId, type YamlEdit, type YamlPath } from "./edit.ts";
 export { backlinks, relationshipHistory, type Backlinks, type RelationshipSpan, type SceneLink } from "./queries.ts";
-export { durationMs, overlaps, storyInstant, storyTimeline, type Overlap, type StoryInstant, type StoryTimeline, type TimelineItem } from "./time.ts";
+export { durationMs, overlaps, sceneNeighbours, storyInstant, storyTimeline, type Overlap, type StoryInstant, type StoryTimeline, type TimelineItem } from "./time.ts";
 export { passageIssueBody, readAnchor, writeAnchor, type IssueAnchor, type PassageIssue } from "./issue-anchor.ts";
 export { resolveAnchor, type AnchorMatch, type AnchorOptions } from "./anchor-match.ts";
 export { ISSUE_KINDS, kindLabel, kindOf, STOCK_LABELS, type IssueKind } from "./issue-kinds.ts";

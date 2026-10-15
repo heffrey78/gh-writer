@@ -48,7 +48,7 @@ export const usePins = create<{ keys: string[]; toggle: (key: string) => void }>
 const listOf = (fm: Record<string, unknown>, key: string): Ref[] => (Array.isArray(fm[key]) ? (fm[key] as Ref[]) : []);
 
 /** When a scene happens, as read: "Day 3, 18:30", a date, or nothing; and how long, as "45 min". */
-function whenOf(fm: Record<string, unknown>): { when: string; duration: string } {
+export function whenOf(fm: Record<string, unknown>): { when: string; duration: string } {
   const w = fm.when && typeof fm.when === "object" ? (fm.when as { at?: string; day?: number; time?: string }) : undefined;
   const when = w?.at !== undefined ? w.at.replace("T", " ") : w?.day !== undefined ? `Day ${w.day}${w.time ? `, ${w.time}` : ""}` : "";
   return { when, duration: str(fm.duration) && readableDuration(str(fm.duration)) };
@@ -269,55 +269,7 @@ export function SceneDetails({
           {whenOf(fm).duration && <span className="text-muted"> · {whenOf(fm).duration}</span>}
         </>
       ),
-      edit: (
-        <Group label="Story time">
-          <SelectField
-            label="When it happens"
-            value={whenKind}
-            options={[
-              ["", "Not set"],
-              ["day", "A day of the story"],
-              ["date", "A date"],
-            ]}
-            onChange={(v) => set("when", v === "day" ? { day: 1 } : v === "date" ? { at: new Date().toISOString().slice(0, 10) } : undefined)}
-          />
-          {whenKind === "day" && (
-            <div className="grid grid-cols-2 gap-2">
-              <TextField
-                label="Day"
-                inputMode="numeric"
-                value={String(when?.day ?? "")}
-                check={(v) => /^-?\d+$/.test(v) || "A whole number"}
-                onSave={(v) => edit([{ path: ["when", "day"], value: Number(v) }])}
-              />
-              <TextField
-                label="Time"
-                placeholder="HH:MM"
-                value={str(when?.time)}
-                check={(v) => !v || TIME.test(v) || "Like 18:30"}
-                onSave={(v) => edit([v ? { path: ["when", "time"], value: v } : { path: ["when", "time"], remove: true }])}
-              />
-            </div>
-          )}
-          {whenKind === "date" && (
-            <TextField
-              label="Date"
-              placeholder="YYYY-MM-DD"
-              value={str(when?.at)}
-              check={(v) => AT.test(v) || "Like 1912-04-14 or 1912-04-14T23:40"}
-              onSave={(v) => edit([{ path: ["when", "at"], value: v }])}
-            />
-          )}
-          <TextField
-            label="Duration"
-            placeholder="PT45M"
-            hint="Like PT45M (45 minutes) or P2D (two days)."
-            value={str(fm.duration)}
-            check={(v) => !v || DURATION.test(v) || "Like PT45M or P2D"}
-            onSave={(v) => set("duration", v)}
-          />
-        </Group>
-      ),
+      edit: <StoryTimeFields when={when} duration={str(fm.duration)} edit={edit} />,
     },
     {
       key: "plotlines",
@@ -630,6 +582,64 @@ export function SceneDetails({
   );
 }
 
+/**
+ * A scene's or an event's story time, edited in place: a day of the story (and a time) or a date, and
+ * how long it lasts. Each change is front matter `edits`, saved as it's made.
+ */
+export function StoryTimeFields({ when, duration, edit }: { when: { at?: string; day?: number; time?: string } | undefined; duration: string; edit: (edits: YamlEdit[]) => void }) {
+  const whenKind = when?.at !== undefined ? "date" : when?.day !== undefined ? "day" : "";
+  const set = (key: string, value: unknown) => edit([value === undefined || value === "" ? { path: [key], remove: true } : { path: [key], value }]);
+  return (
+    <Group label="Story time">
+      <SelectField
+        label="When it happens"
+        value={whenKind}
+        options={[
+          ["", "Not set"],
+          ["day", "A day of the story"],
+          ["date", "A date"],
+        ]}
+        onChange={(v) => set("when", v === "day" ? { day: 1 } : v === "date" ? { at: new Date().toISOString().slice(0, 10) } : undefined)}
+      />
+      {whenKind === "day" && (
+        <div className="grid grid-cols-2 gap-2">
+          <TextField
+            label="Day"
+            inputMode="numeric"
+            value={String(when?.day ?? "")}
+            check={(v) => /^-?\d+$/.test(v) || "A whole number"}
+            onSave={(v) => edit([{ path: ["when", "day"], value: Number(v) }])}
+          />
+          <TextField
+            label="Time"
+            placeholder="HH:MM"
+            value={str(when?.time)}
+            check={(v) => !v || TIME.test(v) || "Like 18:30"}
+            onSave={(v) => edit([v ? { path: ["when", "time"], value: v } : { path: ["when", "time"], remove: true }])}
+          />
+        </div>
+      )}
+      {whenKind === "date" && (
+        <TextField
+          label="Date"
+          placeholder="YYYY-MM-DD"
+          value={str(when?.at)}
+          check={(v) => AT.test(v) || "Like 1912-04-14 or 1912-04-14T23:40"}
+          onSave={(v) => edit([{ path: ["when", "at"], value: v }])}
+        />
+      )}
+      <TextField
+        label="Duration"
+        placeholder="PT45M"
+        hint="Like PT45M (45 minutes) or P2D (two days)."
+        value={duration}
+        check={(v) => !v || DURATION.test(v) || "Like PT45M or P2D"}
+        onSave={(v) => set("duration", v)}
+      />
+    </Group>
+  );
+}
+
 const STRENGTH: Record<string, string> = { "1": "faint", "2": "medium", "3": "strong" };
 
 /** PT1H30M as "1 h 30 min", P2D as "2 days": an ISO 8601 duration read aloud, or as written if it isn't one. */
@@ -665,7 +675,7 @@ function EntityLink({ novel, id }: { novel: Novel; id: string }) {
 
 const str = (v: unknown) => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
 
-function Group({ label, children }: { label: string; children: ReactNode }) {
+export function Group({ label, children }: { label: string; children: ReactNode }) {
   return (
     <fieldset className="grid gap-2 border-t border-rule pt-3">
       <legend className="pr-2 text-xs font-semibold tracking-wide text-muted uppercase">{label}</legend>
@@ -674,7 +684,7 @@ function Group({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function Chips({ items }: { items: { id: string; label: string; remove: () => void }[] }) {
+export function Chips({ items }: { items: { id: string; label: string; remove: () => void }[] }) {
   if (!items.length) return <p className="text-muted">None yet.</p>;
   return (
     <ul className="flex flex-wrap gap-1.5">

@@ -60,7 +60,7 @@ test("someone in two places at once is named, with both scenes", async ({ page, 
   await expect(conflicts.getByRole("link", { name: "“The Station”" })).toHaveAttribute("href", /\/scene\/sc_5tat1n$/);
 });
 
-test("off-page events are added, edited and deleted from the timeline, and its warnings follow", async ({ page, app }) => {
+test("an off-page event is added from the timeline, made on its own page, and the timeline's warnings follow", async ({ page, app }) => {
   const dir = app.novelRepo("varn");
   await app.restart(dir);
   const file = join(dir, "bible/events/ada-at-the-station-again.md");
@@ -69,34 +69,43 @@ test("off-page events are added, edited and deleted from the timeline, and its w
   await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
   await openView(page, "Timeline");
 
-  await page.getByRole("button", { name: "New off-page event" }).click();
+  await page.getByRole("tabpanel", { name: "Timeline" }).getByRole("button", { name: "New off-page event" }).click();
   const dialog = page.getByRole("dialog", { name: "New off-page event" });
   await dialog.getByRole("textbox", { name: "Title" }).fill("Ada at the station again");
-  await dialog.getByRole("spinbutton", { name: "Day" }).fill("1");
-  await dialog.getByLabel("Time").fill("17:50");
-  await dialog.getByRole("checkbox", { name: "Ada Varn" }).check();
-  await dialog.getByRole("checkbox", { name: "Varn Station" }).check();
   await axe(page);
   await dialog.getByRole("button", { name: "Add event" }).click();
-  await expect(dialog).toHaveCount(0);
-  await expect.poll(event).toMatch(/^---\nid: evt_[0-9a-z]{6}\ntitle: Ada at the station again\nwhen:\n {2}day: 1\n {2}time: "17:50"\ncharacters:\n {2}- char_7f3k2q\nlocations:\n {2}- loc_5tat10\n---\n$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Ada at the station again" })).toBeVisible();
+  await expect.poll(event).toMatch(/^---\nid: evt_[0-9a-z]{6}\ntitle: Ada at the station again\n---\n$/);
+
+  // Day 1 at 17:50, at the station, with Ada.
+  await page.getByRole("button", { name: "Add when it happens" }).click();
+  await page.getByRole("combobox", { name: "When it happens" }).selectOption("day");
+  await page.getByRole("textbox", { name: "Time" }).fill("17:50");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Edit who" }).click();
+  await page.getByRole("button", { name: /^Add to characters/ }).click();
+  await page.keyboard.type("ada");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Edit where" }).click();
+  await page.getByRole("button", { name: /^Add to locations/ }).click();
+  await page.keyboard.type("station");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect.poll(event).toMatch(/\nwhen:\n {2}day: 1\n {2}time: "17:50"\ncharacters:\n {2}- char_7f3k2q\nlocations:\n {2}- loc_5tat10\n---\n$/);
+
   // On the bridge in Walking the Span at that time: in two places at once.
+  await openView(page, "Timeline");
   const conflicts = page.getByRole("region", { name: "In two places at once" });
   await expect(conflicts).toContainText("Ada Varn is in “Walking the Span” and the event “Ada at the station again” at the same time");
 
-  // Edited from its card: a morning instead, and the warning goes.
-  await page.getByRole("button", { name: "Edit the event “Ada at the station again”" }).click();
-  await page.getByRole("dialog", { name: "Edit the event" }).getByLabel("Time").fill("08:00");
-  await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+  // Opened from its card and moved to the morning: the warning goes.
+  await page.getByRole("link", { name: "Ada at the station again" }).first().click();
+  await page.getByRole("button", { name: "Edit when and how long" }).click();
+  await page.getByRole("textbox", { name: "Time" }).fill("08:00");
+  await page.keyboard.press("Enter");
   await expect.poll(event).toContain('  time: "08:00"\n');
+  await openView(page, "Timeline");
   await expect(conflicts).toContainText("Nobody is in two places at once.");
-
-  // And deleted.
-  await page.getByRole("button", { name: "Edit the event “Ada at the station again”" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
-  await expect.poll(() => existsSync(file)).toBe(false);
-  await expect(page.getByRole("button", { name: "Edit the event “Ada at the station again”" })).toHaveCount(0);
-  // The file is written a moment before it's committed.
-  await expect.poll(() => app.git(dir, "log", "-1", "--format=%s").trim()).toBe("Bible: remove event “Ada at the station again”");
 });

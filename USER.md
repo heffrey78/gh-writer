@@ -100,6 +100,12 @@ The **Story map** sets the story's elements against its scenes, in three tabs (â
 - **Presence**: which characters (or themes) are in which scenes.
 - **Timeline**: the book in story time, joined by lines to reading order, so flashbacks stand out; and anyone who is in two places at once is listed.
 
+### Off-page events
+
+Off-page events are what happens in the story's world but isn't shown: backstory, things between scenes. They're listed under **Off the page** in the book pane, below the chapters, in story-time order: while you're writing one opens on the right sidebar's Entry tab, beside the text, and elsewhere on its own page. Add one with its **+**, with **New off-page event** on the Timeline, or from the palette (*Off the page:* opens one). The outline's table and cards have an **Order** switch: in *Story time*, the scenes come in the order things happen, with the events among them, dashed and marked *Off the page* (nothing is dragged there: reading order is what you rearrange). Each has a page of its own, read first like an entry's: when it happens and for how long, who, where and its plotlines, each with a pencil to edit in place, and its note, written as prose with @ mentions. *In story time* says which scenes it falls between. A new title renames its file; **Delete** asks first if the story mentions it.
+
+Each event is a file of its own, `bible/events/<title>.md`. A novel made before that kept them all in `bible/events.yaml`: the first time you change an event, gh-writer asks to move the novel to the new format, in one commit. Copies of gh-writer from before then won't open it afterwards.
+
 **Relationships**, under World, draws the story bible's relationships as a graph. Drag the *Story position* slider, or press **Play**, to see relationships begin and end as the story goes. Arrange entries by dragging; the layout is saved.
 
 Each has an **Export** button for SVG; the relationships and the timeline also export Mermaid.

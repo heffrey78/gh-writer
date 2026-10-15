@@ -123,3 +123,19 @@ export function overlaps(timeline: StoryTimeline): Overlap[] {
   }
   return out;
 }
+
+/**
+ * The scenes either side of a scene or event in story time: the last one before it and the first after
+ * it, on its own scale (dates, or relative days without a calendar). None for something undated.
+ */
+export function sceneNeighbours(timeline: StoryTimeline, id: string): { before?: Scene; after?: Scene } {
+  const at = timeline.items.findIndex((i) => itemId(i) === id);
+  if (at < 0) return {};
+  const item = timeline.items[at]!;
+  const scene = (i: TimelineItem | undefined) => (i?.kind === "scene" && i.at.dated === item.at.dated ? i.scene : undefined);
+  let before: Scene | undefined;
+  for (let i = at - 1; i >= 0 && !before; i--) before = scene(timeline.items[i]);
+  let after: Scene | undefined;
+  for (let i = at + 1; i < timeline.items.length && !after; i++) after = scene(timeline.items[i]);
+  return { ...(before ? { before } : {}), ...(after ? { after } : {}) };
+}

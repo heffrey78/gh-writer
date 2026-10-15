@@ -15,6 +15,8 @@ import { ErrorAlert } from "../ui/alert.tsx";
 import { ErrorBoundary } from "../ui/error-boundary.tsx";
 import { BiblePage } from "../bible/bible-page.tsx";
 import { EntryPage } from "../bible/entry-page.tsx";
+import { EventPage } from "../events/event-page.tsx";
+import { NewEventDialog, useNewEvent } from "../events/new-event.tsx";
 import { NewEntryDialog } from "../bible/new-entry.tsx";
 import { cn } from "../ui/cn.ts";
 import { DraftsButton, useDrafts } from "./drafts.tsx";
@@ -63,6 +65,7 @@ export function NovelPage() {
   const [resolving, setResolving] = useState(false);
   const [compiling, setCompiling] = useState(false);
   const [newEntry, setNewEntry] = useState<string | null>(null);
+  const newEvent = useNewEvent();
   const focus = useWritingModes((m) => m.focus);
   const collapsed = useSidebar((s) => s.collapsed);
   const spell = useSpell(api, novelId, novel.data?.novel);
@@ -175,6 +178,7 @@ export function NovelPage() {
             { id: "novel.newIssue", title: "New issue", group: "GitHub", keywords: ["github", "note", "plot hole"], run: () => void navigate(`/novels/${novelId}/issues?new=1`) },
           ]
         : []),
+      { id: "novel.newEvent", title: "New off-page event", group: "Story bible", keywords: ["event", "backstory", "timeline"], run: () => useNewEvent.getState().set(true) },
       ...(model?.entityTypes ?? []).map((t) => ({ id: `novel.newEntry.${t.key}`, title: `New ${t.label.toLowerCase()}`, group: "Story bible", run: () => setNewEntry(t.key) })),
       ...(model?.entities ?? []).map((e) => ({
         id: `novel.entry.${e.id}`,
@@ -183,6 +187,7 @@ export function NovelPage() {
         keywords: e.aliases,
         run: () => void navigate(`/novels/${novelId}/bible/${e.id}`),
       })),
+      ...(model?.events ?? []).map((e) => ({ id: `novel.event.${e.id}`, title: `Off the page: ${e.title}`, group: "Go to", keywords: ["event"], run: () => void navigate(`/novels/${novelId}/event/${e.id}`) })),
       ...(model?.chapters ?? []).flatMap((c): Command[] => [
         { id: `novel.chapter.${c.id}`, title: `Chapter: ${chapterTitle(model!, c)}`, group: "Go to", run: () => void navigate(`/novels/${novelId}/chapter/${c.id}`) },
         ...c.sceneIds.flatMap((id): Command[] => {
@@ -290,6 +295,7 @@ export function NovelPage() {
               <Route path="issues" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssuesPage novelId={novelId} novel={book} workspace={workspace} />}</GitHubOnly>} />
               <Route path="issues/:number" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssueRoute novelId={novelId} novel={book} workspace={workspace} />}</GitHubOnly>} />
               <Route path="bible/:entityId" element={<EntryRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
+              <Route path="event/:eventId" element={<EventRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
               <Route path="*" element={<Missing what="page" />} />
             </Routes>
           </ErrorBoundary>
@@ -301,6 +307,14 @@ export function NovelPage() {
       <SaveConflicts novel={book} workspace={workspace} />
       <NoticeBar />
       <NewEntryDialog novelId={novelId} novel={book} type={newEntry ?? undefined} open={newEntry !== null} onOpenChange={(o) => !o && setNewEntry(null)} />
+      <NewEventDialog
+        novelId={novelId}
+        novel={book}
+        open={newEvent.open}
+        onOpenChange={newEvent.set}
+        // While writing, beside the text; otherwise on its own page.
+        onCreated={(id) => (current ? useEntryPanel.getState().open(id) : void navigate(`/novels/${novelId}/event/${id}`))}
+      />
     </Shell>
   );
 }
@@ -317,6 +331,12 @@ function EntryRoute(props: RouteProps) {
   const { entityId } = useParams();
   const entity = props.novel.entities.find((e) => e.id === entityId);
   return entity ? <EntryPage {...props} entity={entity} /> : <Missing what="entry" />;
+}
+
+function EventRoute(props: RouteProps) {
+  const { eventId } = useParams();
+  const event = props.novel.events.find((e) => e.id === eventId);
+  return event ? <EventPage key={event.id} {...props} event={event} /> : <Missing what="event" />;
 }
 
 function SceneRoute(props: RouteProps) {

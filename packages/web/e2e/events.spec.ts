@@ -1,0 +1,220 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import type { Page } from "@playwright/test";
+import { asFormatV1 } from "../../server/test/fixtures.ts";
+import { axe, caretAtEnd, expect, test, type App } from "./fixtures.ts";
+
+/** Off-page events as pages of their own (#165, #210). */
+
+const FLOOD = "bible/events/the-flood-of-09.md";
+
+async function openNovel(page: Page, app: App, before?: (dir: string) => void) {
+  const dir = app.novelRepo("varn");
+  if (before) {
+    before(dir);
+    app.git(dir, "add", "-A");
+    app.git(dir, "commit", "-qm", "Prepare");
+  }
+  await app.restart(dir);
+  await page.goto(app.launchUrl);
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
+  return dir;
+}
+
+async function openEvent(page: Page, title: string) {
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.keyboard.type(`off the page: ${title}`);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+}
+
+test("an event's page: read first, each part edited in place by keyboard, its note as prose", async ({ page, app }) => {
+  const dir = await openNovel(page, app);
+  const file = () => readFileSync(join(dir, FLOOD), "utf8");
+  await openEvent(page, "The flood of '09");
+
+  await expect(page.getByText("Timeline · Off the page")).toBeVisible();
+  await expect(page.getByText("2009-11-02 · 3 days")).toBeVisible();
+  const rows = page.locator("dl[aria-label='Who, where and plotlines']");
+  await expect(rows).toContainText("WhoAda Varn, Ben Varn, Tomas Hale");
+  await expect(rows).toContainText("WhereThe Varn Bridge");
+  await expect(rows).toContainText("PlotlinesNone");
+  await expect(page.getByRole("region", { name: "In story time" })).toHaveText(/Before “The Flood”\./);
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    await axe(page);
+  }
+
+  // How long, by keyboard: the pencil, the field, Enter, Escape back to the pencil.
+  await page.getByRole("button", { name: "Edit when and how long" }).focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("textbox", { name: "Duration" }).fill("P4D");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Edit when and how long" })).toBeFocused();
+  await expect.poll(file).toContain("\nduration: P4D\n");
+
+  // A plotline, and Tomas taken off.
+  await page.getByRole("button", { name: "Edit plotlines" }).click();
+  await page.getByRole("button", { name: /^Add to plotlines/ }).click();
+  await page.keyboard.type("the sale");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Done" }).click();
+  await page.getByRole("button", { name: "Edit who" }).click();
+  await page.getByRole("button", { name: "Remove “Tomas Hale”" }).click();
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect.poll(file).toMatch(/characters:\n {2}- char_7f3k2q\n {2}- char_b3n0vs\nlocations:\n {2}- loc_br1dg3\n(.*\n)*plotlines:\n {2}- plot_h315tz\n---\n/);
+  await expect(rows).toContainText("WhoAda Varn, Ben Varn");
+
+  // The note is prose, written in place.
+  const note = page.getByRole("textbox", { name: "Note on The flood of '09" });
+  await caretAtEnd(page, note);
+  await page.keyboard.type(" Ada was eleven.");
+  await expect.poll(file).toMatch(/\n---\n\n?The father holds the seventh pier through the night and dies of pneumonia a week later\. Ada was eleven\.\n$/);
+});
+
+test("a new title moves the event's file; deleting one the story mentions asks first", async ({ page, app }) => {
+  const dir = await openNovel(page, app, (d) => {
+    const scene = join(d, "manuscript/01-return/01-arrival/01-the-station.md");
+    writeFileSync(scene, `${readFileSync(scene, "utf8").trimEnd()}\n\nShe thought of [the flood](#evt_9ab3kd).\n`);
+  });
+  await openEvent(page, "The flood of '09");
+  await page.getByRole("button", { name: "Edit title" }).click();
+  await page.getByRole("textbox", { name: "Title" }).fill("The great flood");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { level: 1, name: "The great flood" })).toBeVisible();
+  await expect.poll(() => existsSync(join(dir, "bible/events/the-great-flood.md"))).toBe(true);
+  expect(existsSync(join(dir, FLOOD))).toBe(false);
+
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  const ask = page.getByRole("alertdialog", { name: "Delete “The great flood”? The story still mentions it." });
+  await expect(ask).toContainText("Scene “The Station”");
+  await axe(page);
+  await ask.getByRole("button", { name: "Keep it" }).click();
+  expect(existsSync(join(dir, "bible/events/the-great-flood.md"))).toBe(true);
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await ask.getByRole("button", { name: "Delete anyway" }).click();
+  await expect(page.getByRole("tab", { name: "Timeline", selected: true })).toBeVisible();
+  expect(existsSync(join(dir, "bible/events/the-great-flood.md"))).toBe(false);
+  await expect.poll(() => app.git(dir, "log", "-1", "--format=%s").trim()).toBe("Bible: remove event “The great flood”");
+});
+
+test("in a novel in format v1, the first change asks to move it to the new format; Cancel changes nothing", async ({ page, app }) => {
+  const dir = await openNovel(page, app, asFormatV1);
+  const head = app.git(dir, "rev-parse", "HEAD");
+  await openEvent(page, "The flood of '09");
+  await expect(page.getByText("The father holds the seventh pier")).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit when and how long" }).click();
+  const ask = page.getByRole("alertdialog", { name: "Move this novel to the new format?" });
+  await expect(ask).toContainText("Copies of gh-writer from before this one won't open it afterwards.");
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    await axe(page);
+  }
+  await ask.getByRole("button", { name: "Cancel" }).click();
+  await expect(ask).toHaveCount(0);
+  expect(app.git(dir, "rev-parse", "HEAD")).toBe(head);
+  expect(app.git(dir, "status", "--porcelain")).toBe("");
+
+  await page.getByRole("button", { name: "Edit when and how long" }).click();
+  await ask.getByRole("button", { name: "Move it" }).click();
+  await expect(page.getByRole("textbox", { name: "Duration" })).toBeVisible();
+  expect(app.git(dir, "log", "-1", "--format=%s").trim()).toBe("Format v2: off-page events as files");
+  expect(existsSync(join(dir, "bible/events.yaml"))).toBe(false);
+  await page.getByRole("textbox", { name: "Duration" }).fill("P4D");
+  await page.keyboard.press("Enter");
+  await expect.poll(() => readFileSync(join(dir, FLOOD), "utf8")).toContain("\nduration: P4D\n");
+
+  // Moved once: another change doesn't ask again.
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Edit who" }).click();
+  await expect(ask).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Add to characters/ })).toBeVisible();
+});
+
+test("the book pane lists events in story time under Off the page: beside the text while writing, on their page otherwise", async ({ page, app }) => {
+  await openNovel(page, app);
+  const pane = page.getByRole("region", { name: "Off the page" });
+  await expect(pane.getByRole("link")).toHaveText(["The flood of '09", "Ada leaves for the polytechnic", "The plans are stolen"]);
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    await axe(page);
+  }
+
+  // While writing: on the Entry tab, the chapter still open.
+  const url = page.url();
+  await pane.getByRole("link", { name: "Ada leaves for the polytechnic" }).click();
+  await expect(page.getByRole("heading", { level: 2, name: "Ada leaves for the polytechnic" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeVisible();
+  expect(page.url()).toBe(url);
+  await expect(page.getByRole("link", { name: "Open the full event" })).toBeVisible();
+
+  // Elsewhere: its page.
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Outline" }).click();
+  await pane.getByRole("link", { name: "The plans are stolen" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "The plans are stolen" })).toBeVisible();
+
+  // + New event, then from the palette; each opens.
+  await pane.getByRole("button", { name: "New off-page event" }).click();
+  await page.getByRole("dialog", { name: "New off-page event" }).getByRole("textbox", { name: "Title" }).fill("The toll is raised");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { level: 1, name: "The toll is raised" })).toBeVisible();
+  await expect(pane.getByRole("link")).toHaveText(["The flood of '09", "Ada leaves for the polytechnic", "The plans are stolen", "The toll is raised"]);
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.keyboard.type("new off-page event");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog", { name: "New off-page event" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // Folded away, and remembered.
+  await pane.getByRole("button", { name: /^Off the page/ }).click();
+  await expect(pane.getByRole("link")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Off the page" }).getByRole("button", { name: /^Off the page/ })).toHaveAttribute("aria-expanded", "false");
+});
+
+test("the outline in story time places the off-page events among the scenes; reading order shows none", async ({ page, app }) => {
+  await openNovel(page, app);
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Outline" }).click();
+  await expect(page.getByRole("table", { name: "Every scene in reading order, by chapter" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "The flood of '09" })).toHaveCount(1); // the book pane's only
+
+  await page.getByRole("radiogroup", { name: "Order" }).getByText("Story time", { exact: true }).click();
+  const table = page.getByRole("table", { name: "Every scene and off-page event in story-time order" });
+  await expect(table.getByRole("row").locator("td:nth-child(2)")).toHaveText([
+    "The flood of '09",
+    "The Flood",
+    "Ada leaves for the polytechnic",
+    "The plans are stolen",
+    "The Station",
+    "Walking the Span",
+    "Tomas's Workshop",
+    "Ben's Ledger",
+    "The Betrayal",
+    "Mirela's Offer",
+    "The Last Rivet",
+  ]);
+  await expect(table.getByRole("row", { name: /The plans are stolen/ })).toContainText("Off the page");
+  await expect(page.getByRole("button", { name: /^Move “/ })).toHaveCount(0);
+  await expect(page).toHaveURL(/\/outline\/table\?order=time$/);
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    await axe(page);
+  }
+
+  // The cards too, and the choice is remembered.
+  await page.getByRole("radiogroup", { name: "Show the outline as" }).getByText("Cards", { exact: true }).click();
+  const cards = page.getByRole("list", { name: "In story time" }).getByRole("listitem");
+  await expect(cards).toHaveCount(11);
+  await expect(cards.nth(0)).toHaveAccessibleName("The flood of '09, off the page");
+  await expect(cards.nth(1)).toHaveAccessibleName("The Flood");
+  await axe(page);
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Story map" }).click();
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Outline" }).click();
+  await expect(page.getByRole("list", { name: "In story time" })).toBeVisible();
+
+  await page.getByRole("radiogroup", { name: "Order" }).getByText("Reading order", { exact: true }).click();
+  await expect(page.getByRole("list", { name: "In story time" })).toHaveCount(0);
+  await expect(page.getByRole("listitem", { name: "The flood of '09, off the page" })).toHaveCount(0);
+});

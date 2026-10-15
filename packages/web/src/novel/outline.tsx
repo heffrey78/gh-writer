@@ -21,21 +21,11 @@ const number = new Intl.NumberFormat();
 /** Outline as a table: every scene in reading order, with its synopsis and status edited in place. */
 export function OutlineTable({ novelId, novel, workspace }: { novelId: string; novel: Novel; workspace: Workspace }) {
   const structure = useStructure(novelId, novel, workspace);
-  const queryClient = useQueryClient();
-  const show = useNotice((s) => s.show);
   const dragging = useRef<string | undefined>(undefined);
   const [drop, setDrop] = useState<{ id: string; after: boolean }>();
   const name = (id: string | undefined) => novel.entities.find((e) => e.id === id)?.name;
 
-  const edit = async (scene: Scene, key: "synopsis" | "status", value: string) => {
-    try {
-      await workspace.editFrontMatter(scene.file, [value ? { path: [key], value } : { path: [key], remove: true }]);
-      await workspace.autosave.flush();
-      await queryClient.invalidateQueries({ queryKey: keys.novel(novelId) });
-    } catch (e) {
-      show({ message: `Couldn't save the ${key}: ${e instanceof Error ? e.message : String(e)}` });
-    }
-  };
+  const edit = useSceneEdit(novelId, workspace);
 
   // A row moved by keyboard keeps focus, even when it lands in another chapter (a new element)
   // after the model reloads: focus left on nothing goes back to its handle.
@@ -168,18 +158,7 @@ export function OutlineTable({ novelId, novel, workspace }: { novelId: string; n
                       <Synopsis scene={scene} onSave={(v) => void edit(scene, "synopsis", v)} />
                     </td>
                     <td className="py-1 pr-3">
-                      <select
-                        aria-label={`Status of “${scene.title}”`}
-                        value={scene.status}
-                        onChange={(e) => void edit(scene, "status", e.target.value)}
-                        className="h-8 w-full rounded-md border border-rule bg-raised px-1.5"
-                      >
-                        {STATUSES.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
+                      <StatusSelect scene={scene} onChange={(v) => void edit(scene, "status", v)} />
                     </td>
                     <td className="py-2 pr-3">{name(scene.pov) ?? <span className="text-muted">—</span>}</td>
                     <td className="py-2 pr-3">{scene.characters.map(name).filter(Boolean).join(", ") || <span className="text-muted">—</span>}</td>
@@ -196,8 +175,36 @@ export function OutlineTable({ novelId, novel, workspace }: { novelId: string; n
   );
 }
 
+/** Change a scene's synopsis or status in its front matter, then reload the book; a failure says so. */
+export function useSceneEdit(novelId: string, workspace: Workspace) {
+  const queryClient = useQueryClient();
+  const show = useNotice((s) => s.show);
+  return async (scene: Scene, key: "synopsis" | "status", value: string) => {
+    try {
+      await workspace.editFrontMatter(scene.file, [value ? { path: [key], value } : { path: [key], remove: true }]);
+      await workspace.autosave.flush();
+      await queryClient.invalidateQueries({ queryKey: keys.novel(novelId) });
+    } catch (e) {
+      show({ message: `Couldn't save the ${key}: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  };
+}
+
+/** A scene's status, chosen in place. */
+export function StatusSelect({ scene, onChange }: { scene: Scene; onChange: (status: string) => void }) {
+  return (
+    <select aria-label={`Status of “${scene.title}”`} value={scene.status} onChange={(e) => onChange(e.target.value)} className="h-8 w-full rounded-md border border-rule bg-raised px-1.5">
+      {STATUSES.map((s) => (
+        <option key={s} value={s}>
+          {s}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 /** The synopsis, editable in place: saved when it loses focus, or on Enter. */
-function Synopsis({ scene, onSave }: { scene: Scene; onSave: (value: string) => void }) {
+export function Synopsis({ scene, onSave }: { scene: Scene; onSave: (value: string) => void }) {
   const [value, setValue] = useState(scene.synopsis ?? "");
   const [seen, setSeen] = useState(scene.synopsis ?? "");
   // Take the saved value when it changes from outside (another editor, a reload).

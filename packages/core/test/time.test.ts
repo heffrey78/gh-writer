@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { durationMs, loadNovel, memorySource, overlaps, storyInstant, storyTimeline, validate } from "../src/index.ts";
+import { durationMs, loadNovel, memorySource, overlaps, sceneNeighbours, storyInstant, storyTimeline, validate } from "../src/index.ts";
 import { nodeSource } from "../src/node.ts";
 
 const SAMPLE = fileURLToPath(new URL("../../../examples/sample-novel", import.meta.url));
@@ -44,6 +44,18 @@ describe("story time", () => {
     ]);
     expect(t.undatedScenes).toEqual([]);
     expect(overlaps(t)).toEqual([]);
+  });
+
+  it("finds the scenes either side of an event in story time", async () => {
+    const t = storyTimeline(await loadNovel(nodeSource(SAMPLE)));
+    const titles = (id: string) => {
+      const { before, after } = sceneNeighbours(t, id);
+      return [before?.title, after?.title];
+    };
+    expect(titles("evt_9ab3kd")).toEqual([undefined, "The Flood"]);
+    expect(titles("evt_1eave5")).toEqual(["The Flood", "The Station"]);
+    expect(titles("evt_p1an5t")).toEqual(["The Flood", "The Station"]);
+    expect(titles("evt_zzzzzz")).toEqual([undefined, undefined]);
   });
 });
 
