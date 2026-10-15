@@ -2,7 +2,9 @@ import { proseText, type Novel } from "@gh-writer/core";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import { NavLink } from "react-router";
+import { useStore } from "zustand";
 import { useEntryPanel } from "../novel/entry-tab.tsx";
+import type { Workspace } from "../novel/workspace.ts";
 import { cn } from "../ui/cn.ts";
 import { useNewNote } from "./new-note.tsx";
 
@@ -21,7 +23,7 @@ function remembered(): boolean {
  * narrowed by a tag or by their words. Each opens its page, or, while a chapter or scene is open, the
  * right sidebar's Entry tab beside the text. Collapsed or not, remembered in this browser.
  */
-export function NotesSection({ novelId, novel, writing }: { novelId: string; novel: Novel; writing: boolean }) {
+export function NotesSection({ novelId, novel, workspace, writing }: { novelId: string; novel: Novel; workspace: Workspace; writing: boolean }) {
   const id = useId();
   const [open, setOpen] = useState(remembered);
   const [tag, setTag] = useState("");
@@ -32,8 +34,12 @@ export function NotesSection({ novelId, novel, writing }: { novelId: string; nov
     [novel.notes],
   );
   const tags = useMemo(() => [...new Set(novel.notes.flatMap((n) => n.tags))].sort((a, b) => a.localeCompare(b)), [novel.notes]);
+  // An open note's text as typed, saved or not.
+  const typed = useStore(workspace.store, (s) => s.files);
   const query = words.trim().toLowerCase();
-  const shown = notes.filter((n) => (!tag || n.tags.includes(tag)) && (!query || [n.title, proseText(n.body), ...n.tags].some((t) => t.toLowerCase().includes(query))));
+  const shown = notes.filter(
+    (n) => (!tag || n.tags.includes(tag)) && (!query || [n.title, proseText(typed[n.file]?.body ?? n.body), ...n.tags].some((t) => t.toLowerCase().includes(query))),
+  );
   const toggle = () => {
     setOpen(!open);
     try {

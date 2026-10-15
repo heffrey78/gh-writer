@@ -45,11 +45,13 @@ export interface WorkspaceOptions {
   interval?: number;
   storage?: StorageLike | null;
   /**
-   * A save changed a file's front matter (a scene's details, an entry's fields), or a change on disk
-   * changed an open file's: the story model, which other views read, needs loading again. Changes on
-   * disk to files that aren't open come as file events.
+   * A save changed what the story model holds, which other views read, so it needs loading again: a
+   * file's front matter (a scene's details, an entry's fields), or the prose of a file outside the
+   * manuscript (a note, an event's note, an entry's notes: searched and mentioned elsewhere). A scene's
+   * prose isn't: reloading the model at every save of a long book would cost too much. Also a change on
+   * disk to an open file's front matter. Changes on disk to files that aren't open come as file events.
    */
-  onFrontMatterSaved?: (path: string) => void;
+  onModelSaved?: (path: string) => void;
 }
 
 export interface Workspace {
@@ -89,7 +91,7 @@ export interface Workspace {
  * server refuses (409) and which is then merged paragraph by paragraph with what's on disk. A clean
  * merge applies by itself; a clash goes to the author.
  */
-export function createWorkspace({ api, novelId, interval, storage, onFrontMatterSaved }: WorkspaceOptions): Workspace {
+export function createWorkspace({ api, novelId, interval, storage, onModelSaved }: WorkspaceOptions): Workspace {
   const store = createStore<WorkspaceState>(() => ({ files: {}, conflicts: [], error: undefined }));
   const live = new Map<string, () => string | undefined>();
   const editListeners = new Set<(path: string, before: string, after: string) => void>();
@@ -113,8 +115,10 @@ export function createWorkspace({ api, novelId, interval, storage, onFrontMatter
     ...(storage !== undefined ? { storage } : {}),
     onSaved: (path, content, hash) => {
       const f = file(path);
-      if (f) setFile(path, { ...f, disk: content, hash });
-      if (f && splitSceneFile(f.disk).frontMatter !== splitSceneFile(content).frontMatter) onFrontMatterSaved?.(path);
+      if (!f) return;
+      setFile(path, { ...f, disk: content, hash });
+      const [was, is] = [splitSceneFile(f.disk), splitSceneFile(content)];
+      if (was.frontMatter !== is.frontMatter || (!path.startsWith("manuscript/") && was.body !== is.body)) onModelSaved?.(path);
     },
     onConflict: (c) => void merge(c),
   });
@@ -255,7 +259,7 @@ export function createWorkspace({ api, novelId, interval, storage, onFrontMatter
       if (current && now && !dirty(now)) {
         load(e.path, current.content, current.hash);
         // A status set from GitHub's board, say: the model must follow, as after a save of it here.
-        if (splitSceneFile(now.disk).frontMatter !== splitSceneFile(current.content).frontMatter) onFrontMatterSaved?.(e.path);
+        if (splitSceneFile(now.disk).frontMatter !== splitSceneFile(current.content).frontMatter) onModelSaved?.(e.path);
       }
       return true;
     },

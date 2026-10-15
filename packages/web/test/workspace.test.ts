@@ -75,7 +75,7 @@ describe("workspace", () => {
   it("says when a change on disk changed an open scene's front matter, so the model follows (a status from GitHub's board)", async () => {
     const changed: string[] = [];
     ws.dispose();
-    ws = createWorkspace({ api, novelId, interval: 30, storage: null, onFrontMatterSaved: (path) => changed.push(path) });
+    ws = createWorkspace({ api, novelId, interval: 30, storage: null, onModelSaved: (path) => changed.push(path) });
     await ws.open([SCENE]);
     const prose = replaceParagraph(disk(), 1, "Only the prose changed.");
     writeFileSync(join(root, SCENE), prose);
@@ -86,6 +86,20 @@ describe("workspace", () => {
     await ws.fileChanged({ type: "change", path: SCENE, hash: hashText(status) });
     expect(changed).toEqual([SCENE]);
     expect(file().frontMatter).toContain("status: final");
+  });
+
+  it("says when a save changed a note's prose, so the model follows; not a scene's", async () => {
+    const NOTE = "notes/what-if-ben-never-sold.md";
+    const changed: string[] = [];
+    ws.dispose();
+    ws = createWorkspace({ api, novelId, interval: 30, storage: null, onModelSaved: (path) => changed.push(path) });
+    await ws.open([SCENE, NOTE]);
+    ws.change(SCENE, replaceParagraph(file().body, 0, "Prose of a scene."));
+    await ws.flush();
+    expect(changed).toEqual([]);
+    ws.change(NOTE, "Then the bridge stands.\n");
+    await ws.flush();
+    expect(changed).toEqual([NOTE]);
   });
 
   it("leaves a scene with text being typed alone, and merges the change into its next save", async () => {

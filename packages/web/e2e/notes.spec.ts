@@ -145,3 +145,27 @@ test("an entry's and an event's profiles list the notes that mention them", asyn
   await page.getByRole("region", { name: "In your notes" }).getByRole("link", { name: "What if Ben never sold the plans?" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "What if Ben never sold the plans?" })).toBeVisible();
 });
+
+test("the note being written is found by its words at once, and its mentions list it on the profile once saved", async ({ page, app }) => {
+  await openNovel(page, app);
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Outline" }).click();
+  const pane = page.getByRole("region", { name: /^Notes\s*\d+$/ });
+  await pane.getByRole("button", { name: "New note" }).click();
+  await page.getByRole("dialog", { name: "New note" }).getByRole("textbox", { name: "Title" }).fill("A toll on the bridge");
+  await page.keyboard.press("Enter");
+  const prose = page.getByRole("textbox", { name: "Note: A toll on the bridge" });
+  await caretAtEnd(page, prose);
+  await page.keyboard.type("Who collects it? Maybe @mirela");
+  await page.keyboard.press("Enter");
+
+  // At once, saved or not.
+  await pane.getByRole("searchbox", { name: "Find in notes" }).fill("collects");
+  await expect(pane.getByRole("link")).toHaveText(["A toll on the bridge"]);
+  // And the previous note is still found by its own words.
+  await pane.getByRole("searchbox", { name: "Find in notes" }).fill("flood");
+  await expect(pane.getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
+
+  // Once saved, Mirela's profile lists it.
+  await palette(page, "character: mirela");
+  await expect(page.getByRole("region", { name: "In your notes" }).getByRole("link")).toHaveText(["A toll on the bridge"], { timeout: 10_000 });
+});

@@ -78,7 +78,7 @@ export function NovelPage() {
   latest.current.novel = novel.data?.novel;
 
   useEffect(() => {
-    const ws = createWorkspace({ api, novelId, onFrontMatterSaved: () => void queryClient.invalidateQueries({ queryKey: keys.novel(novelId) }) });
+    const ws = createWorkspace({ api, novelId, onModelSaved: () => void queryClient.invalidateQueries({ queryKey: keys.novel(novelId) }) });
     const detach = ws.autosave.attach(window);
     const unflush = flushOnQuit(() => ws.flush());
     const show = useNotice.getState().show;
