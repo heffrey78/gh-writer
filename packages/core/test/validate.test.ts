@@ -266,6 +266,39 @@ describe("validate", () => {
     });
   });
 
+  describe("notes (D12)", () => {
+    const note = (id: string, front = "", body = "") => `---\nid: ${id}\ntitle: An idea\n${front}---\n${body}`;
+
+    it("loads a note: title, tags, when it was made, what it became, its prose", async () => {
+      const r = await fixture({ "notes/an-idea.md": note("note_aaaaaa", "tags: [ending]\ncreated: 2026-10-15\nbecame: sc_bbbbbb\n", "What if [Ada](#char_aaaaaa) stays?\n") });
+      expect(r.diagnostics).toEqual([]);
+      expect(r.novel.notes).toEqual([
+        { id: "note_aaaaaa", title: "An idea", tags: ["ending"], created: "2026-10-15", became: "sc_bbbbbb", body: "What if [Ada](#char_aaaaaa) stays?\n", bodyLine: 8, file: "notes/an-idea.md" },
+      ]);
+    });
+
+    it("checks a note's mentions, what it became, and its prefix", async () => {
+      const r = await fixture({
+        "notes/an-idea.md": note("note_aaaaaa", "became: char_aaaaaa\n", "What if [Zed](#char_zzzzzz)?\n"),
+        "notes/another.md": note("evt_cccccc"),
+      });
+      expect(r.diagnostics.map((d) => [d.code, d.file, d.pointer ?? d.line])).toEqual([
+        ["E_REF_TYPE", "notes/an-idea.md", "/became"],
+        ["E_DANGLING_REF", "notes/an-idea.md", 6],
+        ["E_ID_PREFIX", "notes/another.md", undefined],
+      ]);
+    });
+
+    it("a note is never mentioned; note is no custom type's prefix", async () => {
+      const r = await fixture({
+        "notes/an-idea.md": note("note_aaaaaa"),
+        "manuscript/01-one/02-b.md": scene("sc_bbbbbb", "B", "", "See [the idea](#note_aaaaaa).\n"),
+        "novel.yaml": `${NOVEL}entity_types:\n  - {key: memo, prefix: note, folder: memos, label: Memo}\n`,
+      });
+      expect(only(r.diagnostics)).toEqual(["E_REF_TYPE", "E_ENTITY_TYPE"]);
+    });
+  });
+
   it("skips cross-reference checks for a newer schema version", async () => {
     const r = await fixture({ "novel.yaml": "schema_version: 9\nid: nv_4k8h2c\ntitle: Future\n", "manuscript/01-one/02-b.md": scene("sc_bbbbbb", "B", "pov: char_zzzzzz\n") });
     expect(only(r.diagnostics)).toEqual(["E_SCHEMA_VERSION"]);

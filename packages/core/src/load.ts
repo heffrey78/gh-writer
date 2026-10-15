@@ -8,6 +8,9 @@ import type { CompileFile, Diagnostic, NovelFile, RelationshipTypeFile, SceneSta
 /** Highest novel repository schema version this build understands. */
 export const SCHEMA_VERSION = 2;
 
+/** The folder of the writer's notes, at the top of the novel (D12). */
+export const NOTES_FOLDER = "notes";
+
 /** The folder under bible/ that holds event files (format v2), reserved from entity types. */
 export const EVENTS_FOLDER = "events";
 
@@ -36,6 +39,7 @@ export async function loadNovel(source: FileSource): Promise<Novel> {
     entities: [],
     relationships: [],
     events: [],
+    notes: [],
     layouts: {},
     diagnostics,
   };
@@ -80,6 +84,7 @@ export async function loadNovel(source: FileSource): Promise<Novel> {
 
   await loadManuscript();
   await loadBible();
+  await loadNotes();
 
   const layouts = await yamlFile("diagrams/layouts.yaml", "layouts");
   if (layouts && isObject(layouts["layouts"])) novel.layouts = layouts["layouts"] as Novel["layouts"];
@@ -308,6 +313,28 @@ export async function loadNovel(source: FileSource): Promise<Novel> {
     const scene = str(d["scene"]);
     if (scene) ev.scene = scene;
     novel.events.push(ev);
+  }
+
+  /** The writer's notes (D12): notes/*.md. */
+  async function loadNotes() {
+    for (const f of await source.list(NOTES_FOLDER)) {
+      if (f.dir || !f.name.endsWith(".md")) continue;
+      const file = joinPath(NOTES_FOLDER, f.name);
+      const md = await markdownFile(file, "note");
+      if (!md || !str(md.data["id"])) continue;
+      const d = md.data;
+      const created = str(d["created"]), became = str(d["became"]);
+      novel.notes.push({
+        id: str(d["id"])!,
+        title: str(d["title"]) ?? "",
+        tags: strList(d["tags"]),
+        ...(created ? { created } : {}),
+        ...(became ? { became } : {}),
+        body: md.body,
+        bodyLine: md.bodyLine,
+        file,
+      });
+    }
   }
 
   async function loadEntity(file: string, type: string) {

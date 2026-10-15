@@ -139,6 +139,12 @@ export function validateNovel(novel: Novel): Diagnostic[] {
     for (const m of mentions(ev.body)) ref(m.id, MENTIONABLE, ev.file, "", `Mention "${m.text}"`, ev.bodyLine + m.line - 1);
     for (const pic of pictures(ev.body)) outsideImages(pic, ev.file, ev.bodyLine);
   }
+  // Notes (D12): their mentions, and what they became.
+  for (const n of novel.notes) {
+    ref(n.became, ["event", "scene"], n.file, "/became", "became");
+    for (const m of mentions(n.body)) ref(m.id, MENTIONABLE, n.file, "", `Mention "${m.text}"`, n.bodyLine + m.line - 1);
+    for (const pic of pictures(n.body)) outsideImages(pic, n.file, n.bodyLine);
+  }
   if ((novel.config?.schema_version ?? 1) >= 2) {
     const leftover = novel.events.find((e) => e.index !== undefined);
     if (leftover) push("warning", "W_EVENTS_YAML", leftover.file, "Events in bible/events.yaml are format v1's: run gh-writer migrate to give each its own file in bible/events/");
@@ -248,6 +254,7 @@ async function missingImages(novel: Novel, source: FileSource): Promise<Diagnost
     ...novel.allScenes.flatMap((s) => inProse(s.body, s.file, s.bodyLine)),
     ...novel.entities.flatMap((e) => inProse(e.body, e.file, e.bodyLine)),
     ...novel.events.flatMap((e) => (e.index === undefined ? inProse(e.body, e.file, e.bodyLine) : [])),
+    ...novel.notes.flatMap((n) => inProse(n.body, n.file, n.bodyLine)),
   ];
   const out: Diagnostic[] = [];
   for (const w of wanted) {

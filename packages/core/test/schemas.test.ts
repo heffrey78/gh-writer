@@ -93,6 +93,7 @@ describe("format spec examples", () => {
     ["Bible entries", ["entity"]],
     ["`bible/relationships.yaml`", ["relationships"]],
     ["Off-page events: `bible/events/`", ["event"]],
+    ["Notes: `notes/`", ["note"]],
     ["`diagrams/layouts.yaml`", ["layouts"]],
   ];
 

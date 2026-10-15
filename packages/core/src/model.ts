@@ -28,6 +28,8 @@ export interface Novel {
   entities: Entity[];
   relationships: Relationship[];
   events: StoryEvent[];
+  /** The writer's notes (notes/, D12), not story facts. */
+  notes: Note[];
   layouts: Record<string, { nodes: Record<string, { x: number; y: number }> }>;
   /** compile.yaml, if there is one. */
   compile?: CompileFile;
@@ -126,7 +128,21 @@ export interface StoryEvent extends Omit<EventRecord, "note"> {
   index?: number;
 }
 
-export type RecordKind = "novel" | "part" | "chapter" | "scene" | "entity" | "relationship" | "event";
+/** A writer's note: notes/<slug>.md (D12). */
+export interface Note {
+  id: string;
+  title: string;
+  tags: string[];
+  /** The ISO date the app made it. */
+  created?: string;
+  /** The event or scene it was promoted to, when kept. */
+  became?: string;
+  body: string;
+  bodyLine: number;
+  file: string;
+}
+
+export type RecordKind = "novel" | "part" | "chapter" | "scene" | "entity" | "relationship" | "event" | "note";
 
 export interface RecordRef {
   kind: RecordKind;
@@ -146,6 +162,7 @@ export function allRecords(novel: Novel): RecordRef[] {
   for (const e of novel.entities) out.push({ kind: "entity", id: e.id, file: e.file, type: e.type });
   for (const r of novel.relationships) out.push({ kind: "relationship", id: r.id, file: r.file });
   for (const e of novel.events) out.push({ kind: "event", id: e.id, file: e.file });
+  for (const n of novel.notes) out.push({ kind: "note", id: n.id, file: n.file });
   return out;
 }
 

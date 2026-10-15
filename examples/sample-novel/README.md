@@ -7,4 +7,5 @@ A tiny novel in the [gh-writer format](../../docs/format/v2.md), used for tests 
 - **A story bible**: 4 characters, 4 locations, 2 plotlines, 2 themes, and a custom `artifact` type in `bible/`.
 - **A relationship that changes**: Ada and Ben are allies until [The Betrayal](manuscript/02-the-sale/01-night-crossing/01-the-betrayal.md), rivals until [The Last Rivet](manuscript/02-the-sale/02-varn-holds/02-the-last-rivet.md), then allies again (see [`bible/relationships.yaml`](bible/relationships.yaml)).
 - **Off-page events**: one file each in [`bible/events/`](bible/events/).
+- **A writer's note**: brainstorming kept beside the book, in [`notes/`](notes/).
 - **Mentions**: links such as `[Ada](#char_7f3k2q)` inside the prose.

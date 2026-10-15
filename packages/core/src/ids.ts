@@ -11,6 +11,7 @@ export const STRUCTURE_PREFIXES = {
   scene: "sc",
   relationship: "rel",
   event: "evt",
+  note: "note",
 } as const;
 
 export interface EntityTypeDef {
