@@ -136,7 +136,7 @@ test("in a novel in format v1, the first change asks to move it to the new forma
 test("the book pane lists events in story time under Off the page: beside the text while writing, on their page otherwise", async ({ page, app }) => {
   await openNovel(page, app);
   const pane = page.getByRole("region", { name: "Off the page" });
-  await expect(pane.getByRole("link")).toHaveText(["The flood of '09", "Ada leaves for the polytechnic", "The plans are stolen"]);
+  await expect(pane.getByRole("list").getByRole("link")).toHaveText(["The flood of '09", "Ada leaves for the polytechnic", "The plans are stolen"]);
   for (const colorScheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme });
     await axe(page);
@@ -160,7 +160,7 @@ test("the book pane lists events in story time under Off the page: beside the te
   await page.getByRole("dialog", { name: "New off-page event" }).getByRole("textbox", { name: "Title" }).fill("The toll is raised");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 1, name: "The toll is raised" })).toBeVisible();
-  await expect(pane.getByRole("link")).toHaveText(["The flood of '09", "Ada leaves for the polytechnic", "The plans are stolen", "The toll is raised"]);
+  await expect(pane.getByRole("list").getByRole("link")).toHaveText(["The flood of '09", "Ada leaves for the polytechnic", "The plans are stolen", "The toll is raised"]);
   await page.keyboard.press("ControlOrMeta+k");
   await page.keyboard.type("new off-page event");
   await page.keyboard.press("Enter");
@@ -169,7 +169,7 @@ test("the book pane lists events in story time under Off the page: beside the te
 
   // Folded away, and remembered.
   await pane.getByRole("button", { name: /^Off the page/ }).click();
-  await expect(pane.getByRole("link")).toHaveCount(0);
+  await expect(pane.getByRole("list").getByRole("link")).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("region", { name: "Off the page" }).getByRole("button", { name: /^Off the page/ })).toHaveAttribute("aria-expanded", "false");
 });
@@ -310,4 +310,30 @@ test("events where the story's facts show: @ mentions and their cards, profiles'
   await page.keyboard.press("Enter");
   await page.getByRole("link", { name: "The plans are stolen" }).last().click();
   await expect(page.getByRole("heading", { level: 1, name: "The plans are stolen" })).toBeVisible();
+});
+
+test("the Story bible shows off-page events as cards, searched and sorted with the entries", async ({ page, app }) => {
+  await openNovel(page, app);
+  await page.getByRole("region", { name: "Off the page" }).getByRole("link", { name: "Every off-page event, as cards" }).click();
+  const group = page.locator("section#off-the-page");
+  await expect(group).toHaveAccessibleName(/^Off the page\s*3$/);
+  await expect(group).toBeInViewport();
+  const cards = group.getByRole("listitem");
+  await expect(cards.getByRole("link")).toHaveCount(3);
+  await expect(cards.nth(0)).toContainText("2009-11-02 · 3 days");
+  await expect(cards.nth(0)).toContainText("The flood of '09");
+  await expect(cards.nth(0)).toContainText("Ada Varn, Ben Varn, Tomas Hale, The Varn Bridge");
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    await axe(page);
+  }
+
+  // Sorted by title with the entries; searched by title or note.
+  await page.getByRole("combobox", { name: "Sort" }).selectOption("name");
+  await expect(cards.getByRole("link").locator("span.font-semibold")).toHaveText(["Ada leaves for the polytechnic", "The flood of '09", "The plans are stolen"]);
+  await page.getByRole("searchbox", { name: "Search the bible" }).fill("pneumonia");
+  await expect(cards).toHaveCount(1);
+  await expect(cards).toContainText("The flood of '09");
+  await cards.getByRole("link").click();
+  await expect(page.getByRole("heading", { level: 1, name: "The flood of '09" })).toBeVisible();
 });

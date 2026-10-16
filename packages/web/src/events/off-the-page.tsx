@@ -1,7 +1,7 @@
 import { storyTimeline, type Novel } from "@gh-writer/core";
-import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, LayoutGrid, Plus } from "lucide-react";
 import { useId, useMemo, useState } from "react";
-import { NavLink } from "react-router";
+import { Link, NavLink } from "react-router";
 import { useEntryPanel } from "../novel/entry-tab.tsx";
 import { cn } from "../ui/cn.ts";
 import { useNewEvent } from "./new-event.tsx";
@@ -48,6 +48,9 @@ export function OffThePage({ novelId, novel, writing }: { novelId: string; novel
             <span className="ml-auto font-normal tabular-nums normal-case">{events.length}</span>
           </button>
         </h3>
+        <Link to={`/novels/${novelId}/bible#off-the-page`} aria-label="Every off-page event, as cards" title="Every off-page event, as cards" className="rounded p-1 text-muted hover:bg-paper hover:text-ink">
+          <LayoutGrid className="size-3.5" aria-hidden />
+        </Link>
         <button type="button" onClick={() => add(true)} aria-label="New off-page event" title="New off-page event" className="rounded p-1 text-muted hover:bg-paper hover:text-ink">
           <Plus className="size-3.5" aria-hidden />
         </button>
