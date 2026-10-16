@@ -155,6 +155,36 @@ test("says when gh-writer stops answering", async ({ page, app }) => {
   await expect(page.getByRole("alert")).toContainText("gh-writer isn't answering", { timeout: 10_000 });
 });
 
+test("an error on the event stream alone says nothing while gh-writer answers; offline it does, until it's back (#197)", async ({ page, app }) => {
+  const m = machines(app);
+  // The page's event streams, to report an error on as WebKit can while the stream holds.
+  await page.addInitScript(() => {
+    const ES = window.EventSource;
+    const sources: EventSource[] = ((window as unknown as { sources: EventSource[] }).sources = []);
+    window.EventSource = class extends ES {
+      constructor(url: string | URL, init?: EventSourceInit) {
+        super(url, init);
+        sources.push(this);
+      }
+    } as typeof EventSource;
+  });
+  await open(page, app, m.here);
+  const error = () => page.evaluate(() => (window as unknown as { sources: EventSource[] }).sources.at(-1)!.dispatchEvent(new Event("error")));
+  const banner = page.getByRole("alert").filter({ hasText: "gh-writer isn't answering" });
+
+  const health = page.waitForResponse((r) => r.url().endsWith("/api/health"));
+  await error();
+  expect((await health).ok()).toBe(true);
+  await page.waitForTimeout(1_000);
+  await expect(banner).toHaveCount(0);
+
+  await page.context().setOffline(true);
+  await error();
+  await expect(banner).toBeVisible({ timeout: 10_000 });
+  await page.context().setOffline(false);
+  await expect(banner).toHaveCount(0, { timeout: 10_000 });
+});
+
 test("has no accessibility violations: writing, and with the sync details open, light and dark", async ({ page, app }) => {
   const m = machines(app);
   await open(page, app, m.here);

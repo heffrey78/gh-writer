@@ -33,6 +33,7 @@ type NovelEnv = { Variables: { ws: NovelWorkspace } };
  * GET /api/novels/:id/events        event stream: "ready", the sync status, then a "file" event { type, path, hash } per outside change,
  *                                   and "issues" when the cached GitHub issues change
  *                                   and a "sync" event (the status) whenever it changes
+ *                                   and a "ping" every 25 seconds, so the page knows the stream still holds
  * GET /api/novels/:id/sync          sync status: { state, remote, branch, ahead, behind, lastSync, conflict?, error?, commit }
  * POST /api/novels/:id/sync         sync now; the status once it's done
  * POST /api/novels/:id/publish      { name, description?, private? } → { remote, status }: a new GitHub repository, pushed to
@@ -216,7 +217,7 @@ export function novelRoutes(library: Library, workspaces: Workspaces, github?: G
       const offSync = ws.onSyncChange(sendSync);
       const offIssues = ws.issues?.onChange(() => void stream.writeSSE({ event: "issues", data: "{}" }));
       const offBoard = ws.board?.onChange(() => void stream.writeSSE({ event: "board", data: "{}" }));
-      const heartbeat = setInterval(() => void stream.write(": ping\n\n"), HEARTBEAT_MS);
+      const heartbeat = setInterval(() => void stream.writeSSE({ event: "ping", data: "{}" }), HEARTBEAT_MS);
       try {
         await stream.writeSSE({ event: "ready", data: "{}" });
         sendSync();
