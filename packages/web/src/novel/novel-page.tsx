@@ -19,6 +19,7 @@ import { EventPage } from "../events/event-page.tsx";
 import { NewEventDialog, useNewEvent } from "../events/new-event.tsx";
 import { NewNoteDialog, useNewNote } from "../notes/new-note.tsx";
 import { NotePage } from "../notes/note-page.tsx";
+import { NotesPage } from "../notes/notes-page.tsx";
 import { NotesLeftDialog } from "../notes/notes-left.tsx";
 import { NewEntryDialog } from "../bible/new-entry.tsx";
 import { cn } from "../ui/cn.ts";
@@ -182,6 +183,7 @@ export function NovelPage() {
             { id: "novel.newIssue", title: "New issue", group: "GitHub", keywords: ["github", "note", "plot hole"], run: () => void navigate(`/novels/${novelId}/issues?new=1`) },
           ]
         : []),
+      { id: "novel.notes", title: "Notes", group: "Go to", keywords: ["ideas", "brainstorm", "cards"], run: () => void navigate(`/novels/${novelId}/notes`) },
       { id: "novel.newNote", title: "New note", group: "Notes", keywords: ["idea", "brainstorm", "what if"], run: () => useNewNote.getState().set(true) },
       ...(model?.notes ?? []).map((n) => ({ id: `novel.note.${n.id}`, title: `Note: ${n.title}`, group: "Go to", keywords: n.tags, run: () => void navigate(`/novels/${novelId}/note/${n.id}`) })),
       { id: "novel.newEvent", title: "New off-page event", group: "Story bible", keywords: ["event", "backstory", "timeline"], run: () => useNewEvent.getState().set(true) },
@@ -303,6 +305,7 @@ export function NovelPage() {
               <Route path="bible/:entityId" element={<EntryRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
               <Route path="event/:eventId" element={<EventRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
               <Route path="note/:noteId" element={<NoteRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
+              <Route path="notes" element={<NotesPage novelId={novelId} novel={book} />} />
               <Route path="*" element={<Missing what="page" />} />
             </Routes>
           </ErrorBoundary>

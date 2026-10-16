@@ -98,7 +98,7 @@ test("notes are made from the palette, made into an event or a scene, and delete
 test("the book pane's Notes: newest first, found by tag or words; a new note opens on its page, ready to write", async ({ page, app }) => {
   await openNovel(page, app);
   const pane = page.getByRole("region", { name: /^Notes\s*\d+$/ });
-  await expect(pane.getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
+  await expect(pane.getByRole("list").getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
 
   // + New note while writing: made, on its own page, the caret in its prose (#222).
   await pane.getByRole("button", { name: "New note" }).click();
@@ -107,18 +107,18 @@ test("the book pane's Notes: newest first, found by tag or words; a new note ope
   await expect(page.getByRole("heading", { level: 1, name: "A toll on the bridge" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Note: A toll on the bridge" })).toBeFocused();
   // Newest first: made today, after the sample's.
-  await expect(pane.getByRole("link")).toHaveText(["A toll on the bridge", "What if Ben never sold the plans?"]);
+  await expect(pane.getByRole("list").getByRole("link")).toHaveText(["A toll on the bridge", "What if Ben never sold the plans?"]);
   for (const colorScheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme });
     await axe(page);
   }
 
   // By tag, by words.
-  await pane.getByRole("combobox", { name: "Tag" }).selectOption("ending");
-  await expect(pane.getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
-  await pane.getByRole("combobox", { name: "Tag" }).selectOption("");
+  await pane.getByRole("combobox", { name: "Notes tagged" }).selectOption("ending");
+  await expect(pane.getByRole("list").getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
+  await pane.getByRole("combobox", { name: "Notes tagged" }).selectOption("");
   await pane.getByRole("searchbox", { name: "Find in notes" }).fill("flood");
-  await expect(pane.getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
+  await expect(pane.getByRole("list").getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
   await pane.getByRole("searchbox", { name: "Find in notes" }).fill("nothing like this");
   await expect(pane.getByRole("status")).toHaveText("No note matches.");
   await pane.getByRole("searchbox", { name: "Find in notes" }).fill("");
@@ -160,12 +160,44 @@ test("the note being written is found by its words at once, and its mentions lis
 
   // At once, saved or not.
   await pane.getByRole("searchbox", { name: "Find in notes" }).fill("collects");
-  await expect(pane.getByRole("link")).toHaveText(["A toll on the bridge"]);
+  await expect(pane.getByRole("list").getByRole("link")).toHaveText(["A toll on the bridge"]);
   // And the previous note is still found by its own words.
   await pane.getByRole("searchbox", { name: "Find in notes" }).fill("flood");
-  await expect(pane.getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
+  await expect(pane.getByRole("list").getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
 
   // Once saved, Mirela's profile lists it.
   await palette(page, "character: mirela");
   await expect(page.getByRole("region", { name: "In your notes" }).getByRole("link")).toHaveText(["A toll on the bridge"], { timeout: 10_000 });
+});
+
+test("the Notes gallery: every note as a card, by tag and words, newest or by title", async ({ page, app }) => {
+  await openNovel(page, app);
+  await palette(page, "new note");
+  await page.getByRole("dialog", { name: "New note" }).getByRole("textbox", { name: "Title" }).fill("A toll on the bridge");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { level: 1, name: "A toll on the bridge" })).toBeVisible();
+
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Notes" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^Notes/ })).toBeVisible();
+  const cards = page.getByRole("list", { name: "Notes" }).getByRole("listitem");
+  await expect(cards.locator("span.font-semibold")).toHaveText(["A toll on the bridge", "What if Ben never sold the plans?"]);
+  await expect(cards.nth(1)).toContainText("ending · ben");
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    await axe(page);
+  }
+  await page.getByRole("combobox", { name: "Sort" }).selectOption("title");
+  await expect(cards.locator("span.font-semibold")).toHaveText(["A toll on the bridge", "What if Ben never sold the plans?"]);
+  await page.getByRole("combobox", { name: "Tag", exact: true }).selectOption("ben");
+  await expect(cards).toHaveCount(1);
+  await expect(page.getByRole("status").filter({ hasText: "note matches" })).toHaveText("1 note matches");
+  await page.getByRole("combobox", { name: "Tag", exact: true }).selectOption("");
+  await page.getByRole("searchbox", { name: "Search the notes" }).fill("flood");
+  await expect(cards).toHaveCount(1);
+  await cards.getByRole("link").click();
+  await expect(page.getByRole("heading", { level: 1, name: "What if Ben never sold the plans?" })).toBeVisible();
+
+  // From the book pane too.
+  await page.getByRole("region", { name: /^Notes\s*\d+$/ }).getByRole("link", { name: "Every note, as cards" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^Notes/ })).toBeVisible();
 });

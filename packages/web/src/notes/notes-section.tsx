@@ -1,7 +1,7 @@
 import { proseText, type Novel } from "@gh-writer/core";
-import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, LayoutGrid, Plus } from "lucide-react";
 import { useId, useMemo, useState } from "react";
-import { NavLink } from "react-router";
+import { Link, NavLink } from "react-router";
 import { useStore } from "zustand";
 import type { Workspace } from "../novel/workspace.ts";
 import { cn } from "../ui/cn.ts";
@@ -58,6 +58,9 @@ export function NotesSection({ novelId, novel, workspace }: { novelId: string; n
             <span className="ml-auto font-normal tabular-nums normal-case">{notes.length}</span>
           </button>
         </h3>
+        <Link to={`/novels/${novelId}/notes`} aria-label="Every note, as cards" title="Every note, as cards" className="rounded p-1 text-muted hover:bg-paper hover:text-ink">
+          <LayoutGrid className="size-3.5" aria-hidden />
+        </Link>
         <button type="button" onClick={() => add(true)} aria-label="New note" title="New note" className="rounded p-1 text-muted hover:bg-paper hover:text-ink">
           <Plus className="size-3.5" aria-hidden />
         </button>
@@ -75,7 +78,7 @@ export function NotesSection({ novelId, novel, workspace }: { novelId: string; n
                 className="h-7 w-full rounded-md border border-rule bg-raised px-2 text-xs"
               />
               {tags.length > 0 && (
-                <select aria-label="Tag" value={tag} onChange={(e) => setTag(e.target.value)} className="h-7 w-full rounded-md border border-rule bg-raised px-1.5 text-xs">
+                <select aria-label="Notes tagged" value={tag} onChange={(e) => setTag(e.target.value)} className="h-7 w-full rounded-md border border-rule bg-raised px-1.5 text-xs">
                   <option value="">Every tag</option>
                   {tags.map((t) => (
                     <option key={t} value={t}>
