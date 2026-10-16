@@ -42,7 +42,9 @@ describe("MentionSuggestExtension", () => {
   };
   const key = (name: string) => {
     const event = new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true });
-    editor.view.someProp("handleKeyDown", (f) => f(editor.view, event));
+    // Escape is heard on the window first, before the editor or a dialog around it hears it.
+    if (name === "Escape") editor.view.dom.dispatchEvent(event);
+    else editor.view.someProp("handleKeyDown", (f) => f(editor.view, event));
     return event.defaultPrevented;
   };
   const active = () => mentionSuggestKey.getState(editor.state)?.active;

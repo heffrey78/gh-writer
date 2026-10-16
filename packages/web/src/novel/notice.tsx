@@ -52,7 +52,7 @@ export function NoticeBar() {
     [notice],
   );
   return (
-    <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-4 z-30 flex justify-center px-4">
+    <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-4 z-[70] flex justify-center px-4">
       {notice && (
         <div className="pointer-events-auto flex items-center gap-3 rounded-lg border border-rule bg-raised py-2 pr-2 pl-4 text-sm shadow-lg">
           <p>{notice.message}</p>

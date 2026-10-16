@@ -17,6 +17,7 @@ import { Chips, Group, StoryTimeFields, whenOf } from "../novel/scene-details.ts
 import type { Workspace } from "../novel/workspace.ts";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
+import { cn } from "../ui/cn.ts";
 import { Picker } from "../ui/picker.tsx";
 import { useCommands } from "../commands.ts";
 import { NotesAbout } from "../notes/notes-about.tsx";
@@ -50,8 +51,8 @@ export function EventPage({
   event: StoryEvent;
   workspace: Workspace;
   spell?: { service: SpellService; onAddWord: (w: string) => void } | undefined;
-  /** Shown in a side panel beside the text: its title is a level-2 heading with this ID. */
-  embedded?: { headingId: string };
+  /** Shown in a side panel beside the text, or in a modal over the Story bible (#236): its title is a level-2 heading with this ID. */
+  embedded?: { headingId: string; /** In a modal (#233), the dialog's own top heading. */ modal?: boolean };
   /** The whole page, or the right sidebar's Entry tab, which leaves out delete and links to the page. */
   size?: "page" | "tab";
 }) {
@@ -101,7 +102,7 @@ export function EventPage({
       if (!result.ok) return setReferences(result.references);
       setReferences(undefined);
       await refresh();
-      void navigate(`/novels/${novelId}/story-map/timeline`);
+      void navigate(`/novels/${novelId}/bible#off-the-page`);
     },
   });
 
@@ -122,12 +123,12 @@ export function EventPage({
   );
   const dramatized = novel.allScenes.find((s) => s.id === fm.scene);
 
-  const Heading = embedded ? "h2" : "h1";
+  const Heading = embedded && !embedded.modal ? "h2" : "h1";
   return (
     <div className={embedded ? (tab ? "grid gap-4" : "grid gap-5") : "mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] gap-5 px-6 py-6"}>
       <div className="grid gap-1.5">
         {!tab && (
-          <div className="flex items-center gap-2">
+          <div className={cn("flex items-center gap-2", embedded && "pr-8")}>
             <p className="flex-1 text-sm text-muted">
               <Link to={`/novels/${novelId}/story-map/timeline`} className="underline-offset-2 hover:underline">
                 Timeline
@@ -151,7 +152,7 @@ export function EventPage({
           </>
         ) : (
           <div className="group flex items-center gap-1">
-            <Heading id={embedded?.headingId} className={embedded ? "text-xl font-semibold" : "text-2xl font-semibold"}>
+            <Heading id={embedded?.headingId} className={embedded && !embedded.modal ? "text-xl font-semibold" : "text-2xl font-semibold"}>
               {event.title}
             </Heading>
             <PencilButton place={place} part="title" label="title" />

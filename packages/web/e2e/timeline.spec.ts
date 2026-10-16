@@ -60,7 +60,7 @@ test("someone in two places at once is named, with both scenes", async ({ page, 
   await expect(conflicts.getByRole("link", { name: "“The Station”" })).toHaveAttribute("href", /\/scene\/sc_5tat1n$/);
 });
 
-test("an off-page event is added from the timeline, made on its own page, and the timeline's warnings follow", async ({ page, app }) => {
+test("an off-page event is added from the timeline, made in its modal, and the timeline's warnings follow", async ({ page, app }) => {
   const dir = app.novelRepo("varn");
   await app.restart(dir);
   const file = join(dir, "bible/events/ada-at-the-station-again.md");
@@ -73,7 +73,7 @@ test("an off-page event is added from the timeline, made on its own page, and th
   const dialog = page.getByRole("dialog", { name: "New off-page event" });
   await dialog.getByRole("textbox", { name: "Title" }).fill("Ada at the station again");
   await axe(page);
-  await dialog.getByRole("button", { name: "Add event" }).click();
+  await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 1, name: "Ada at the station again" })).toBeVisible();
   await expect.poll(event).toMatch(/^---\nid: evt_[0-9a-z]{6}\ntitle: Ada at the station again\n---\n$/);
 
@@ -96,6 +96,7 @@ test("an off-page event is added from the timeline, made on its own page, and th
   await expect.poll(event).toMatch(/\nwhen:\n {2}day: 1\n {2}time: "17:50"\ncharacters:\n {2}- char_7f3k2q\nlocations:\n {2}- loc_5tat10\n---\n$/);
 
   // On the bridge in Walking the Span at that time: in two places at once.
+  await page.keyboard.press("Escape");
   await openView(page, "Timeline");
   const conflicts = page.getByRole("region", { name: "In two places at once" });
   await expect(conflicts).toContainText("Ada Varn is in “Walking the Span” and the event “Ada at the station again” at the same time");
@@ -106,6 +107,7 @@ test("an off-page event is added from the timeline, made on its own page, and th
   await page.getByRole("textbox", { name: "Time" }).fill("08:00");
   await page.keyboard.press("Enter");
   await expect.poll(event).toContain('  time: "08:00"\n');
+  await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
   await openView(page, "Timeline");
   await expect(conflicts).toContainText("Nobody is in two places at once.");
 });

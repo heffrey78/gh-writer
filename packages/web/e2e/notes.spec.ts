@@ -112,6 +112,7 @@ test("an entry's and an event's profiles list the notes that mention them", asyn
   await expect(section).toContainText("ending, ben");
   await axe(page);
   await palette(page, "off the page: the flood");
+  await expect(page.getByRole("dialog", { name: "The flood of '09" })).toBeVisible();
   await expect(page.getByRole("region", { name: "In your notes" }).getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
   await palette(page, "character: ben varn");
   await expect(page.getByRole("heading", { level: 1, name: "Ben Varn" })).toBeVisible();
@@ -130,8 +131,9 @@ test("the note just written is found by its words in the gallery, and its mentio
   await page.keyboard.type("Who collects it? Maybe @mirela");
   await page.keyboard.press("Enter");
 
-  // Once saved, found in the gallery by its words; the previous note by its own.
-  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Notes" }).click();
+  // Closed, the Notes gallery (#235); once saved, the note is found there by its words, the previous note by its own.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   const cards = page.getByRole("list", { name: "Notes" }).getByRole("listitem");
   await page.getByRole("searchbox", { name: "Search the notes" }).fill("collects");
   await expect(cards.locator("span.font-semibold")).toHaveText(["A toll on the bridge"], { timeout: 10_000 });
@@ -150,7 +152,7 @@ test("the Notes gallery: every note as a card, by tag and words, newest or by ti
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 1, name: "A toll on the bridge" })).toBeVisible();
 
-  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Notes" }).click();
+  await page.keyboard.press("Escape");
   await expect(page.getByRole("heading", { level: 1, name: /^Notes/ })).toBeVisible();
   const cards = page.getByRole("list", { name: "Notes" }).getByRole("listitem");
   await expect(cards.locator("span.font-semibold")).toHaveText(["A toll on the bridge", "What if Ben never sold the plans?"]);

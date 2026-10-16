@@ -232,11 +232,8 @@ export const MentionSuggestExtension = Extension.create<MentionSuggestOptions>({
             else if (event.key === "ArrowUp") move(active.index < 0 ? n - 1 : active.index - 1);
             // Nothing chosen yet (only "New …" rows): Enter and Tab keep their usual meaning.
             else if ((event.key === "Enter" || event.key === "Tab") && plain && active.index >= 0) choose(view, active, active.index);
-            else if (event.key === "Escape") {
-              view.dispatch(view.state.tr.setMeta(mentionSuggestKey, { dismiss: true } satisfies Meta));
-              // Only the suggestions close, not whatever Escape means around the editor.
-              event.stopPropagation();
-            } else return false;
+            // Escape is heard before this, on the window (below).
+            else return false;
             event.preventDefault();
             return true;
           },
@@ -334,7 +331,24 @@ export const MentionSuggestExtension = Extension.create<MentionSuggestOptions>({
             if (!list.isConnected) (view.dom.parentElement ?? document.body).append(list);
             render(active);
           };
-          return { update, destroy: () => list.remove() };
+          // Escape closes only the suggestions, not whatever it means around the editor: heard on the
+          // window, first, since a dialog the editor is in (Radix's) takes it on the document and cancels
+          // it, and ProseMirror passes over a cancelled key.
+          const escape = (event: KeyboardEvent) => {
+            if (event.key !== "Escape" || event.isComposing || !(event.target instanceof globalThis.Node) || !view.dom.contains(event.target)) return;
+            if (!mentionSuggestKey.getState(view.state)?.active) return;
+            view.dispatch(view.state.tr.setMeta(mentionSuggestKey, { dismiss: true } satisfies Meta));
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          };
+          window.addEventListener("keydown", escape, true);
+          return {
+            update,
+            destroy: () => {
+              window.removeEventListener("keydown", escape, true);
+              list.remove();
+            },
+          };
         },
       }),
     ];

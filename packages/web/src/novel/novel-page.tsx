@@ -14,14 +14,11 @@ import { MENU_ITEM, Shell } from "../layout.tsx";
 import { ErrorAlert } from "../ui/alert.tsx";
 import { ErrorBoundary } from "../ui/error-boundary.tsx";
 import { BiblePage } from "../bible/bible-page.tsx";
-import { EntryPage } from "../bible/entry-page.tsx";
-import { EventPage } from "../events/event-page.tsx";
-import { NewEventDialog, useNewEvent } from "../events/new-event.tsx";
-import { NewNoteDialog, useNewNote } from "../notes/new-note.tsx";
-import { NotePage } from "../notes/note-page.tsx";
+import { useNewEvent } from "../events/new-event.tsx";
+import { useNewNote } from "../notes/new-note.tsx";
 import { NotesPage } from "../notes/notes-page.tsx";
 import { NotesLeftDialog } from "../notes/notes-left.tsx";
-import { NewEntryDialog } from "../bible/new-entry.tsx";
+import { EntryOver, EventOver, NoteOver } from "./item-modals.tsx";
 import { cn } from "../ui/cn.ts";
 import { DraftsButton, useDrafts } from "./drafts.tsx";
 import { CompileDialog } from "./compile.tsx";
@@ -68,9 +65,8 @@ export function NovelPage() {
   const [entries, setEntries] = useState<QuickEntries>();
   const [resolving, setResolving] = useState(false);
   const [compiling, setCompiling] = useState(false);
-  const [newEntry, setNewEntry] = useState<string | null>(null);
-  const newEvent = useNewEvent();
-  const newNote = useNewNote();
+  const newEvent = useNewEvent((s) => s.open);
+  const newNote = useNewNote((s) => s.open);
   const focus = useWritingModes((m) => m.focus);
   const collapsed = useSidebar((s) => s.collapsed);
   const spell = useSpell(api, novelId, novel.data?.novel);
@@ -151,6 +147,19 @@ export function NovelPage() {
 
   const navigate = useNavigate();
   latest.current.navigate = (to) => void navigate(to);
+  /** A new note, event or entry, in its modal over its gallery (#233): closed, back to the gallery if it was opened there. */
+  const openNew = (path: string, gallery: string) => void navigate(`/novels/${novelId}/${path}`, { state: { fromGallery: pathname === `/novels/${novelId}/${gallery}` } });
+  // New note and New off-page event, asked for from the palette, a gallery or the Timeline.
+  useEffect(() => {
+    if (!newNote) return;
+    useNewNote.getState().set(false);
+    openNew("note/new", "notes");
+  }, [newNote]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!newEvent) return;
+    useNewEvent.getState().set(false);
+    openNew("event/new", "bible");
+  }, [newEvent]); // eslint-disable-line react-hooks/exhaustive-deps
   // GitHub work tracking shows only for a novel on GitHub (#8).
   const repo = useGitHubRepo(novelId);
   const model = novel.data?.novel;
@@ -187,7 +196,7 @@ export function NovelPage() {
       { id: "novel.newNote", title: "New note", group: "Notes", keywords: ["idea", "brainstorm", "what if"], run: () => useNewNote.getState().set(true) },
       ...(model?.notes ?? []).map((n) => ({ id: `novel.note.${n.id}`, title: `Note: ${n.title}`, group: "Go to", keywords: n.tags, run: () => void navigate(`/novels/${novelId}/note/${n.id}`) })),
       { id: "novel.newEvent", title: "New off-page event", group: "Story bible", keywords: ["event", "backstory", "timeline"], run: () => useNewEvent.getState().set(true) },
-      ...(model?.entityTypes ?? []).map((t) => ({ id: `novel.newEntry.${t.key}`, title: `New ${t.label.toLowerCase()}`, group: "Story bible", run: () => setNewEntry(t.key) })),
+      ...(model?.entityTypes ?? []).map((t) => ({ id: `novel.newEntry.${t.key}`, title: `New ${t.label.toLowerCase()}`, group: "Story bible", run: () => openNew(`bible/new?type=${encodeURIComponent(t.key)}`, "bible") })),
       ...(model?.entities ?? []).map((e) => ({
         id: `novel.entry.${e.id}`,
         title: `${model!.entityTypes.find((t) => t.key === e.type)?.label ?? e.type}: ${e.name}`,
@@ -280,7 +289,7 @@ export function NovelPage() {
           <Sidebar novelId={novelId} novel={book} workspace={workspace} current={current} onGitHub={!!repo} />
         )}
         <div className="md:overflow-y-auto">
-          <ErrorBoundary what="this view" remount>
+          <ErrorBoundary what="this view" remount={sameView}>
             <Routes>
               <Route index element={book.chapters[0] ? <Navigate to={`/novels/${novelId}/chapter/${book.chapters[0].id}`} replace /> : <EmptyManuscript />} />
               <Route path="chapter/:chapterId" element={<ChapterRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} entries={entries} />} />
@@ -298,13 +307,14 @@ export function NovelPage() {
               <Route path="outline" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="outline/:view" element={<OutlinePage novelId={novelId} novel={book} workspace={workspace} />} />
               <Route path="bible" element={<BiblePage novelId={novelId} novel={book} />} />
+              {/* An entry or an event opens over the Story bible, a note over Notes (#233): the gallery stays as it was underneath. */}
+              <Route path="bible/:entityId" element={<BiblePage novelId={novelId} novel={book} over={<EntryOver novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />} />
+              <Route path="event/:eventId" element={<BiblePage novelId={novelId} novel={book} over={<EventOver novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />} />
+              <Route path="note/:noteId" element={<NotesPage novelId={novelId} novel={book} over={<NoteOver novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />} />
               <Route path="progress" element={<ProgressPage novelId={novelId} novel={book} />} />
               <Route path="compare" element={<ComparePage novelId={novelId} workspace={workspace} />} />
               <Route path="issues" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssuesPage novelId={novelId} novel={book} workspace={workspace} />}</GitHubOnly>} />
               <Route path="issues/:number" element={<GitHubOnly repo={repo} novelId={novelId}>{() => <IssueRoute novelId={novelId} novel={book} workspace={workspace} />}</GitHubOnly>} />
-              <Route path="bible/:entityId" element={<EntryRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
-              <Route path="event/:eventId" element={<EventRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
-              <Route path="note/:noteId" element={<NoteRoute novelId={novelId} novel={book} workspace={workspace} spell={spell} />} />
               <Route path="notes" element={<NotesPage novelId={novelId} novel={book} />} />
               <Route path="*" element={<Missing what="page" />} />
             </Routes>
@@ -316,26 +326,13 @@ export function NovelPage() {
       {compiling && <CompileDialog novelId={novelId} novel={book} workspace={workspace} onClose={() => setCompiling(false)} />}
       <SaveConflicts novel={book} workspace={workspace} />
       <NoticeBar />
-      <NewEntryDialog novelId={novelId} novel={book} type={newEntry ?? undefined} open={newEntry !== null} onOpenChange={(o) => !o && setNewEntry(null)} />
       <NotesLeftDialog />
-      <NewNoteDialog
-        novelId={novelId}
-        open={newNote.open}
-        onOpenChange={newNote.set}
-        // On its page, the caret in its prose (#222).
-        onCreated={(id) => void navigate(`/novels/${novelId}/note/${id}`, { state: { focusProse: true } })}
-      />
-      <NewEventDialog
-        novelId={novelId}
-        novel={book}
-        open={newEvent.open}
-        onOpenChange={newEvent.set}
-        // While writing, beside the text; otherwise on its own page.
-        onCreated={(id) => (current ? useEntryPanel.getState().open(id) : void navigate(`/novels/${novelId}/event/${id}`))}
-      />
     </Shell>
   );
 }
+
+/** A view's address: an item in its modal is its gallery's view, which stays as it was underneath (#233). */
+const sameView = (pathname: string) => pathname.replace(/\/note\/[^/]+$/, "/notes").replace(/\/(bible|event)\/[^/]+$/, "/bible");
 
 type RouteProps = { novelId: string; novel: Novel; workspace: Workspace; spell: ReturnType<typeof useSpell>; entries?: QuickEntries | undefined };
 
@@ -343,24 +340,6 @@ function ChapterRoute(props: RouteProps) {
   const { chapterId } = useParams();
   const chapter = props.novel.chapters.find((c) => c.id === chapterId) ?? props.novel.allChapters.find((c) => c.id === chapterId);
   return chapter ? <WritingView {...props} view={{ chapter }} /> : <Missing what="chapter" />;
-}
-
-function EntryRoute(props: RouteProps) {
-  const { entityId } = useParams();
-  const entity = props.novel.entities.find((e) => e.id === entityId);
-  return entity ? <EntryPage {...props} entity={entity} /> : <Missing what="entry" />;
-}
-
-function EventRoute(props: RouteProps) {
-  const { eventId } = useParams();
-  const event = props.novel.events.find((e) => e.id === eventId);
-  return event ? <EventPage key={event.id} {...props} event={event} /> : <Missing what="event" />;
-}
-
-function NoteRoute(props: RouteProps) {
-  const { noteId } = useParams();
-  const note = props.novel.notes.find((n) => n.id === noteId);
-  return note ? <NotePage key={note.id} {...props} note={note} /> : <Missing what="note" />;
 }
 
 function SceneRoute(props: RouteProps) {

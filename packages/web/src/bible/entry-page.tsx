@@ -50,8 +50,8 @@ export function EntryPage({
   entity: Entity;
   workspace: Workspace;
   spell?: { service: SpellService; onAddWord: (w: string) => void } | undefined;
-  /** Shown in a side panel beside the text: its name is a level-2 heading with this ID, and it takes the panel's width. */
-  embedded?: { headingId: string };
+  /** Shown in a side panel beside the text or a modal over the gallery (#237): its name is a level-2 heading with this ID, and it takes the panel's or modal's width. */
+  embedded?: { headingId: string; /** In a modal (#233), the dialog's own top heading. */ modal?: boolean };
   /** A part to open for editing at once ("name" after a quick entry's Add details). */
   startEditing?: "name";
   /**
@@ -136,7 +136,7 @@ export function EntryPage({
     return Object.fromEntries(next);
   };
 
-  const Heading = embedded ? "h2" : "h1";
+  const Heading = embedded && !embedded.modal ? "h2" : "h1";
   return (
     <div className={embedded ? (tab ? "grid gap-4" : "grid gap-5") : "mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] gap-5 px-6 py-6"}>
       <div className="flex flex-wrap items-start gap-4">
@@ -154,7 +154,7 @@ export function EntryPage({
           />
         )}
         <div className="grid min-w-0 flex-1 gap-1.5">
-          {!tab && <div className="flex items-center gap-2">
+          {!tab && <div className={cn("flex items-center gap-2", embedded && "pr-8")}>
             <p className="flex-1 text-sm text-muted">
               <Link to={`/novels/${novelId}/bible`} className="underline-offset-2 hover:underline">
                 Story bible
@@ -176,7 +176,7 @@ export function EntryPage({
             </>
           ) : (
             <div className="group flex items-center gap-1">
-              <Heading id={embedded?.headingId} className={embedded ? "text-xl font-semibold" : "text-2xl font-semibold"}>
+              <Heading id={embedded?.headingId} className={embedded && !embedded.modal ? "text-xl font-semibold" : "text-2xl font-semibold"}>
                 {entity.name}
               </Heading>
               <PencilButton place={place} part="name" label="name" />
@@ -355,28 +355,32 @@ function FieldEditor({
       await onSave(to);
       // Back to the field under its name now, or, removed, to "+ Add a field".
       place.done(to ? `field:${to[0]}` : "field:");
+      return true;
     } catch (e) {
       setProblem(e instanceof Error ? e.message : String(e));
+      return false;
     } finally {
       setSaving(false);
     }
   };
-  const save = () => {
+  const save = async () => {
     const k = key.trim();
-    if (!k) return setProblem("A field needs a name.");
-    if (others.includes(k)) return setProblem(`There's already a field “${k}”.`);
+    // A new field left with nothing in it is no field.
+    if (isNew && !k && !text.trim()) return (place.done(), true);
+    if (!k) return (setProblem("A field needs a name."), false);
+    if (others.includes(k)) return (setProblem(`There's already a field “${k}”.`), false);
     const v: FieldValue = typeof value === "boolean" ? text === "true" : typeof value === "number" && text.trim() !== "" && !Number.isNaN(Number(text)) ? Number(text) : text.trim();
-    if (k === name && v === value) return place.done();
-    void run([k, v]);
+    if (k === name && v === value) return (place.done(), true);
+    return run([k, v]);
   };
   const enter = (e: KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      save();
+      void save();
     }
   };
   return (
-    <EditorFrame place={place} className="flex-1">
+    <EditorFrame place={place} className="flex-1" save={save}>
       <div className="grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <label className="grid gap-1 text-xs font-medium">
           Field name
@@ -396,7 +400,7 @@ function FieldEditor({
       </div>
       {problem && <p className="text-xs text-danger">{problem}</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <EditorButtons onSave={save} onCancel={() => place.done()} saving={saving} hint="Enter saves · Esc cancels" />
+        <EditorButtons onSave={() => void save()} onCancel={() => place.done()} saving={saving} hint="Enter saves · Esc cancels" />
         {!isNew && (
           <Button size="sm" variant="ghost" onClick={() => void run(undefined)} disabled={saving}>
             <X className="size-4" aria-hidden /> Remove the field

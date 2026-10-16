@@ -2,12 +2,12 @@ import { entryPresences, proseText, storyTimeline, type Entity, type EntryPresen
 import { useNewEvent } from "../events/new-event.tsx";
 import { whenOf } from "../novel/scene-details.tsx";
 import { Plus, Search } from "lucide-react";
-import { useEffect, useId, useMemo, useState } from "react";
-import { Link, useLocation, useSearchParams } from "react-router";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { Button } from "../ui/button.tsx";
 import { Picture, usePictureUrl } from "./picture.tsx";
 import { pictureAlt, shapeForType } from "./pictures.ts";
-import { NewEntryDialog, NewTypeDialog } from "./new-entry.tsx";
+import { NewTypeDialog } from "./new-entry.tsx";
 import { RelationshipTypes } from "./relationship-types.tsx";
 import { markWords } from "./strip.tsx";
 import { entriesByType, matches, plural } from "./types.ts";
@@ -24,12 +24,14 @@ const MARK = { carries: "bg-accent", present: "bg-accent/40", mentioned: "bg-acc
 /**
  * The story bible (#162): every entry as a card, grouped by type, with its picture (#168), its summary, a fact or two, a
  * small strip of the scenes it's in and how many; searchable by name or other name and sorted by
- * first appearance, name or most scenes.
+ * first appearance, name or most scenes. An entry or an event opens in a modal over it (`over`, #236, #237).
  */
-export function BiblePage({ novelId, novel }: { novelId: string; novel: Novel }) {
+export function BiblePage({ novelId, novel, over }: { novelId: string; novel: Novel; over?: ReactNode }) {
   const [params, setParams] = useSearchParams();
   const query = params.get("q") ?? "";
-  const [adding, setAdding] = useState<string | undefined | null>(null);
+  const navigate = useNavigate();
+  /** A new entry (of a type, or chosen), in its modal over the gallery. */
+  const add = (type?: string) => void navigate(`/novels/${novelId}/bible/new${type ? `?type=${encodeURIComponent(type)}` : ""}`, { state: { fromGallery: true } });
   const [addingType, setAddingType] = useState(false);
   const searchId = useId();
   const sort: Sort = (params.get("sort") as Sort | null) ?? "first";
@@ -65,7 +67,7 @@ export function BiblePage({ novelId, novel }: { novelId: string; novel: Novel })
         <h1 className="text-xl font-semibold">Story bible</h1>
         <div className="flex gap-2">
           <Button onClick={() => setAddingType(true)}>New type</Button>
-          <Button variant="primary" onClick={() => setAdding(undefined)}>
+          <Button variant="primary" onClick={() => add()}>
             <Plus className="size-4" aria-hidden /> New entry
           </Button>
         </div>
@@ -108,7 +110,7 @@ export function BiblePage({ novelId, novel }: { novelId: string; novel: Novel })
               <h2 id={`type-${type.key}`} className="font-semibold">
                 {plural(type.label)} <span className="text-sm font-normal text-muted">{entries.length}</span>
               </h2>
-              <Button size="sm" variant="ghost" onClick={() => setAdding(type.key)} aria-label={`New ${type.label.toLowerCase()}`}>
+              <Button size="sm" variant="ghost" onClick={() => add(type.key)} aria-label={`New ${type.label.toLowerCase()}`}>
                 <Plus className="size-4" aria-hidden /> New
               </Button>
             </div>
@@ -128,8 +130,8 @@ export function BiblePage({ novelId, novel }: { novelId: string; novel: Novel })
       )}
       <EventCards novelId={novelId} novel={novel} query={query} sort={sort} />
       {!query && <RelationshipTypes novelId={novelId} novel={novel} />}
-      <NewEntryDialog novelId={novelId} novel={novel} type={adding ?? undefined} open={adding !== null} onOpenChange={(o) => !o && setAdding(null)} />
       <NewTypeDialog novelId={novelId} novel={novel} open={addingType} onOpenChange={setAddingType} />
+      {over}
     </div>
   );
 }
@@ -152,7 +154,7 @@ function EntryCard({ novelId, entity, presence }: { novelId: string; entity: Ent
     ...(entity.aliases.length ? [`also ${entity.aliases.join(", ")}`] : []),
   ].slice(0, 2);
   return (
-    <Link to={`/novels/${novelId}/bible/${entity.id}`} className="grid content-start gap-2 rounded-lg border border-rule bg-raised px-4 py-3 hover:border-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none">
+    <Link to={`/novels/${novelId}/bible/${entity.id}`} state={{ fromGallery: true }} className="grid content-start gap-2 rounded-lg border border-rule bg-raised px-4 py-3 hover:border-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none">
       {shape.key === "wide" ? (
         <>
           {url ? (
@@ -228,6 +230,7 @@ function EventCards({ novelId, novel, query, sort }: { novelId: string; novel: N
               <li key={e.id} className="grid">
                 <Link
                   to={`/novels/${novelId}/event/${e.id}`}
+                  state={{ fromGallery: true }}
                   className="grid content-start gap-1.5 rounded-lg border border-dashed border-muted bg-raised px-4 py-3 hover:border-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
                 >
                   <span className="text-xs text-muted">{[time.when || "No time", time.duration].filter(Boolean).join(" · ")}</span>

@@ -132,7 +132,7 @@ test("refuses an image over GitHub's limit, and a file that isn't an image, befo
   const slot = page.getByRole("button", { name: "Add a portrait" });
   await dropPicture(page, slot, { size: 101 * 1024 * 1024, name: "huge.jpg", type: "image/jpeg" });
   await expect(page.getByRole("alert")).toHaveText("huge.jpg is 101.0 MB: larger than GitHub's 100 MB limit, so it can't be kept in the novel. Try a smaller copy.");
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Portrait of Ada Varn" })).toHaveCount(0);
   await dropPicture(page, slot, { size: 100, name: "notes.pdf", type: "application/pdf" });
   await expect(page.getByRole("alert")).toContainText("notes.pdf isn't an image");
   expect(novel.images()).toEqual([]);

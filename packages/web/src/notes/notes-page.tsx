@@ -1,6 +1,6 @@
 import { proseText, type Novel } from "@gh-writer/core";
 import { Pin, Plus, Search } from "lucide-react";
-import { useId, useMemo } from "react";
+import { useId, useMemo, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { Button } from "../ui/button.tsx";
 import { useNewNote } from "./new-note.tsx";
@@ -10,9 +10,9 @@ type Sort = "newest" | "title";
 /**
  * Every note at a glance (#223), as cards like the Story bible's: title, an excerpt, its tags and its
  * scenes (pinned ones marked). Filtered by a tag and by words, sorted newest first or by title; the
- * choices are in the address.
+ * choices are in the address. A note opens in a modal over it (`over`, #235).
  */
-export function NotesPage({ novelId, novel }: { novelId: string; novel: Novel }) {
+export function NotesPage({ novelId, novel, over }: { novelId: string; novel: Novel; over?: ReactNode }) {
   const [params, setParams] = useSearchParams();
   const query = params.get("q") ?? "";
   const tag = params.get("tag") ?? "";
@@ -91,6 +91,7 @@ export function NotesPage({ novelId, novel }: { novelId: string; novel: Novel })
               <li key={n.id} className="grid">
                 <Link
                   to={`/novels/${novelId}/note/${n.id}`}
+                  state={{ fromGallery: true }}
                   className="grid content-start gap-1.5 rounded-lg border border-l-4 border-rule border-l-warn/60 bg-raised px-4 py-3 hover:border-accent focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
                 >
                   <span className="font-semibold">{n.title}</span>
@@ -116,6 +117,7 @@ export function NotesPage({ novelId, novel }: { novelId: string; novel: Novel })
       ) : (
         <p className="text-sm text-muted">{novel.notes.length ? "No note matches." : "No notes yet: ideas, what-ifs and questions for later."}</p>
       )}
+      {over}
     </div>
   );
 }

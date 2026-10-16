@@ -39,8 +39,8 @@ export function NotePage({
   note: Note;
   workspace: Workspace;
   spell?: { service: SpellService; onAddWord: (w: string) => void } | undefined;
-  /** Shown in a side panel beside the text: its title is a level-2 heading with this ID. */
-  embedded?: { headingId: string };
+  /** Shown in a modal over the Notes gallery (#235): its title is a level-2 heading with this ID. */
+  embedded?: { headingId: string; /** In a modal (#233), the dialog's own top heading. */ modal?: boolean };
 }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -101,27 +101,25 @@ export function NotePage({
     mutationFn: async () => api.notes.delete(novelId, note.id, await base()),
     onSuccess: async () => {
       await refresh();
-      void navigate(`/novels/${novelId}`);
+      void navigate(`/novels/${novelId}/notes`);
     },
   });
 
   const becameScene = note.became ? novel.allScenes.find((s) => s.id === note.became) : undefined;
   const becameEvent = note.became ? novel.events.find((e) => e.id === note.became) : undefined;
-  const Heading = embedded ? "h2" : "h1";
+  const Heading = embedded && !embedded.modal ? "h2" : "h1";
   return (
     <div className={embedded ? "grid gap-4" : "mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] gap-5 px-6 py-6"}>
       <div className="grid gap-1.5">
-        {!embedded && (
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="flex-1 text-sm text-muted">Note{note.created && ` · ${note.created.slice(0, 10)}`}</p>
-            <Button variant="ghost" size="sm" onClick={() => setPromoting(true)}>
-              <ArrowUpRight className="size-4" aria-hidden /> Make it an event or a scene
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setDeleting(true)} disabled={remove.isPending}>
-              <Trash2 className="size-4" aria-hidden /> Delete
-            </Button>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2 pr-8">
+          <p className="flex-1 text-sm text-muted">Note{note.created && ` · ${note.created.slice(0, 10)}`}</p>
+          <Button variant="ghost" size="sm" onClick={() => setPromoting(true)}>
+            <ArrowUpRight className="size-4" aria-hidden /> Make it an event or a scene
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setDeleting(true)} disabled={remove.isPending}>
+            <Trash2 className="size-4" aria-hidden /> Delete
+          </Button>
+        </div>
         {place.editing === "title" ? (
           <>
             <Heading id={embedded?.headingId} className="sr-only">
@@ -131,7 +129,7 @@ export function NotePage({
           </>
         ) : (
           <div className="group flex items-center gap-1">
-            <Heading id={embedded?.headingId} className={embedded ? "text-xl font-semibold" : "text-2xl font-semibold"}>
+            <Heading id={embedded?.headingId} className={embedded && !embedded.modal ? "text-xl font-semibold" : "text-2xl font-semibold"}>
               {note.title}
             </Heading>
             <PencilButton place={place} part="title" label="title" />

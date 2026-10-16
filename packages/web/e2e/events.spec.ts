@@ -33,8 +33,10 @@ test("an event's page: read first, each part edited in place by keyboard, its no
   const file = () => readFileSync(join(dir, FLOOD), "utf8");
   await openEvent(page, "The flood of '09");
 
-  await expect(page.getByText("Timeline · Off the page")).toBeVisible();
-  await expect(page.getByText("2009-11-02 · 3 days")).toBeVisible();
+  // In its modal over the Story bible (#236).
+  const modal = page.getByRole("dialog", { name: "The flood of '09" });
+  await expect(modal.getByText("Timeline · Off the page")).toBeVisible();
+  await expect(modal.getByText("2009-11-02 · 3 days")).toBeVisible();
   const rows = page.locator("dl[aria-label='Who, where and plotlines']");
   await expect(rows).toContainText("WhoAda Varn, Ben Varn, Tomas Hale");
   await expect(rows).toContainText("WhereThe Varn Bridge");
@@ -94,7 +96,9 @@ test("a new title moves the event's file; deleting one the story mentions asks f
   expect(existsSync(join(dir, "bible/events/the-great-flood.md"))).toBe(true);
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await ask.getByRole("button", { name: "Delete anyway" }).click();
-  await expect(page.getByRole("tab", { name: "Timeline", selected: true })).toBeVisible();
+  // Back to the Story bible's off-page events, the modal closed.
+  await expect(page.getByRole("heading", { level: 1, name: "Story bible" })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(existsSync(join(dir, "bible/events/the-great-flood.md"))).toBe(false);
   await expect.poll(() => app.git(dir, "log", "-1", "--format=%s").trim()).toBe("Bible: remove event “The great flood”");
 });
@@ -103,7 +107,7 @@ test("in a novel in format v1, the first change asks to move it to the new forma
   const dir = await openNovel(page, app, asFormatV1);
   const head = app.git(dir, "rev-parse", "HEAD");
   await openEvent(page, "The flood of '09");
-  await expect(page.getByText("The father holds the seventh pier")).toBeVisible();
+  await expect(page.getByRole("dialog").getByText("The father holds the seventh pier")).toBeVisible();
 
   await page.getByRole("button", { name: "Edit when and how long" }).click();
   const ask = page.getByRole("alertdialog", { name: "Move this novel to the new format?" });

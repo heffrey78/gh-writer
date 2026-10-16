@@ -421,7 +421,8 @@ test("an entry's open issues on its page, a scene's in its details; renames foll
   await expect(openIssues).toContainText("On GitHub it's the label char/ada-kost.");
   await expect(openIssues.getByRole("listitem")).toHaveText([/^Where was Ada at noon\?/]);
 
-  // The Station's details: the issue about its passage, opened beside the text.
+  // The Station's details: the issue about its passage, opened beside the text (the entry's modal closed first).
+  await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
   await page.getByRole("tree", { name: "Manuscript" }).getByRole("treeitem", { name: /^The Station,/ }).click();
   await expect(page.getByRole("textbox", { name: "Scene text" })).toBeFocused();
   await page.keyboard.press("ControlOrMeta+k");

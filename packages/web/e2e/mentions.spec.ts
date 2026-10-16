@@ -47,7 +47,8 @@ test("@ in the chapter suggests the bible's entries; the mention survives renami
   expect(novel.read(STATION)).toContain("[Tomas](#char_t0ma5h) would know.");
   await expect(page.getByRole("region", { name: "In the story" }).getByRole("link", { name: "The Station" })).toBeVisible();
 
-  // And @ offers the new name.
+  // And @ offers the new name (the entry's modal closed first).
+  await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
   await page.getByRole("tree", { name: "Manuscript" }).getByRole("treeitem", { name: /^Arrival,/ }).click();
   await caretInStation(page);
   await page.keyboard.type(" @tomas b");

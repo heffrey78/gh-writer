@@ -65,7 +65,7 @@ test("adds a character, fills in the details and notes, all saved to its file", 
   await page.keyboard.type(" Not this.");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Edit summary" })).toBeFocused();
-  await expect(page.getByText("Ada's aunt, who never left.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog").getByText("Ada's aunt, who never left.", { exact: true })).toBeVisible();
 
   // A field renamed and changed, another added and removed.
   await page.getByRole("button", { name: "Edit age" }).click();

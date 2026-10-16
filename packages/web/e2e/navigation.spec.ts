@@ -24,40 +24,58 @@ test("Back and Forward by button and by Alt+Left/Right, but not in text", async 
   await expect(forward).toBeDisabled();
   await axe(page);
 
-  await palette(page, "character: ada");
-  await expect(page.getByRole("heading", { level: 1, name: "Ada Varn" })).toBeVisible();
-  await palette(page, "off the page: the flood");
-  await expect(page.getByRole("heading", { level: 1, name: "The flood of '09" })).toBeVisible();
+  const views = page.getByRole("navigation", { name: "Views" });
+  await views.getByRole("link", { name: "Story bible" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Story bible" })).toBeVisible();
+  await views.getByRole("link", { name: "Notes" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Notes" })).toBeVisible();
 
   await back.click();
-  await expect(page.getByRole("heading", { level: 1, name: "Ada Varn" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Story bible" })).toBeVisible();
   await expect(forward).toBeEnabled();
   await forward.click();
-  await expect(page.getByRole("heading", { level: 1, name: "The flood of '09" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Notes" })).toBeVisible();
   await expect(forward).toBeDisabled();
 
-  // The keys, away from text.
+  // An entry and an event open in modals over the Story bible (#233); the keys walk them too, away from text.
+  await palette(page, "character: ada");
+  await expect(page.getByRole("dialog", { name: "Ada Varn" })).toBeVisible();
+  await palette(page, "off the page: the flood");
+  await expect(page.getByRole("dialog", { name: "The flood of '09" })).toBeVisible();
   await page.getByRole("heading", { level: 1, name: "The flood of '09" }).click();
   await page.keyboard.press("Alt+ArrowLeft");
-  await expect(page.getByRole("heading", { level: 1, name: "Ada Varn" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Ada Varn" })).toBeVisible();
+  await page.getByRole("heading", { level: 1, name: "Ada Varn" }).click();
   await page.keyboard.press("Alt+ArrowLeft");
-  // Back in the chapter, the caret is in its text, where Alt+Right is the text's: out of it first.
-  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
-  await page.keyboard.press("Alt+ArrowRight");
-  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1, name: "Notes" })).toBeVisible();
   await page.locator("main").focus();
   await page.keyboard.press("Alt+ArrowRight");
-  await expect(page.getByRole("heading", { level: 1, name: "Ada Varn" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Ada Varn" })).toBeVisible();
 
   // In text they're the text's: nothing moves.
   await page.getByRole("textbox", { name: "Notes on Ada Varn" }).click();
   await page.keyboard.press("Alt+ArrowLeft");
-  await expect(page.getByRole("heading", { level: 1, name: "Ada Varn" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Ada Varn" })).toBeVisible();
+
+  // Back to the chapter, through the modal again: there, the caret is in its text, where Alt+Right is the text's.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.keyboard.press("Alt+ArrowLeft");
+  await expect(page.getByRole("dialog", { name: "Ada Varn" })).toBeVisible();
+  await page.keyboard.press("Alt+ArrowLeft");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1, name: "Notes" })).toBeVisible();
+  await back.click();
+  await expect(page.getByRole("heading", { level: 1, name: "Story bible" })).toBeVisible();
+  await back.click();
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeFocused();
+  await page.keyboard.press("Alt+ArrowRight");
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeVisible();
 
   // A new page clears Forward.
-  await back.click();
   await expect(forward).toBeEnabled();
-  await palette(page, "character: ben varn");
+  await views.getByRole("link", { name: "Story bible" }).click();
   await expect(forward).toBeDisabled();
 });
 
@@ -70,6 +88,7 @@ test("Go back and Go forward are in the palette, and in the shortcuts list", asy
   await palette(page, "go forward");
   await expect(page.getByRole("heading", { level: 1, name: "Ada Varn" })).toBeVisible();
   await page.keyboard.press("ControlOrMeta+/");
-  await expect(page.getByRole("dialog")).toContainText("Go back");
-  await expect(page.getByRole("dialog")).toContainText("←");
+  const shortcuts = page.getByRole("dialog", { name: "Keyboard shortcuts" });
+  await expect(shortcuts).toContainText("Go back");
+  await expect(shortcuts).toContainText("←");
 });
