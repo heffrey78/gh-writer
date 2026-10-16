@@ -11,6 +11,8 @@ import { NewTypeDialog } from "./new-entry.tsx";
 import { RelationshipTypes } from "./relationship-types.tsx";
 import { markWords } from "./strip.tsx";
 import { entriesByType, matches, plural } from "./types.ts";
+import { PAGE } from "../ui/page.ts";
+import { cn } from "../ui/cn.ts";
 
 type Sort = "first" | "name" | "most";
 const SORTS: { key: Sort; label: string }[] = [
@@ -62,7 +64,7 @@ export function BiblePage({ novelId, novel, over }: { novelId: string; novel: No
   }, [hash]);
 
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-6 px-6 py-6">
+    <div className={cn(PAGE, "grid gap-6")}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Story bible</h1>
         <div className="flex gap-2">

@@ -432,6 +432,10 @@ function setSceneTitle(editor: Editor, id: string, title: string) {
 export interface WordCountProps {
   /** Words in the whole chapter, when the editor shows a single scene and the app knows the rest. */
   chapterWords?: number;
+  /** Which counts to show (all by default): the session's comes with its goal. */
+  show?: readonly ("scene" | "chapter" | "session")[];
+  /** Its name for screen readers ("Word count"). */
+  label?: string;
   className?: string;
 }
 
@@ -442,7 +446,7 @@ const signed = (n: number) => (n > 0 ? `+${format.format(n)}` : n < 0 ? `−${fo
  * Scene, chapter and session word counts, with an optional session goal. It follows the editor
  * the writer last used, and hides in focus mode unless the count is pinned.
  */
-export function WordCount({ chapterWords, className }: WordCountProps) {
+export function WordCount({ chapterWords, show = ["scene", "chapter", "session"], label = "Word count", className }: WordCountProps) {
   const counts = useStore(liveCounts);
   const session = useStore(writingSession);
   const hidden = useWritingModes((m) => m.focus && !m.pinCount);
@@ -472,40 +476,46 @@ export function WordCount({ chapterWords, className }: WordCountProps) {
   };
 
   return (
-    <div className={["ghw-wordcount", className].filter(Boolean).join(" ")} role="group" aria-label="Word count" hidden={hidden}>
-      <span>
-        Scene <strong>{format.format(counts.scene)}</strong>
-      </span>
-      {chapter !== undefined && (
+    <div className={["ghw-wordcount", className].filter(Boolean).join(" ")} role="group" aria-label={label} hidden={hidden}>
+      {show.includes("scene") && (
+        <span>
+          Scene <strong>{format.format(counts.scene)}</strong>
+        </span>
+      )}
+      {show.includes("chapter") && chapter !== undefined && (
         <span>
           Chapter <strong>{format.format(chapter)}</strong>
         </span>
       )}
-      <span className="ghw-session">
-        Session <strong>{signed(words)}</strong>
-        {goal !== null && (
-          <>
-            {" "}
-            of {format.format(goal)}
-            <progress max={goal} value={Math.max(0, Math.min(words, goal))} aria-label="Session goal progress" />
-          </>
-        )}
-      </span>
-      {editing ? (
-        <form onSubmit={save} onKeyDown={(e) => e.key === "Escape" && close()}>
-          <label htmlFor={inputId}>Session goal</label>
-          <input id={inputId} name="goal" type="number" min={0} defaultValue={goal ?? ""} autoFocus />
-          <button type="submit">Save</button>
-        </form>
-      ) : (
-        <button type="button" ref={goalButton} onClick={() => setEditing(true)}>
-          {goal === null ? "Set goal" : "Change goal"}
-        </button>
+      {show.includes("session") && (
+        <>
+          <span className="ghw-session">
+            Session <strong>{signed(words)}</strong>
+            {goal !== null && (
+              <>
+                {" "}
+                of {format.format(goal)}
+                <progress max={goal} value={Math.max(0, Math.min(words, goal))} aria-label="Session goal progress" />
+              </>
+            )}
+          </span>
+          {editing ? (
+            <form onSubmit={save} onKeyDown={(e) => e.key === "Escape" && close()}>
+              <label htmlFor={inputId}>Session goal</label>
+              <input id={inputId} name="goal" type="number" min={0} defaultValue={goal ?? ""} autoFocus />
+              <button type="submit">Save</button>
+            </form>
+          ) : (
+            <button type="button" ref={goalButton} onClick={() => setEditing(true)}>
+              {goal === null ? "Set goal" : "Change goal"}
+            </button>
+          )}
+          {/* A quiet notice: shown in the bar and announced once, never a pop-up. */}
+          <span role="status" className="ghw-goal-reached">
+            {reached ? "Goal reached" : ""}
+          </span>
+        </>
       )}
-      {/* A quiet notice: shown in the bar and announced once, never a pop-up. */}
-      <span role="status" className="ghw-goal-reached">
-        {reached ? "Goal reached" : ""}
-      </span>
     </div>
   );
 }

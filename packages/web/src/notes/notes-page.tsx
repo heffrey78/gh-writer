@@ -4,6 +4,8 @@ import { useId, useMemo, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { Button } from "../ui/button.tsx";
 import { useNewNote } from "./new-note.tsx";
+import { PAGE } from "../ui/page.ts";
+import { cn } from "../ui/cn.ts";
 
 type Sort = "newest" | "title";
 
@@ -33,7 +35,7 @@ export function NotesPage({ novelId, novel, over }: { novelId: string; novel: No
   const sceneTitle = (id: string) => novel.allScenes.find((s) => s.id === id)?.title ?? id;
 
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-6 px-6 py-6">
+    <div className={cn(PAGE, "grid gap-6")}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">
           Notes <span className="text-base font-normal text-muted">{novel.notes.length}</span>

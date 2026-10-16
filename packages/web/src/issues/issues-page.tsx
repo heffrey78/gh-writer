@@ -15,6 +15,8 @@ import { displayLabel, ensureKind, IssuesState, KindSelect, LabelChip, labelChoi
 import type { Workspace } from "../novel/workspace.ts";
 import { passageOf } from "./anchors.ts";
 import { useIssueChanges, useIssueList, useIssueMeta } from "./use-issues.ts";
+import { PAGE } from "../ui/page.ts";
+import { cn } from "../ui/cn.ts";
 
 /** The novel's GitHub issues: filtered by state, labels, milestone and words, with the filter in the address. */
 export function IssuesPage({ novelId, novel, workspace }: { novelId: string; novel: Novel; workspace: Workspace }) {
@@ -50,7 +52,7 @@ export function IssuesPage({ novelId, novel, workspace }: { novelId: string; nov
 
   const data = list.data;
   return (
-    <div className="mx-auto grid w-full max-w-4xl gap-4 px-6 py-6">
+    <div className={cn(PAGE, "grid gap-4")}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Issues</h1>
         <div className="flex gap-2">

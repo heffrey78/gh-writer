@@ -10,7 +10,8 @@ test("a new, empty chapter opens with a way to add its first scene, from every r
   const tree = page.getByRole("tree", { name: "Manuscript" });
 
   await tree.getByRole("treeitem").first().focus();
-  await page.getByRole("toolbar", { name: "Manuscript actions" }).getByRole("button", { name: "Chapter" }).click();
+  await page.getByRole("toolbar", { name: "Manuscript actions" }).getByRole("button", { name: "New" }).click();
+  await page.getByRole("menuitem", { name: "Chapter" }).click();
   await page.getByRole("dialog").getByRole("textbox", { name: "Title (optional)" }).fill("The Crossing");
   await page.keyboard.press("Enter");
 

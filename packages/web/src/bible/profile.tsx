@@ -66,7 +66,8 @@ export function PencilButton({ place, part, label }: { place: InPlace; part: str
       onClick={() => place.start(part)}
       aria-label={`Edit ${label}`}
       title="Edit"
-      className="shrink-0 rounded p-1 text-muted opacity-60 group-hover:opacity-100 hover:bg-paper hover:text-ink focus-visible:opacity-100"
+      // Out of the way until its part is pointed at or in focus; a touch screen, with no hover, shows it faintly.
+      className="shrink-0 rounded p-1 text-muted opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-60 hover:bg-paper hover:text-ink"
     >
       <Pencil className="size-3.5" aria-hidden />
     </button>

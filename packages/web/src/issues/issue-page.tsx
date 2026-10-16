@@ -13,6 +13,8 @@ import type { Workspace } from "../novel/workspace.ts";
 import { passageOf } from "./anchors.ts";
 import { PassageLine } from "./issues-page.tsx";
 import { useIssue, useIssueChanges, useIssueMeta } from "./use-issues.ts";
+import { PAGE } from "../ui/page.ts";
+import { cn } from "../ui/cn.ts";
 
 /** One issue: its description and comments, and everything that can be changed about it. */
 export function IssuePage({ novelId, novel, workspace, number }: { novelId: string; novel: Novel; workspace: Workspace; number: number }) {
@@ -39,7 +41,7 @@ export function IssuePage({ novelId, novel, workspace, number }: { novelId: stri
 
   if (issue.isError) {
     return (
-      <div className="mx-auto grid w-full max-w-3xl gap-3 px-6 py-6">
+      <div className={cn(PAGE, "grid gap-3")}>
         <h1 className="text-xl font-semibold">No such issue</h1>
         <Link to={back} className="text-accent underline">
           All issues
@@ -62,7 +64,7 @@ export function IssuePage({ novelId, novel, workspace, number }: { novelId: stri
   };
 
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
+    <div className={cn(PAGE, "grid gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]")}>
       <article className="grid content-start gap-4" aria-labelledby="issue-title">
         <Link to={back} className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
           <ArrowLeft className="size-4" aria-hidden /> All issues

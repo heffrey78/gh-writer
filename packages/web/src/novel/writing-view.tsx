@@ -387,9 +387,9 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
   // The text scrolls on its own, so the sidebar beside it stays put.
   return (
     <div className="flex min-h-full flex-col lg:h-full lg:min-h-0 lg:flex-row">
-      <div className="min-w-0 flex-1 lg:overflow-y-auto">
+      <div className="flex min-w-0 flex-1 flex-col lg:overflow-y-auto">
       <div
-        className="mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] content-start gap-3 px-6 py-6"
+        className="mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] flex-1 content-start gap-3 px-6 py-6"
         onContextMenu={(e) => {
           // On selected text in the editor, unless something there (the spelling menu) took the click.
           if (!repo || !editor || editor.isDestroyed || e.defaultPrevented || !editor.view.dom.contains(e.target as Node)) return;
@@ -400,10 +400,8 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
       >
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-xl font-semibold">{heading}</h1>
-          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <WordCount chapterWords={chapterWords} />
-            <TodayCount novelId={novelId} workspace={workspace} />
-          </div>
+          {/* The chapter's length by its title; the scene's is on its card, the session's and today's below. */}
+          <WordCount chapterWords={chapterWords} show={["chapter"]} />
         </div>
         {"scene" in view && pinned[view.scene.file] && <p className="ghw-pinned -mt-2 text-[13px] text-muted">{pinned[view.scene.file]}</p>}
         {splitting && (
@@ -456,6 +454,7 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
           />
         )}
       </div>
+      <StatusBar novelId={novelId} workspace={workspace} />
       </div>
       {raising || issueOpen ? (
         // An issue being raised or read takes the sidebar's place until it's closed.
@@ -580,6 +579,21 @@ function EmptyChapter({ autofocus, onAdd }: { autofocus: boolean; onAdd: (title:
         <Plus className="size-4" aria-hidden /> Add a scene
       </Button>
       {adding && <TitleDialog title="New scene" action="Add scene" submit={onAdd} onClose={() => setAdding(false)} />}
+    </div>
+  );
+}
+
+/**
+ * Under the text, quietly: the writing session's words and its goal, and today's against the daily
+ * goal. In focus mode, only while the count is pinned there.
+ */
+function StatusBar({ novelId, workspace }: { novelId: string; workspace: Workspace }) {
+  const hidden = useWritingModes((m) => m.focus && !m.pinCount);
+  if (hidden) return null;
+  return (
+    <div className="sticky bottom-0 z-10 flex flex-wrap items-baseline justify-end gap-x-4 gap-y-1 border-t border-rule bg-paper px-6 py-1.5 text-[13px] text-muted">
+      <WordCount show={["session"]} label="This session" />
+      <TodayCount novelId={novelId} workspace={workspace} />
     </div>
   );
 }

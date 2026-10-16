@@ -6,6 +6,7 @@ import { ErrorAlert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
 import { ProgressCharts } from "./progress-charts.tsx";
+import { PAGE } from "../ui/page.ts";
 
 /*
  * Progress (#20): how long the book is against its target, where it's heading at the recent pace,
@@ -68,7 +69,7 @@ export function ProgressPage({ novelId, novel }: { novelId: string; novel: Novel
 
 function Page({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-8 px-6 py-6">
+    <div className={cn(PAGE, "grid gap-8")}>
       <h1 className="text-xl font-semibold">Progress</h1>
       {children}
     </div>

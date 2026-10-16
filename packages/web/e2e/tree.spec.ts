@@ -87,7 +87,8 @@ test("moves a scene by dragging it before another", async ({ page, app }) => {
 test("adds, renames and deletes a scene, and Undo brings it back", async ({ page, app }) => {
   const novel = await open(page, app);
   await tree(page).getByRole("treeitem").first().focus();
-  await page.getByRole("toolbar", { name: "Manuscript actions" }).getByRole("button", { name: "Scene" }).click();
+  await page.getByRole("toolbar", { name: "Manuscript actions" }).getByRole("button", { name: "New" }).click();
+  await page.getByRole("menuitem", { name: "Scene" }).click();
   await page.getByRole("dialog").getByRole("textbox", { name: "Title" }).fill("On the Platform");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 1, name: "On the Platform" })).toBeVisible();
@@ -154,7 +155,8 @@ test("splits a scene at the caret and merges it back from the context menu", asy
 
 test("parts: add one from the toolbar, then rename and delete it from the ⋯ menu or the palette", async ({ page, app }) => {
   const novel = await open(page, app);
-  await page.getByRole("toolbar", { name: "Manuscript actions" }).getByRole("button", { name: "Part" }).click();
+  await page.getByRole("toolbar", { name: "Manuscript actions" }).getByRole("button", { name: "New" }).click();
+  await page.getByRole("menuitem", { name: "Part" }).click();
   await page.getByRole("dialog").getByRole("textbox", { name: "Title" }).fill("Aftermath");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog")).toHaveCount(0);

@@ -17,6 +17,8 @@ import { ExportMenu } from "../diagrams/export-menu.tsx";
 import { EdgeDialog } from "./edge-dialog.tsx";
 import { GraphCanvas } from "./graph-canvas.tsx";
 import { graphAt, RELATIONSHIP_GRAPH, type GraphFilter } from "@gh-writer/core/diagrams";
+import { PAGE } from "../ui/page.ts";
+import { cn } from "../ui/cn.ts";
 
 const list = (v: string | null) => (v ? v.split(",").filter(Boolean) : undefined);
 
@@ -115,7 +117,7 @@ export function GraphPage({ novelId, novel }: { novelId: string; novel: Novel })
   const appears = useMemo(() => (selected ? backlinks(novel, selected.id).scenes.filter((s) => s.scene.position >= 0) : []), [novel, selected]);
 
   return (
-    <div className="grid h-full grid-rows-[auto_minmax(24rem,1fr)] gap-3 px-6 py-6">
+    <div className={cn(PAGE, "grid h-full grid-rows-[auto_minmax(24rem,1fr)] gap-3")}>
       <div className="grid gap-3">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-xl font-semibold">Relationships</h1>

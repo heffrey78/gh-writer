@@ -10,6 +10,7 @@ import { cn } from "../ui/cn.ts";
 import { useNotice } from "./notice.tsx";
 import { useVersions } from "./versions.tsx";
 import type { Workspace } from "./workspace.ts";
+import { PAGE } from "../ui/page.ts";
 
 /** Bringing a scene across: from which version, and which side of the comparison that is. */
 interface Bring {
@@ -99,7 +100,7 @@ export function ComparePage({ novelId, workspace }: { novelId: string; workspace
   })();
 
   return (
-    <div className="grid gap-5 px-6 py-6">
+    <div className={cn(PAGE, "grid gap-5")}>
       <h1 className="text-xl font-semibold">Compare</h1>
       <div className="flex flex-wrap items-end gap-3 text-sm">
         <div className="grid gap-1.5">

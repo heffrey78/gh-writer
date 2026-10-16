@@ -1,4 +1,4 @@
-import { dayOneFor, readFrontMatter, sceneFacts, type Novel, type YamlEdit } from "@gh-writer/core";
+import { countWords, dayOneFor, readFrontMatter, sceneFacts, type Novel, type YamlEdit } from "@gh-writer/core";
 import { chapterTitle } from "@gh-writer/core/diagrams";
 import { joinSceneFile } from "@gh-writer/editor";
 import { ChevronLeft, ChevronRight, Pencil, Pin, Plus, X } from "lucide-react";
@@ -436,7 +436,7 @@ export function SceneDetails({
         aria-pressed={on}
         aria-label={`Pin ${label.toLowerCase()} under the scene titles`}
         title={on ? "Pinned under the scene titles" : "Pin under the scene titles"}
-        className={cn("shrink-0 rounded p-1 hover:bg-paper hover:text-ink", on ? "text-accent" : "text-muted opacity-60 group-hover:opacity-100 focus-visible:opacity-100")}
+        className={cn("shrink-0 rounded p-1 hover:bg-paper hover:text-ink", on ? "text-accent" : "text-muted opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-60")}
       >
         <Pin className="size-3.5" fill={on ? "currentColor" : "none"} aria-hidden />
       </button>
@@ -451,7 +451,7 @@ export function SceneDetails({
       onClick={() => start(key)}
       aria-label={`Edit ${label.toLowerCase()}`}
       title="Edit"
-      className="shrink-0 rounded p-1 text-muted opacity-60 group-hover:opacity-100 hover:bg-paper hover:text-ink focus-visible:opacity-100"
+      className="shrink-0 rounded p-1 text-muted opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-60 hover:bg-paper hover:text-ink"
     >
       <Pencil className="size-3.5" aria-hidden />
     </button>
@@ -464,7 +464,11 @@ export function SceneDetails({
           <h2 id={headingId} className="text-lg font-semibold">
             {title}
           </h2>
-          <p className="text-xs text-muted">{chapter ? `${chapterTitle(novel, chapter)} · scene ${at + 1} of ${chapter.sceneIds.length}` : "Not in a chapter"}</p>
+          <p className="text-xs text-muted">
+            {chapter ? `${chapterTitle(novel, chapter)} · scene ${at + 1} of ${chapter.sceneIds.length}` : "Not in a chapter"}
+            {/* Its length as it's written (the text's own count, from its file). */}
+            {file && ` · ${words.format(countWords(file.body))} words`}
+          </p>
         </div>
         {onStep && chapter && (
           <>
@@ -693,6 +697,8 @@ function DateDayOne({ day, date, onDone }: { day: number; date: string; onDone: 
     </div>
   );
 }
+
+const words = new Intl.NumberFormat();
 
 const STRENGTH: Record<string, string> = { "1": "faint", "2": "medium", "3": "strong" };
 

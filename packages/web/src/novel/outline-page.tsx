@@ -7,6 +7,7 @@ import { OutlineCards } from "./corkboard.tsx";
 import { OutlineTable } from "./outline.tsx";
 import { OutlineTimeCards, OutlineTimeTable } from "./outline-time.tsx";
 import type { Workspace } from "./workspace.ts";
+import { PAGE } from "../ui/page.ts";
 
 /*
  * The outline (#136): every scene in reading order, as a table, as cards (the corkboard), or on the
@@ -90,7 +91,7 @@ export function OutlinePage({ novelId, novel, workspace }: { novelId: string; no
     void navigate(`/novels/${novelId}/outline/${next}${order === "time" && next !== "board" ? "?order=time" : ""}`, { replace: true, state: { focusSwitch: true } });
   };
   return (
-    <div className="grid gap-4 px-6 py-6">
+    <div className={cn(PAGE, "grid gap-4")}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Outline</h1>
         <div className="flex flex-wrap items-center gap-3">

@@ -6,6 +6,7 @@ import { SwimlanesPage } from "../swimlanes/swimlanes-page.tsx";
 import { TimelinePage } from "../timeline/timeline-page.tsx";
 import { cn } from "../ui/cn.ts";
 import type { Workspace } from "./workspace.ts";
+import { PAGE_WIDTH } from "../ui/page.ts";
 
 /*
  * The story map (#136): the views that set the story's elements against its scenes, as tabs of one
@@ -49,7 +50,7 @@ export function StoryMapPage({ novelId, novel, workspace }: { novelId: string; n
   };
   const active = STORY_MAP_TABS[current]!;
   return (
-    <div className="grid content-start">
+    <div className={cn(PAGE_WIDTH, "grid content-start")}>
       <div className="grid gap-3 px-6 pt-6">
         <h1 className="text-xl font-semibold">Story map</h1>
         <div role="tablist" aria-label="Story map" className="flex gap-1 border-b border-rule" onKeyDown={onKey}>

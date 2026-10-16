@@ -1,5 +1,5 @@
 import { countWords, type Novel } from "@gh-writer/core";
-import { ChevronDown, ChevronRight, Ellipsis, FilePlus, FolderPlus, History, Layers } from "lucide-react";
+import { ChevronDown, ChevronRight, Ellipsis, FilePlus, FolderPlus, History, Layers, Plus } from "lucide-react";
 import { ContextMenu, DropdownMenu } from "radix-ui";
 import { memo, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { useNavigate } from "react-router";
@@ -284,22 +284,38 @@ export function ManuscriptTree({ novelId, novel, structure, current }: { novelId
   return (
     <div className="grid gap-2">
       <div className="flex flex-wrap gap-1" role="toolbar" aria-label="Manuscript actions">
-        <Button size="sm" variant="ghost" disabled={!currentChapter} onClick={() => currentChapter && setDialog({ kind: "new-scene", chapter: currentChapter, ...(current && novel.allScenes.some((s) => s.id === current) ? { after: current } : {}) })}>
-          <FilePlus className="size-4" aria-hidden /> Scene
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setDialog({ kind: "new-chapter", part: novel.topLevel === "parts" ? (novel.allChapters.find((c) => c.id === currentChapter)?.partId ?? novel.parts[0]?.id ?? null) : null, after: currentChapter ?? null })}
-          disabled={novel.topLevel === "parts" && !novel.parts.length}
-        >
-          <FolderPlus className="size-4" aria-hidden /> Chapter
-        </Button>
-        {novel.topLevel === "parts" && (
-          <Button size="sm" variant="ghost" onClick={() => setDialog({ kind: "new-part", after: currentPart ?? novel.parts.at(-1)?.id ?? null })}>
-            <Layers className="size-4" aria-hidden /> Part
-          </Button>
-        )}
+        {/* New scene, chapter or part, after where the caret is: one menu, not a row of buttons. */}
+        <DropdownMenu.Root modal={false}>
+          <DropdownMenu.Trigger asChild>
+            <Button size="sm" variant="ghost">
+              <Plus className="size-4" aria-hidden /> New <ChevronDown className="size-3.5 text-muted" aria-hidden />
+            </Button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal container={document.getElementById("main")}>
+            <DropdownMenu.Content align="start" className={menuClass}>
+              <DropdownMenu.Item
+                className={cn(itemClass, "justify-start gap-2")}
+                disabled={!currentChapter}
+                onSelect={() => currentChapter && setDialog({ kind: "new-scene", chapter: currentChapter, ...(current && novel.allScenes.some((s) => s.id === current) ? { after: current } : {}) })}
+              >
+                <FilePlus className="size-4" aria-hidden /> Scene
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                className={cn(itemClass, "justify-start gap-2")}
+                disabled={novel.topLevel === "parts" && !novel.parts.length}
+                onSelect={() => setDialog({ kind: "new-chapter", part: novel.topLevel === "parts" ? (novel.allChapters.find((c) => c.id === currentChapter)?.partId ?? novel.parts[0]?.id ?? null) : null, after: currentChapter ?? null })}
+              >
+                <FolderPlus className="size-4" aria-hidden /> Chapter
+              </DropdownMenu.Item>
+              {novel.topLevel === "parts" && (
+                <DropdownMenu.Item className={cn(itemClass, "justify-start gap-2")} onSelect={() => setDialog({ kind: "new-part", after: currentPart ?? novel.parts.at(-1)?.id ?? null })}>
+                  <Layers className="size-4" aria-hidden /> Part
+                </DropdownMenu.Item>
+              )}
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+        <span className="flex-1" />
         <Button size="sm" variant="ghost" onClick={() => setDialog({ kind: "deleted" })} aria-label="Recently deleted" title="Recently deleted">
           <History className="size-4" aria-hidden />
         </Button>
