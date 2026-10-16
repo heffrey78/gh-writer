@@ -126,7 +126,6 @@ export function SceneNotes({ novelId, novel, workspace, scene, spell }: { novelI
           <span className="text-xs text-muted">Enter adds it · Esc cancels</span>
         </form>
       )}
-      {others.length > 0 && <Picker label="Add a note already written" items={others} value={undefined} onChange={(v) => v && void addExisting(v)} placeholder="Choose a note…" />}
       {notes.length ? (
         <ul aria-label={`Notes on “${scene.title}”`} className="grid gap-2">
           {notes.map((n) => (
@@ -147,8 +146,10 @@ export function SceneNotes({ novelId, novel, workspace, scene, spell }: { novelI
           ))}
         </ul>
       ) : (
-        !adding && <p className="text-muted">No notes on this scene yet. + Note makes one, kept beside the text while you write{others.length > 0 && ", or add one already written"}.</p>
+        !adding && <p className="text-muted">No notes on this scene yet. + Note makes one, kept beside the text while you write{others.length > 0 && ", or add one already written below"}.</p>
       )}
+      {/* After the scene's own notes: bringing in another is the less usual thing to do. */}
+      {others.length > 0 && <Picker label="Add a note already written" items={others} value={undefined} onChange={(v) => v && void addExisting(v)} placeholder="Choose a note…" className="border-t border-rule pt-3" />}
     </section>
   );
 }

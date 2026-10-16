@@ -101,10 +101,7 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
 
   return (
     <div className="grid content-start gap-3 px-6 py-4">
-      <div className="flex flex-wrap items-baseline justify-end gap-3">
-        <h2 className="sr-only">Plotlines</h2>
-        <ExportMenu name="plotlines" svg={() => plotlinesSvg(novel)} />
-      </div>
+      <h2 className="sr-only">Plotlines</h2>
       <div className="flex flex-wrap items-end gap-4 text-sm">
         <label className="grid gap-1 font-medium">
           Show
@@ -135,6 +132,9 @@ export function SwimlanesPage({ novelId, novel, workspace }: { novelId: string; 
             )
           }
         />
+        <div className="ml-auto flex gap-2">
+          <ExportMenu name="plotlines" svg={() => plotlinesSvg(novel)} />
+        </div>
       </div>
       <p className="text-sm text-muted">
         Each column is a scene, in reading order. <span className="inline-block size-3 rounded-full bg-accent align-middle" aria-hidden /> a major beat,{" "}

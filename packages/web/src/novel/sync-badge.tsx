@@ -84,7 +84,7 @@ export function SyncBadge({
       <Popover.Trigger asChild>
         <Button variant="ghost" size="sm" aria-label={`Sync: ${label}`}>
           <Icon className={cn("size-4", TONES[tone], busy && "animate-spin")} aria-hidden />
-          <span className={TONES[tone]}>{label}</span>
+          <span className={cn(TONES[tone], "max-sm:sr-only")}>{label}</span>
         </Button>
       </Popover.Trigger>
       <Popover.Portal>

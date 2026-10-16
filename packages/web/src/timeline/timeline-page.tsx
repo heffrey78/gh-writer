@@ -53,15 +53,7 @@ export function TimelinePage({ novelId, novel }: { novelId: string; novel: Novel
 
   return (
     <div className="grid content-start gap-4 px-6 py-4">
-      <div className="flex flex-wrap items-baseline justify-end gap-3">
-        <h2 className="sr-only">Timeline</h2>
-        <div className="flex gap-2">
-          <Button size="sm" onClick={() => add(true)}>
-            New off-page event
-          </Button>
-          <ExportMenu name="timeline" svg={() => timelineSvg(novel, mode)} mermaid={() => timelineMermaid(novel)} />
-        </div>
-      </div>
+      <h2 className="sr-only">Timeline</h2>
       <div className="flex flex-wrap items-end gap-4 text-sm">
         <label className="grid gap-1 font-medium">
           Lanes
@@ -73,6 +65,12 @@ export function TimelinePage({ novelId, novel }: { novelId: string; novel: Novel
             ))}
           </select>
         </label>
+        <div className="ml-auto flex gap-2">
+          <Button size="sm" onClick={() => add(true)}>
+            New off-page event
+          </Button>
+          <ExportMenu name="timeline" svg={() => timelineSvg(novel, mode)} mermaid={() => timelineMermaid(novel)} />
+        </div>
       </div>
       <DayOne novelId={novelId} novel={novel} />
       <p className="text-sm text-muted">
@@ -91,7 +89,7 @@ export function TimelinePage({ novelId, novel }: { novelId: string; novel: Novel
               return (
                 <div key={itemId(item)} className="relative border-b border-l border-rule px-2 py-2 text-xs">
                   {gap && gap !== "same time" && <span className="absolute -top-0 left-0 -translate-x-1/2 rounded bg-accent-soft px-1 text-[0.7rem] whitespace-nowrap text-ink">{gap}</span>}
-                  <span className="mt-3 block text-muted">{when(item)}</span>
+                  <AxisLabel text={when(item)} />
                 </div>
               );
             })}
@@ -223,6 +221,19 @@ export function TimelinePage({ novelId, novel }: { novelId: string; novel: Novel
         </table>
       </details>
     </div>
+  );
+}
+
+/** "Day 1, 09:10 (1 Mar 2024)" on the axis: the day, and its date under it, rather than wrapped anyhow. */
+function AxisLabel({ text }: { text: string }) {
+  const [, day, date] = /^(Day .*) \((.*)\)$/.exec(text) ?? [];
+  return day ? (
+    <span className="mt-3 block text-muted">
+      {day}
+      <span className="block text-[0.7rem]">{date}</span>
+    </span>
+  ) : (
+    <span className="mt-3 block text-muted">{text}</span>
   );
 }
 

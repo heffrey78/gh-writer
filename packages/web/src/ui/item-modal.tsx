@@ -71,7 +71,7 @@ export function ItemModal({ title, onClose, children }: { title: string; onClose
             e.preventDefault();
             partEscapes.add(e);
           }}
-          className="fixed inset-0 z-50 overflow-y-auto bg-paper text-ink outline-none sm:inset-x-auto sm:top-[4vh] sm:bottom-auto sm:left-1/2 sm:max-h-[92vh] sm:w-[min(52rem,calc(100vw-3rem))] sm:-translate-x-1/2 sm:rounded-lg sm:border sm:border-rule sm:shadow-xl"
+          className="fixed inset-0 z-50 overflow-y-auto bg-raised text-ink outline-none sm:inset-x-auto sm:top-[4vh] sm:bottom-auto sm:left-1/2 sm:max-h-[92vh] sm:w-[min(52rem,calc(100vw-3rem))] sm:-translate-x-1/2 sm:rounded-lg sm:border sm:border-rule sm:shadow-xl"
         >
           <Dialog.Title className="sr-only">{title}</Dialog.Title>
           <div className="px-6 pt-5 pb-8 sm:px-8">
@@ -145,7 +145,7 @@ export function NewItem({ label, placeholder, make, children, heading }: { label
         onChange={(e) => setTitle(e.target.value)}
         placeholder={placeholder}
         aria-invalid={problem ? true : undefined}
-        className="w-full border-b border-rule bg-transparent pb-1 text-2xl font-semibold outline-none placeholder:font-normal placeholder:text-muted focus:border-accent"
+        className="ghw-title-field w-full border-b-2 border-rule bg-transparent pb-1 text-2xl font-semibold placeholder:font-normal placeholder:text-muted focus:border-accent"
       />
       <p className="text-xs text-muted">{label === "Name" ? `Name the ${noun} and press Enter` : `Give the ${noun} a title and press Enter`}</p>
       {problem && <ErrorAlert title="Couldn't add it">{problem}</ErrorAlert>}

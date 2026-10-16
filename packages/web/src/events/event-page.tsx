@@ -130,8 +130,8 @@ export function EventPage({
         {!tab && (
           <div className={cn("flex items-center gap-2", embedded && "pr-8")}>
             <p className="flex-1 text-sm text-muted">
-              <Link to={`/novels/${novelId}/story-map/timeline`} className="underline-offset-2 hover:underline">
-                Timeline
+              <Link to={`/novels/${novelId}/bible#off-the-page`} className="underline-offset-2 hover:underline">
+                Story bible
               </Link>{" "}
               · Off the page
             </p>

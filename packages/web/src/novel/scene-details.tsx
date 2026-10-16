@@ -16,6 +16,7 @@ import { useNotice } from "./notice.tsx";
 import { STATUSES } from "./outline.tsx";
 import type { Workspace } from "./workspace.ts";
 import { readDate, useSetDayOne } from "../timeline/day-one.tsx";
+import { storyDate } from "../format.ts";
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DURATION = /^P(?!$)(\d+Y)?(\d+M)?(\d+W)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+(\.\d+)?S)?)?$/;
@@ -52,7 +53,7 @@ const listOf = (fm: Record<string, unknown>, key: string): Ref[] => (Array.isArr
 /** When a scene happens, as read: "Day 3, 18:30", a date, or nothing; and how long, as "45 min". */
 export function whenOf(fm: Record<string, unknown>): { when: string; duration: string } {
   const w = fm.when && typeof fm.when === "object" ? (fm.when as { at?: string; day?: number; time?: string }) : undefined;
-  const when = w?.at !== undefined ? w.at.replace("T", " ") : w?.day !== undefined ? `Day ${w.day}${w.time ? `, ${w.time}` : ""}` : "";
+  const when = w?.at !== undefined ? storyDate(w.at) : w?.day !== undefined ? `Day ${w.day}${w.time ? `, ${w.time}` : ""}` : "";
   return { when, duration: str(fm.duration) && readableDuration(str(fm.duration)) };
 }
 

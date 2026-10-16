@@ -228,7 +228,7 @@ export function Synopsis({ scene, onSave }: { scene: Scene; onSave: (value: stri
         if (e.key === "Escape") setValue(scene.synopsis ?? "");
       }}
       placeholder="Add a synopsis"
-      className="w-full resize-y rounded-md border border-transparent bg-transparent px-1.5 py-1 hover:border-rule focus:border-rule focus:bg-raised"
+      className="w-full resize-none rounded-md border border-transparent focus:resize-y bg-transparent px-1.5 py-1 hover:border-rule focus:border-rule focus:bg-raised"
     />
   );
 }

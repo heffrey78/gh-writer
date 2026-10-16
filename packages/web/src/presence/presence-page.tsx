@@ -101,10 +101,7 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
 
   return (
     <div className="grid content-start gap-3 px-6 py-4">
-      <div className="flex flex-wrap items-baseline justify-end gap-3">
-        <h2 className="sr-only">Presence</h2>
-        <ExportMenu name={`presence-${plural(label).toLowerCase()}`} svg={() => presenceSvg(novel, type, `${plural(label)} by scene`)} />
-      </div>
+      <h2 className="sr-only">Presence</h2>
       <div className="flex flex-wrap items-end gap-4 text-sm">
         <label className="grid gap-1 font-medium">
           Rows
@@ -144,6 +141,9 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
         </label>
         <SizeSelect value={size} onChange={(v) => setParams({ size: v })} />
         <GapControls legend="Flag an absence longer than" threshold={threshold} onChange={(gap) => setParams({ gap })} />
+        <div className="ml-auto flex gap-2">
+          <ExportMenu name={`presence-${plural(label).toLowerCase()}`} svg={() => presenceSvg(novel, type, `${plural(label)} by scene`)} />
+        </div>
       </div>
       <p className="text-sm text-muted">
         Each column is a scene, in reading order.{" "}
@@ -151,7 +151,7 @@ export function PresencePage({ novelId, novel, workspace }: { novelId: string; n
         {type === "character" && (
           <>
             {" "}
-            (<span className="inline-block size-3 rounded-full bg-accent align-middle ring-2 ring-accent ring-offset-1" aria-hidden /> its point of view)
+            (<span className="mx-1 inline-block size-3 rounded-full bg-accent align-middle ring-2 ring-accent ring-offset-1" aria-hidden /> its point of view)
           </>
         )}
         {type === "theme" && ", larger for a stronger one"},{" "}

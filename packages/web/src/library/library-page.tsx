@@ -167,7 +167,7 @@ function Book({ novel, menus }: { novel: LibraryEntry; menus: HTMLElement | null
           <p className="truncate text-ink" title={novel.remote}>
             {novel.remote ? remoteLabel(novel.remote) : "Not on GitHub yet"}
           </p>
-          <p className="truncate text-muted">Opened {ago(novel.lastOpened)}</p>
+          <p className="text-muted">Opened {ago(novel.lastOpened)}</p>
         </div>
         <DropdownMenu.Root modal={false}>
           <DropdownMenu.Trigger asChild>

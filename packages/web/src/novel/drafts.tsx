@@ -41,7 +41,7 @@ export function DraftsButton({ novelId, workspace }: { novelId: string; workspac
       <Dialog.Trigger asChild>
         <Button variant="ghost" size="sm" aria-label={current ? `Drafts: ${current.name} is open` : "Drafts"}>
           <Split className="size-4" aria-hidden />
-          <span className="max-w-40 truncate">{current?.name ?? "Drafts"}</span>
+          <span className="max-w-40 truncate max-sm:sr-only">{current?.name ?? "Drafts"}</span>
         </Button>
       </Dialog.Trigger>
       <Dialog.Portal>

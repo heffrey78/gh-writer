@@ -25,7 +25,7 @@ test("a note's page: its title, tags and prose edited in place, mentions include
   const dir = await openNovel(page, app);
   await palette(page, "note: what if ben");
   await expect(page.getByRole("heading", { level: 1, name: "What if Ben never sold the plans?" })).toBeVisible();
-  await expect(page.getByText("Note · 2026-10-15")).toBeVisible();
+  await expect(page.getByText("Note · Oct 15, 2026")).toBeVisible();
   await expect(page.getByRole("list", { name: "Tags" }).getByRole("listitem")).toHaveText(["ending", "ben"]);
   for (const colorScheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme });
@@ -72,7 +72,7 @@ test("notes are made from the palette, made into an event or a scene, and delete
   await axe(page);
   await dialog.getByRole("button", { name: "Make the event" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "What if Ben never sold the plans?" })).toBeVisible();
-  await expect(page.getByText("Timeline · Off the page")).toBeVisible();
+  await expect(page.getByText("Story bible · Off the page")).toBeVisible();
   await palette(page, "note: what if ben");
   await expect(page.getByText("Became the off-page event “What if Ben never sold the plans?”.")).toBeVisible();
 

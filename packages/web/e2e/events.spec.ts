@@ -35,8 +35,8 @@ test("an event's page: read first, each part edited in place by keyboard, its no
 
   // In its modal over the Story bible (#236).
   const modal = page.getByRole("dialog", { name: "The flood of '09" });
-  await expect(modal.getByText("Timeline · Off the page")).toBeVisible();
-  await expect(modal.getByText("2009-11-02 · 3 days")).toBeVisible();
+  await expect(modal.getByText("Story bible · Off the page")).toBeVisible();
+  await expect(modal.getByText("2 Nov 2009 · 3 days")).toBeVisible();
   const rows = page.locator("dl[aria-label='Who, where and plotlines']");
   await expect(rows).toContainText("WhoAda Varn, Ben Varn, Tomas Hale");
   await expect(rows).toContainText("WhereThe Varn Bridge");
@@ -255,7 +255,7 @@ test("events where the story's facts show: @ mentions and their cards, profiles'
   const card = page.getByRole("dialog", { name: "The flood of '09" });
   await expect(card).toBeFocused();
   await expect(card).toContainText("Off the page");
-  await expect(card).toContainText("2009-11-02 · 3 days");
+  await expect(card).toContainText("2 Nov 2009 · 3 days");
   await expect(card).toContainText("whoAda Varn, Ben Varn, Tomas Hale");
   await axe(page);
   await card.getByRole("button", { name: "Open event" }).click();
@@ -284,7 +284,7 @@ test("the Story bible shows off-page events as cards, searched and sorted with t
   await expect(group).toBeInViewport();
   const cards = group.getByRole("listitem");
   await expect(cards.getByRole("link")).toHaveCount(3);
-  await expect(cards.nth(0)).toContainText("2009-11-02 · 3 days");
+  await expect(cards.nth(0)).toContainText("2 Nov 2009 · 3 days");
   await expect(cards.nth(0)).toContainText("The flood of '09");
   await expect(cards.nth(0)).toContainText("Ada Varn, Ben Varn, Tomas Hale, The Varn Bridge");
   for (const colorScheme of ["light", "dark"] as const) {

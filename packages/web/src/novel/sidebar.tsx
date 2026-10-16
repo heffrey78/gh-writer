@@ -1,7 +1,8 @@
 import type { Novel } from "@gh-writer/core";
 import { BookOpen, CircleDot, Columns2, Goal, ListTree, Map as MapIcon, Network, PanelLeftClose, PanelLeftOpen, PenLine, StickyNote, type LucideIcon } from "lucide-react";
-import { useEffect, useId, type ReactNode } from "react";
-import { NavLink } from "react-router";
+import { Dialog } from "radix-ui";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import { NavLink, useLocation } from "react-router";
 import { create } from "zustand";
 import { plural } from "../bible/types.ts";
 import { useCommands } from "../commands.ts";
@@ -66,10 +67,21 @@ function groups(onGitHub: boolean): { label: string; places: Place[] }[] {
 
 const SHORTCUT = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘\\" : "Ctrl+\\";
 
+/** A window too narrow for the sidebar beside the text (a phone, a narrow window): below Tailwind's md. */
+const NARROW = "(max-width: 47.99rem)";
+export function useNarrow(): boolean {
+  const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW).matches);
+  useEffect(() => {
+    const query = window.matchMedia(NARROW);
+    const on = () => setNarrow(query.matches);
+    query.addEventListener("change", on);
+    return () => query.removeEventListener("change", on);
+  }, []);
+  return narrow;
+}
+
 /** Collapse or expand with Ctrl+\ (⌘\ on a Mac), anywhere in the novel, and from the palette. */
-function useToggleKey() {
-  const toggle = useSidebar((s) => s.toggle);
-  const collapsed = useSidebar((s) => s.collapsed);
+function useToggleKey(toggle: () => void, collapsed: boolean) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = /Mac/.test(navigator.platform) ? e.metaKey : e.ctrlKey;
@@ -85,7 +97,28 @@ function useToggleKey() {
 
 export function Sidebar({ novelId, novel, workspace, current, onGitHub }: { novelId: string; novel: Novel; workspace: Workspace; current: string | undefined; onGitHub: boolean }) {
   const { collapsed, toggle } = useSidebar();
-  useToggleKey();
+  // Too narrow for it beside the text: the strip, and the sidebar over the text (a dialog) when it's
+  // opened, closed again by going somewhere, Escape or a click beside it.
+  const narrow = useNarrow();
+  const [drawer, setDrawer] = useState(false);
+  const { pathname } = useLocation();
+  useEffect(() => setDrawer(false), [pathname, narrow]);
+  useToggleKey(narrow ? () => setDrawer((d) => !d) : toggle, narrow ? !drawer : collapsed);
+  if (narrow)
+    return (
+      <>
+        <Strip novelId={novelId} onGitHub={onGitHub} toggle={() => setDrawer(true)} />
+        <Dialog.Root open={drawer} onOpenChange={setDrawer}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 z-30 bg-black/40" />
+            <Dialog.Content aria-describedby={undefined} className="fixed inset-y-0 left-0 z-30 flex w-72 max-w-[85vw] flex-col text-ink shadow-xl [&>aside]:flex-1">
+              <Dialog.Title className="sr-only">The sidebar</Dialog.Title>
+              <Expanded novelId={novelId} novel={novel} workspace={workspace} current={current} onGitHub={onGitHub} toggle={() => setDrawer(false)} />
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      </>
+    );
   return collapsed ? (
     <Strip novelId={novelId} onGitHub={onGitHub} toggle={toggle} />
   ) : (

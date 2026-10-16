@@ -284,7 +284,7 @@ export function NovelPage() {
           gh-writer isn't answering. Your unsaved text is kept in this tab; start gh-writer again and it will be saved.
         </p>
       )}
-      <div className={focus ? "h-full" : cn("grid h-full", collapsed ? "grid-cols-[3.25rem_minmax(0,1fr)]" : "md:grid-cols-[16rem_minmax(0,1fr)]")}>
+      <div className={focus ? "h-full" : cn("grid h-full", collapsed ? "grid-cols-[3.25rem_minmax(0,1fr)]" : "grid-cols-[3.25rem_minmax(0,1fr)] md:grid-cols-[16rem_minmax(0,1fr)]")}>
         {!focus && (
           <Sidebar novelId={novelId} novel={book} workspace={workspace} current={current} onGitHub={!!repo} />
         )}

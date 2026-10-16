@@ -12,7 +12,7 @@ export function SaveStatus({ autosave, entries }: { autosave: Autosave; entries?
   const refused = pending.find((e) => e.refused);
   const status = text === "error" || refused ? "error" : text === "saved" && pending.length ? "saving" : text;
   return (
-    <p role="status" className={status === "error" ? "text-sm text-danger" : "text-sm text-muted"} title={error ?? (refused && `“${refused.name}” isn't in the story bible yet: ${refused.refused}`)}>
+    <p role="status" className={status === "error" ? "text-sm text-danger max-sm:sr-only" : "text-sm text-muted max-sm:sr-only"} title={error ?? (refused && `“${refused.name}” isn't in the story bible yet: ${refused.refused}`)}>
       {LABELS[status]}
     </p>
   );

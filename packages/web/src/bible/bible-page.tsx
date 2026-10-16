@@ -160,7 +160,7 @@ function EntryCard({ novelId, entity, presence }: { novelId: string; entity: Ent
           {url ? (
             <Picture src={url} alt={pictureAlt(shape, entity.name)} focus={entity.imageFocus} className="h-24 w-full rounded-md" />
           ) : (
-            <span className="grid h-24 place-items-center rounded-md bg-panel text-[13px] text-muted">No picture yet</span>
+            <span className="grid h-12 place-items-center rounded-md bg-panel text-[13px] text-muted">No picture yet</span>
           )}
           <span className="font-semibold">{entity.name}</span>
           {entity.summary && <span className="line-clamp-2 font-prose leading-snug">{entity.summary}</span>}

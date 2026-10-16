@@ -2,6 +2,7 @@ import { apartInTime, storyTimeline, type Novel } from "@gh-writer/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { useId, useMemo, useState } from "react";
 import { api, keys } from "../api.ts";
+import { storyDate } from "../format.ts";
 import { AddButton, EditorButtons, EditorFrame, PencilButton, useInPlace, type InPlace } from "../bible/profile.tsx";
 import { Button } from "../ui/button.tsx";
 import { Picker } from "../ui/picker.tsx";
@@ -9,7 +10,7 @@ import { Picker } from "../ui/picker.tsx";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** 2026-10-10 as "10 Oct 2026", as story time shows dates. */
-export const readDate = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+export const readDate = storyDate;
 
 /** Say when Day 1 is (null: it has no date): one commit, then the book reloaded. */
 export function useSetDayOne(novelId: string) {

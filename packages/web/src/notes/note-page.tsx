@@ -8,6 +8,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useStore } from "zustand";
 import { api, keys } from "../api.ts";
+import { realDay } from "../format.ts";
 import { AddButton, EditorButtons, EditorFrame, PencilButton, TextEditor, useInPlace } from "../bible/profile.tsx";
 import { chapterTitle } from "@gh-writer/core/diagrams";
 import { Chips, Group } from "../novel/scene-details.tsx";
@@ -112,7 +113,7 @@ export function NotePage({
     <div className={embedded ? "grid gap-4" : "mx-auto grid w-full max-w-[calc(var(--ghw-prose-measure)+3rem)] gap-5 px-6 py-6"}>
       <div className="grid gap-1.5">
         <div className="flex flex-wrap items-center gap-2 pr-8">
-          <p className="flex-1 text-sm text-muted">Note{note.created && ` · ${note.created.slice(0, 10)}`}</p>
+          <p className="flex-1 text-sm text-muted">Note{note.created && ` · ${realDay(note.created)}`}</p>
           <Button variant="ghost" size="sm" onClick={() => setPromoting(true)}>
             <ArrowUpRight className="size-4" aria-hidden /> Make it an event or a scene
           </Button>

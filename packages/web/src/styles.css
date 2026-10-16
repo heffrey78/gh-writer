@@ -107,6 +107,14 @@ body {
   outline: none;
 }
 
+/* What takes the focus only to hold it (a modal as it opens, the page after Skip to content): no ring
+   around it all. A new item's title shows focus by its underline. */
+[role="dialog"][tabindex="-1"]:focus-visible,
+main[tabindex="-1"]:focus-visible,
+.ghw-title-field:focus-visible {
+  outline: none;
+}
+
 ::selection {
   background: var(--ghw-selection);
 }
