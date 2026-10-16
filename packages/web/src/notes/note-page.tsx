@@ -8,7 +8,10 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useStore } from "zustand";
 import { api, keys } from "../api.ts";
-import { AddButton, PencilButton, TextEditor, useInPlace } from "../bible/profile.tsx";
+import { AddButton, EditorButtons, EditorFrame, PencilButton, TextEditor, useInPlace } from "../bible/profile.tsx";
+import { chapterTitle } from "@gh-writer/core/diagrams";
+import { Chips, Group } from "../novel/scene-details.tsx";
+import { Picker } from "../ui/picker.tsx";
 import { mentionEntities } from "../bible/types.ts";
 import { useCommands } from "../commands.ts";
 import { useNotice } from "../novel/notice.tsx";
@@ -83,6 +86,17 @@ export function NotePage({
       show({ message: `Couldn't change the tags: ${e instanceof Error ? e.message : String(e)}` });
     });
   };
+  const sceneTitle = (id: string) => novel.allScenes.find((x) => x.id === id)?.title ?? id;
+  const setScenes = async (scenes: string[]) => {
+    try {
+      await api.notes.update(novelId, note.id, { scenes }, await base());
+      // The server wrote the file: the open copy follows.
+      await workspace.fileChanged({ type: "change", path: note.file, hash: null });
+      await refresh();
+    } catch (e) {
+      show({ message: `Couldn't change its scenes: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  };
   const remove = useMutation({
     mutationFn: async () => api.notes.delete(novelId, note.id, await base()),
     onSuccess: async () => {
@@ -99,7 +113,7 @@ export function NotePage({
       <div className="grid gap-1.5">
         {!embedded && (
           <div className="flex flex-wrap items-center gap-2">
-            <p className="flex-1 text-sm text-muted">Note{note.created && ` · ${note.created}`}</p>
+            <p className="flex-1 text-sm text-muted">Note{note.created && ` · ${note.created.slice(0, 10)}`}</p>
             <Button variant="ghost" size="sm" onClick={() => setPromoting(true)}>
               <ArrowUpRight className="size-4" aria-hidden /> Make it an event or a scene
             </Button>
@@ -139,6 +153,41 @@ export function NotePage({
         ) : (
           <AddButton place={place} part="tags">
             Add tags
+          </AddButton>
+        )}
+        {place.editing === "scenes" ? (
+          <EditorFrame place={place}>
+            <Group label="Scenes">
+              <Chips items={note.scenes.map((id) => ({ id, label: sceneTitle(id), remove: () => void setScenes(note.scenes.filter((x) => x !== id)) }))} />
+              <Picker
+                label="Add to scenes"
+                items={novel.chapters.flatMap((c) =>
+                  c.sceneIds.filter((id) => !note.scenes.includes(id)).map((id) => ({ value: id, label: sceneTitle(id), group: chapterTitle(novel, c) })),
+                )}
+                value={undefined}
+                onChange={(v) => v && void setScenes([...note.scenes, v])}
+                placeholder="Add a scene…"
+              />
+            </Group>
+            <EditorButtons onCancel={() => place.done()} hint="Each change is saved as it's made · Esc returns" />
+          </EditorFrame>
+        ) : note.scenes.length ? (
+          <div className="group flex flex-wrap items-center gap-1 text-sm">
+            <span className="text-muted">On</span>
+            {note.scenes.map((id, i) => (
+              <span key={id}>
+                {i > 0 && ", "}
+                <Link to={`/novels/${novelId}/scene/${id}`} className="text-accent underline decoration-accent/35 underline-offset-[3px] hover:decoration-accent">
+                  {sceneTitle(id)}
+                </Link>
+                {note.pinned.includes(id) && <span className="text-muted"> (pinned)</span>}
+              </span>
+            ))}
+            <PencilButton place={place} part="scenes" label="scenes" />
+          </div>
+        ) : (
+          <AddButton place={place} part="scenes">
+            Put it on a scene
           </AddButton>
         )}
         {(becameScene || becameEvent) && (

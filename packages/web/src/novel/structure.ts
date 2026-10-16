@@ -2,6 +2,7 @@ import type { Chapter, Novel } from "@gh-writer/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { api, keys } from "../api.ts";
+import { useNotesLeft } from "../notes/notes-left.tsx";
 import { chapterTitle } from "./navigation.tsx";
 import { useNotice } from "./notice.tsx";
 import type { Workspace } from "./workspace.ts";
@@ -123,9 +124,18 @@ export function useStructure(novelId: string, novel: Novel, workspace: Workspace
         void navigate(`/novels/${novelId}/chapter/${id}`);
         return `Added the chapter${title ? ` “${title}”` : ""}.`;
       }),
-    remove: (id: string) => {
+    remove: async (id: string) => {
       const item = itemOf(novel, id);
-      return run("delete it", () => m.delete(novelId, id), (result) => {
+      // Notes on only what's going (#222): kept unattached or deleted too, as the author says.
+      const gone = new Set(
+        novel.allScenes
+          .filter((s) => s.id === id || s.chapterId === id || novel.allChapters.some((c) => c.id === s.chapterId && c.partId === id))
+          .map((s) => s.id),
+      );
+      const left = novel.notes.filter((n) => n.scenes.length > 0 && n.scenes.every((s) => gone.has(s)));
+      const notes = left.length ? await useNotesLeft.getState().ask(`the ${item?.kind ?? "item"} “${item?.title ?? id}”`, left) : undefined;
+      if (notes === null) return undefined;
+      return run("delete it", () => m.delete(novelId, id, notes), (result) => {
         show({
           message: `Deleted the ${item?.kind ?? "item"} “${item?.title ?? id}”.`,
           ...(result.commit ? { action: { label: "Undo", run: () => void run("bring it back", () => m.restore(novelId, result.commit!, id), () => `“${item?.title ?? id}” is back.`) } } : {}),

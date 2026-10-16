@@ -407,12 +407,14 @@ describe("events", () => {
 describe("notes (D12)", () => {
   const IDEA = "notes/what-if-ben-never-sold.md";
   const today = new Date().toLocaleDateString("en-CA");
+  const now = (text: string) => /\ncreated: (\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}\n/.exec(text)?.[1];
 
   it("adds a note dated today, its prose the note, as one commit", async () => {
     const { id, file } = await bible.createNote({ title: "A toll on the bridge", tags: ["money"], note: "Who sets it? [Ben](#char_b3n0vs)?" });
     expect(id).toMatch(/^note_[0-9a-hjkmnp-tv-z]{6}$/);
     expect(file).toBe("notes/a-toll-on-the-bridge.md");
-    expect(read(file)).toBe(`---\nid: ${id}\ntitle: A toll on the bridge\ntags:\n  - money\ncreated: ${today}\n---\n\nWho sets it? [Ben](#char_b3n0vs)?\n`);
+    expect(read(file).replace(/T\d{2}:\d{2}:\d{2}\n/, "\n")).toBe(`---\nid: ${id}\ntitle: A toll on the bridge\ntags:\n  - money\ncreated: ${today}\n---\n\nWho sets it? [Ben](#char_b3n0vs)?\n`);
+    expect(now(read(file))).toBe(today);
     expect(lastCommit()).toBe("Notes: add “A toll on the bridge”");
     clean();
     expect((await valid()).notes.map((n) => n.id)).toContain(id);

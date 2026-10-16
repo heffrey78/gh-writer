@@ -20,6 +20,9 @@ test("the right sidebar: Scene and Entry tabs, Ctrl+Shift+\\, F6 and Escape, a s
   // F6 into the sidebar and back to the text; the tabs by arrow keys; Escape back to the text.
   await page.keyboard.press("F6");
   await expect(sceneTab).toBeFocused();
+  // Scene, then the scene's notes (#222), then Entry.
+  await page.keyboard.press("ArrowRight");
+  await expect(sidebar.getByRole("tab", { name: "Notes" })).toBeFocused();
   await page.keyboard.press("ArrowRight");
   await expect(entryTab).toBeFocused();
   await expect(entryTab).toHaveAttribute("aria-selected", "true");

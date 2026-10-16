@@ -43,6 +43,7 @@ import { useQuickEntry } from "../bible/quick-entry.ts";
 import { mentionEntities } from "../bible/types.ts";
 import { useCurrentScene } from "./current.ts";
 import { EntryTab, useEntryPanel } from "./entry-tab.tsx";
+import { SceneNotes, useSceneNotes } from "../notes/scene-notes.tsx";
 import { leaveMention, MentionCard, useMentionCard } from "./mention-card.tsx";
 import { mentionEdits } from "./mention-sync.ts";
 import { useNotice } from "./notice.tsx";
@@ -178,6 +179,17 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
       },
       { id: "writing.sceneTab", title: "Show the scene's details", group: "Writing", keywords: ["sidebar", "panel"], run: () => sidebar.show("scene") },
       { id: "writing.entryTab", title: "Show the open entry", group: "Writing", keywords: ["sidebar", "story bible", "panel"], run: () => sidebar.show("entry") },
+      { id: "writing.notesTab", title: "Show the scene's notes", group: "Writing", keywords: ["sidebar", "panel", "sticky"], run: () => sidebar.show("notes") },
+      {
+        id: "writing.newSceneNote",
+        title: "New note on this scene",
+        group: "Notes",
+        keywords: ["idea", "sticky", "brainstorm"],
+        run: () => {
+          sidebar.show("notes");
+          useSceneNotes.getState().request();
+        },
+      },
     ],
     [sidebar.open, sidebar.toggle, sidebar.show],
   );
@@ -471,6 +483,11 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
                 />
               ) : (
                 <p className="p-4 text-sm text-muted">{loaded ? "A scene’s details show here once the chapter has one." : "Opening…"}</p>
+              ),
+              notes: detailsScene ? (
+                <SceneNotes key={detailsScene.id} novelId={novelId} novel={novel} workspace={workspace} scene={detailsScene} spell={spell} />
+              ) : (
+                <p className="p-4 text-sm text-muted">{loaded ? "A scene’s notes show here once the chapter has one." : "Opening…"}</p>
               ),
               entry: <EntryTab novelId={novelId} novel={novel} workspace={workspace} spell={spell} />,
             }}

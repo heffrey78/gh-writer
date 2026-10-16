@@ -1,4 +1,4 @@
-import { BookOpen, FileText, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { BookOpen, FileText, PanelRightClose, PanelRightOpen, StickyNote } from "lucide-react";
 import { useEffect, useRef, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
 import { create } from "zustand";
 import { cn } from "../ui/cn.ts";
@@ -10,7 +10,7 @@ import { cn } from "../ui/cn.ts";
  * browser. On a narrow window it's a sheet over the text, shown only when asked for.
  */
 
-export type SidebarTab = "scene" | "entry";
+export type SidebarTab = "scene" | "notes" | "entry";
 
 const KEY = "ghw.rightSidebar";
 export const MIN_WIDTH = 280;
@@ -29,7 +29,7 @@ function load(): Saved {
     if (!saved) return fallback;
     return {
       open: saved.open ?? fallback.open,
-      tab: saved.tab === "entry" ? "entry" : "scene",
+      tab: saved.tab === "entry" || saved.tab === "notes" ? saved.tab : "scene",
       width: Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Number(saved.width) || fallback.width)),
     };
   } catch {
@@ -79,6 +79,7 @@ const ARIA_KEYS = MAC ? "Meta+Shift+\\" : "Control+Shift+\\";
 
 const TABS: { key: SidebarTab; label: string; icon: typeof FileText }[] = [
   { key: "scene", label: "Scene", icon: FileText },
+  { key: "notes", label: "Notes", icon: StickyNote },
   { key: "entry", label: "Entry", icon: BookOpen },
 ];
 
@@ -100,7 +101,7 @@ export function RightSidebar({ content, toText, labels = {} }: { content: Record
   );
   const open = isWide ? opened : sheet;
   const aside = useRef<HTMLElement>(null);
-  const tabs = useRef<Record<SidebarTab, HTMLButtonElement | null>>({ scene: null, entry: null });
+  const tabs = useRef<Record<SidebarTab, HTMLButtonElement | null>>({ scene: null, notes: null, entry: null });
 
   // Ctrl+Shift+\ anywhere in the novel (the key by its place: Shift+\ types "|" on most keyboards);
   // F6 moves between the text and the sidebar.

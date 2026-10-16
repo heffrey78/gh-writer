@@ -19,6 +19,7 @@ import { EventPage } from "../events/event-page.tsx";
 import { NewEventDialog, useNewEvent } from "../events/new-event.tsx";
 import { NewNoteDialog, useNewNote } from "../notes/new-note.tsx";
 import { NotePage } from "../notes/note-page.tsx";
+import { NotesLeftDialog } from "../notes/notes-left.tsx";
 import { NewEntryDialog } from "../bible/new-entry.tsx";
 import { cn } from "../ui/cn.ts";
 import { DraftsButton, useDrafts } from "./drafts.tsx";
@@ -313,6 +314,7 @@ export function NovelPage() {
       <SaveConflicts novel={book} workspace={workspace} />
       <NoticeBar />
       <NewEntryDialog novelId={novelId} novel={book} type={newEntry ?? undefined} open={newEntry !== null} onOpenChange={(o) => !o && setNewEntry(null)} />
+      <NotesLeftDialog />
       <NewNoteDialog
         novelId={novelId}
         open={newNote.open}

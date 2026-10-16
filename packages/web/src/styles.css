@@ -187,3 +187,16 @@ body {
   min-height: 4rem;
   max-width: none;
 }
+
+/* A scene's note just made (#222): a moment's outline draws the eye to it, unless motion is unwanted. */
+@media (prefers-reduced-motion: no-preference) {
+  .ghw-just-made {
+    animation: ghw-just-made 900ms ease-out;
+  }
+}
+
+@keyframes ghw-just-made {
+  from {
+    box-shadow: 0 0 0 3px var(--ghw-accent);
+  }
+}

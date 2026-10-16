@@ -417,7 +417,8 @@ export class BibleOperations {
         { path: ["title"], value: title },
         ...(fields.tags?.length ? [{ path: ["tags"], value: fields.tags }] : []),
         ...(fields.scenes?.length ? [{ path: ["scenes"], value: this.#checkScenes(novel, fields.scenes) }] : []),
-        { path: ["created"], value: new Date().toLocaleDateString("en-CA") },
+        // Local date and time to the second, so a day's notes still list newest first.
+        { path: ["created"], value: localDateTime(new Date()) },
       ]);
       const content = withProse(`---\n${front}---\n`, fields.note ?? "");
       return { ...(await transaction(this.root, [{ path: file, content, base: null }], `Notes: add “${title}”`)), id, file };
@@ -771,6 +772,12 @@ function checkFocus(focus: [number, number]): [number, number] {
 function required(value: string | undefined, field: string): string {
   if (typeof value !== "string" || !value.trim()) throw new OperationError("BAD_REQUEST", `A ${field} is required.`);
   return value.trim();
+}
+
+/** "2026-10-15T14:03:09": a moment as the writer's clock reads it. */
+function localDateTime(d: Date): string {
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`;
 }
 
 /** The prose that mentions a record: scenes, entries, other events and notes, for a delete to list. */
