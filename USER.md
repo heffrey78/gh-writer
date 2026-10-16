@@ -100,7 +100,7 @@ The **Story map** sets the story's elements against its scenes, in three tabs (â
 
 - **Plotlines**: a row per plotline, a column per scene, with major and minor beats; stretches where a plotline goes quiet too long are shaded and listed.
 - **Presence**: which characters (or themes) are in which scenes.
-- **Timeline**: the book in story time, joined by lines to reading order, so flashbacks stand out; and anyone who is in two places at once is listed.
+- **Timeline**: the book in story time, joined by lines to reading order, so flashbacks stand out; and anyone who is in two places at once is listed. A scene or event happens on a day of the story (Day 1, Day -100) or on a date. **Day 1 isâ€¦** at the top says which date Day 1 is, so the two share one timeline: type a date, or choose a dated scene to take its date (copied once; moving the scene later leaves Day 1 where it was). Day 0 is the day before Day 1. Until Day 1 has a date, the days can't be placed among the dates and come after them, and the Timeline says how many there are. Moving a scene or event from a day to a date offers to make that date its day, which dates Day 1 for you.
 
 ### Off-page events
 

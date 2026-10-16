@@ -6,6 +6,7 @@ import { cn } from "../ui/cn.ts";
 import { timelineMermaid, timelineSvg } from "@gh-writer/core/snapshots";
 import { ExportMenu } from "../diagrams/export-menu.tsx";
 import { useNewEvent } from "../events/new-event.tsx";
+import { DayOne } from "./day-one.tsx";
 import { useViewParams } from "../ui/view-params.ts";
 import { itemId, itemTitle, jump, lanesOf, timeline, when, type LaneMode } from "@gh-writer/core/diagrams";
 
@@ -73,6 +74,7 @@ export function TimelinePage({ novelId, novel }: { novelId: string; novel: Novel
           </select>
         </label>
       </div>
+      <DayOne novelId={novelId} novel={novel} />
       <p className="text-sm text-muted">
         Left to right in story time, evenly spaced; the time between neighbours is above them. Below, the scenes in reading order: each line joins a scene's place in the book to its place in
         time, and a <span className="font-medium text-warn">flashback</span>'s runs back across the others.

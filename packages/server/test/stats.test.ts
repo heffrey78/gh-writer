@@ -138,4 +138,33 @@ describe("PUT /target and GET /stats", { timeout: 30_000 }, () => {
       await server.close();
     }
   });
+
+  it("says when Day 1 is in novel.yaml, or that it has no date, one commit each (#239)", async () => {
+    const { createServer, Library, sessionCookie } = await import("../src/index.ts");
+    const dir = novelRepo(fresh("calendar"));
+    const library = await Library.open({ configDir: fresh("config") });
+    const novel = await library.add(dir);
+    const server = await createServer({ library, token: "t", sync: false, commit: false });
+    const put = async (body: unknown) => {
+      const res = await fetch(`http://127.0.0.1:${server.port}/api/novels/${novel.id}/calendar`, {
+        method: "PUT",
+        headers: { cookie: `${sessionCookie(server.port)}=t`, origin: `http://127.0.0.1:${server.port}`, "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return { status: res.status, json: (await res.json()) as Record<string, unknown> };
+    };
+    try {
+      expect((await put({ start: "2026-10-10" })).status).toBe(200);
+      expect(read(dir, "novel.yaml")).toMatch(/calendar:\n {2}start: 2026-10-10\n/);
+      expect(gitIn(dir, "log", "-1", "--format=%s").trim()).toBe("Set when Day 1 is");
+      await put({ start: "2026-07-01" });
+      expect(read(dir, "novel.yaml")).toMatch(/calendar:\n {2}start: 2026-07-01\n/);
+      for (const bad of [{ start: "10 Oct" }, { start: "2026-13-40" }, { start: 5 }, {}]) expect(await put(bad)).toMatchObject({ status: 400, json: { code: "BAD_REQUEST" } });
+      await put({ start: null });
+      expect(read(dir, "novel.yaml")).not.toContain("calendar");
+      expect(gitIn(dir, "log", "-1", "--format=%s").trim()).toBe("Day 1 has no date");
+    } finally {
+      await server.close();
+    }
+  });
 });

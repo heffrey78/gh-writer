@@ -172,6 +172,12 @@ export function statsRoutes(routes: Hono<Env>): void {
     return operation(c, () => c.var.ws.bible.updateTarget({ words: pick("words"), date: pick("date"), daily: pick("daily") }));
   });
 
+  /** PUT /:id/calendar  { start } (a date, or null to remove it) → { commit, files }: when Day 1 is, in novel.yaml (#239). */
+  routes.put("/:id/calendar", async (c) => {
+    const { start } = await body(c);
+    return operation(c, () => c.var.ws.bible.updateCalendar(start as string | null));
+  });
+
   routes.get("/:id/stats", async (c) => {
     const { novel } = await c.var.ws.loadModel();
     const words = novel.allScenes.reduce((n, s) => n + countWords(s.body), 0);

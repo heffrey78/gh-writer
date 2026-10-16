@@ -549,6 +549,8 @@ export function createApi({ baseUrl = "", headers = {}, fetch = globalThis.fetch
     /** Set novel.yaml's targets (null removes one): one commit. */
     setTarget: async (id: string, target: { words?: number | null; date?: string | null; daily?: number | null }) =>
       (await request<OperationResult>("PUT", `/api/novels/${encodeURIComponent(id)}/target`, target)).data,
+    /** Say when Day 1 is (null: it has no date), in novel.yaml: one commit. */
+    setCalendar: async (id: string, start: string | null) => (await request<OperationResult>("PUT", `/api/novels/${encodeURIComponent(id)}/calendar`, { start })).data,
     /** The writing history: days with words added and removed and the book's length, the words now, and the target. */
     stats: async (id: string) => (await request<WritingStats>("GET", `/api/novels/${encodeURIComponent(id)}/stats`)).data,
     /** What changed between two states of the novel: each "now", "version:<id>" or "checkpoint:<id>". */

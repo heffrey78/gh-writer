@@ -52,6 +52,23 @@ export function storyInstant(when: StoryTime | undefined, duration: string | und
   return { start, end: start + (durationMs(duration) ?? 0), dated };
 }
 
+/**
+ * The date Day 1 is when `date` is day `day` (#239): Day 3 on 2026-10-12 makes Day 1 2026-10-10. Day 0
+ * is the day before Day 1, as everywhere in story time.
+ */
+export function dayOneFor(date: string, day: number): string {
+  return new Date(Date.parse(`${date.slice(0, 10)}T00:00:00Z`) - (day - 1) * DAY).toISOString().slice(0, 10);
+}
+
+/**
+ * The items on days of the story that can't be placed among the dated ones: Day 1 has no date, and
+ * the book has both. None when it's all one or the other.
+ */
+export function apartInTime(timeline: StoryTimeline): TimelineItem[] {
+  const days = timeline.items.filter((i) => !i.at.dated);
+  return days.length && days.length < timeline.items.length ? days : [];
+}
+
 export type TimelineItem = { kind: "scene"; scene: Scene; at: StoryInstant } | { kind: "event"; event: StoryEvent; at: StoryInstant };
 
 export interface StoryTimeline {

@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { durationMs, loadNovel, memorySource, overlaps, sceneNeighbours, storyInstant, storyTimeline, validate } from "../src/index.ts";
+import { apartInTime, dayOneFor, durationMs, loadNovel, memorySource, overlaps, sceneNeighbours, storyInstant, storyTimeline, validate } from "../src/index.ts";
 import { nodeSource } from "../src/node.ts";
 
 const SAMPLE = fileURLToPath(new URL("../../../examples/sample-novel", import.meta.url));
@@ -23,6 +23,31 @@ describe("story time", () => {
     expect(storyInstant({ day: -5 }, undefined, "2024-03-01")).toMatchObject({ start: Date.UTC(2024, 1, 24), dated: true });
     expect(storyInstant({ day: 2, time: "06:00" }, "PT1H", undefined)).toEqual({ start: 30 * H, end: 31 * H, dated: false });
     expect(storyInstant(undefined, "PT1H", undefined)).toBeUndefined();
+  });
+
+  it("finds Day 1 from a day and its date, and the days that can't be placed among dates without it (#239)", async () => {
+    expect(dayOneFor("2026-10-12", 3)).toBe("2026-10-10");
+    expect(dayOneFor("2026-10-10", 1)).toBe("2026-10-10");
+    expect(dayOneFor("2026-07-01", -100)).toBe("2026-10-10");
+    expect(dayOneFor("2024-03-01T18:30", 0)).toBe("2024-03-02");
+
+    // The owner's book: 16 Oct 1999, 10 Oct 2026 and Day -100.
+    const files = (calendar: string) => ({
+      "novel.yaml": `schema_version: 2\nid: nv_aaaaaa\ntitle: T\n${calendar}`,
+      "manuscript/_order.yaml": "chapters: [ch_aaaaaa]\n",
+      "manuscript/01-one/_chapter.yaml": "id: ch_aaaaaa\nscenes: [sc_0pen1n]\n",
+      "manuscript/01-one/01-opening.md": "---\nid: sc_0pen1n\ntitle: Opening\nwhen:\n  at: 2026-10-10\n---\nText.\n",
+      "bible/events/backstory.md": "---\nid: evt_back99\ntitle: Backstory\nwhen:\n  at: 1999-10-16\n---\n",
+      "bible/events/before.md": "---\nid: evt_bef0re\ntitle: Before\nwhen:\n  day: -100\n---\n",
+    });
+    const order = (t: ReturnType<typeof storyTimeline>) => t.items.map((i) => (i.kind === "scene" ? i.scene.title : i.event.title));
+    const apart = storyTimeline(await loadNovel(memorySource(files(""))));
+    expect(order(apart)).toEqual(["Backstory", "Opening", "Before"]);
+    expect(apartInTime(apart).map((i) => (i.kind === "event" ? i.event.title : ""))).toEqual(["Before"]);
+    const together = storyTimeline(await loadNovel(memorySource(files("calendar:\n  start: 2026-10-10\n"))));
+    expect(order(together)).toEqual(["Backstory", "Before", "Opening"]);
+    expect(storyInstant({ day: -100 }, undefined, "2026-10-10")?.start).toBe(Date.UTC(2026, 6, 1));
+    expect(apartInTime(together)).toEqual([]);
   });
 
   it("orders the sample's scenes and events by story time: the flashback first", async () => {

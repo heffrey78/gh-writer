@@ -162,7 +162,7 @@ export function EventPage({
 
       {place.editing === "when" ? (
         <EditorFrame place={place}>
-          <StoryTimeFields when={when} duration={typeof fm.duration === "string" ? fm.duration : ""} edit={edit} />
+          <StoryTimeFields when={when} duration={typeof fm.duration === "string" ? fm.duration : ""} edit={edit} novel={novel} />
           <EditorButtons onCancel={() => place.done()} hint="Each change is saved as it's made · Esc returns" />
         </EditorFrame>
       ) : time.when || time.duration ? (

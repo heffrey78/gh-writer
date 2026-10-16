@@ -599,6 +599,18 @@ export class BibleOperations {
     });
   }
 
+  /**
+   * Say when Day 1 is (#239): novel.yaml's calendar.start, so days of the story sit among dates (Day 0
+   * the day before). null removes it, and the calendar with it. One commit.
+   */
+  updateCalendar(start: string | null): Promise<OperationResult> {
+    return this.#run(async () => {
+      if (start !== null && !(typeof start === "string" && /^\d{4}-\d{2}-\d{2}$/.test(start) && !Number.isNaN(Date.parse(`${start}T00:00:00Z`)))) throw new OperationError("BAD_REQUEST", "Day 1 is a date, YYYY-MM-DD.");
+      const content = editYaml(await this.#read(NOVEL), [start === null ? { path: ["calendar"], remove: true } : { path: ["calendar", "start"], value: start }]);
+      return transaction(this.root, [{ path: NOVEL, content }], start === null ? "Day 1 has no date" : "Set when Day 1 is");
+    });
+  }
+
   /** Add a custom entity type to novel.yaml. Its folder is bible/<folder> (default: the key, plural). */
   createEntityType(fields: EntityTypeFields): Promise<OperationResult> {
     return this.#run(async (novel) => {
