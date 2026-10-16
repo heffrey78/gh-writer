@@ -70,6 +70,38 @@ test("a scene's notes: made beside the text, written at once, pinned on top, tak
   await expect.poll(() => read("notes/count-the-flags.md")).not.toContain("scenes");
 });
 
+test("a note already written is put on the scene from its Notes tab, keeping the scenes it's on (#238)", async ({ page, app }) => {
+  const dir = await openNovel(page, app);
+  const read = () => readFileSync(join(dir, "notes/what-if-ben-never-sold.md"), "utf8");
+  await sidebar(page).getByRole("tab", { name: "Notes" }).click();
+  await expect(sidebar(page)).toContainText("or add one already written");
+
+  // Found by typing, on no scene yet; its card opens on the tab.
+  await sidebar(page).getByRole("button", { name: /^Add a note already written/ }).click();
+  await expect(page.getByRole("group", { name: "On no scene" })).toBeVisible();
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    await axe(page);
+  }
+  await page.keyboard.type("ben never");
+  await page.keyboard.press("Enter");
+  await expect(titles(page)).toHaveText(["What if Ben never sold the plans?"]);
+  await expect(titles(page).first()).toHaveAttribute("aria-expanded", "true");
+  await expect.poll(read).toContain("scenes:\n  - sc_5tat1n\n");
+  // On the scene, it isn't offered again: nothing else is left to add.
+  await expect(sidebar(page).getByRole("button", { name: /^Add a note already written/ })).toHaveCount(0);
+
+  // Another scene: offered as on other scenes, and added there it keeps the first.
+  await page.getByRole("tree", { name: "Manuscript" }).getByRole("treeitem", { name: /^Walking the Span,/ }).click();
+  await expect(sidebar(page).getByRole("heading", { name: "Notes on “Walking the Span”" })).toBeVisible();
+  await sidebar(page).getByRole("button", { name: /^Add a note already written/ }).click();
+  await expect(page.getByRole("group", { name: "On other scenes" })).toBeVisible();
+  await page.keyboard.type("ben never");
+  await page.keyboard.press("Enter");
+  await expect(sidebar(page).getByRole("list", { name: "Notes on “Walking the Span”" }).getByRole("listitem")).toHaveCount(1);
+  await expect.poll(read).toMatch(/scenes:\n {2}- sc_5tat1n\n {2}- sc_br1dg3\n/);
+});
+
 test("a note's page puts it on scenes; deleting its only scene asks what becomes of it", async ({ page, app }) => {
   const dir = await openNovel(page, app);
   await palette(page, "note: what if ben");

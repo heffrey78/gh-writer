@@ -14,6 +14,7 @@ import { useNotice } from "../novel/notice.tsx";
 import type { Workspace } from "../novel/workspace.ts";
 import { Button } from "../ui/button.tsx";
 import { cn } from "../ui/cn.ts";
+import { Picker } from "../ui/picker.tsx";
 
 /** A new note asked for on the open scene (the palette's New note on this scene), until the tab takes it up. */
 export const useSceneNotes = create<{ pending: boolean; request: () => void }>((set) => ({ pending: false, request: () => set({ pending: true }) }));
@@ -24,7 +25,7 @@ type Spell = { service: SpellService; onAddWord: (w: string) => void } | undefin
  * The right sidebar's Notes tab (#222): the notes on the scene the caret is in, as sticky-note cards,
  * the one pinned there first, then newest. A card is truncated until opened, when it expands in place
  * to edit its title, tags and prose, pin it here, take it off this scene, or open its page. + Note makes
- * one on the scene, opened, with the caret in its prose.
+ * one on the scene, opened, with the caret in its prose; Add a note puts one already written on it too (#238).
  */
 export function SceneNotes({ novelId, novel, workspace, scene, spell }: { novelId: string; novel: Novel; workspace: Workspace; scene: Scene; spell: Spell }) {
   const queryClient = useQueryClient();
@@ -44,7 +45,36 @@ export function SceneNotes({ novelId, novel, workspace, scene, spell }: { novelI
     setAdding(true);
   }, [pending]);
 
+  // Notes not on this scene yet: those on none first, then those on others.
+  const others = useMemo(() => {
+    const sceneTitle = (id: string) => novel.allScenes.find((x) => x.id === id)?.title ?? id;
+    const off = novel.notes.filter((n) => !n.scenes.includes(scene.id));
+    return [...off.filter((n) => !n.scenes.length), ...off.filter((n) => n.scenes.length)].map((n) => ({
+      value: n.id,
+      label: n.title,
+      group: n.scenes.length ? "On other scenes" : "On no scene",
+      keywords: [...n.tags, ...n.scenes.map(sceneTitle)],
+    }));
+  }, [novel, scene.id]);
+
   const refresh = () => queryClient.invalidateQueries({ queryKey: keys.novel(novelId) });
+  const addExisting = async (id: string) => {
+    const note = novel.notes.find((n) => n.id === id);
+    if (!note || busy) return;
+    setBusy(true);
+    try {
+      await workspace.autosave.flush();
+      await api.notes.update(novelId, id, { scenes: [...note.scenes, scene.id] });
+      // The server wrote the note's file: an open copy follows.
+      await workspace.fileChanged({ type: "change", path: note.file, hash: null });
+      await refresh();
+      setExpanded(id);
+    } catch (err) {
+      show({ message: `Couldn't add the note: ${err instanceof Error ? err.message : String(err)}` });
+    } finally {
+      setBusy(false);
+    }
+  };
   const create_ = async (e: FormEvent) => {
     e.preventDefault();
     if (!title.trim() || busy) return;
@@ -96,6 +126,7 @@ export function SceneNotes({ novelId, novel, workspace, scene, spell }: { novelI
           <span className="text-xs text-muted">Enter adds it · Esc cancels</span>
         </form>
       )}
+      {others.length > 0 && <Picker label="Add a note already written" items={others} value={undefined} onChange={(v) => v && void addExisting(v)} placeholder="Choose a note…" />}
       {notes.length ? (
         <ul aria-label={`Notes on “${scene.title}”`} className="grid gap-2">
           {notes.map((n) => (
@@ -116,7 +147,7 @@ export function SceneNotes({ novelId, novel, workspace, scene, spell }: { novelI
           ))}
         </ul>
       ) : (
-        !adding && <p className="text-muted">No notes on this scene yet. + Note adds one, kept beside the text while you write.</p>
+        !adding && <p className="text-muted">No notes on this scene yet. + Note makes one, kept beside the text while you write{others.length > 0 && ", or add one already written"}.</p>
       )}
     </section>
   );
