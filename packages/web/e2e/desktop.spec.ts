@@ -91,3 +91,24 @@ test("the shell's About opens About gh-writer; in a browser there's no Choose…
   await expect(browser.getByRole("dialog", { name: "Open a folder" })).toBeVisible();
   await expect(browser.getByRole("button", { name: "Choose…" })).toHaveCount(0);
 });
+
+test("in the desktop app, the mouse's back and forward buttons go back and forward (#224)", async ({ page, app }) => {
+  await app.restart(app.novelRepo("varn"));
+  await asDesktop(page);
+  await launch(page, app);
+  await page.goto(`${app.url}/`);
+  await page.getByRole("link", { name: /The Bridge at Varn/ }).click();
+  const [{ id }] = (await calls(page, "open_novel")) as [{ id: string }];
+  await page.goto(`${app.url}/novels/${id}`);
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeVisible();
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.keyboard.type("character: ada");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { level: 1, name: "Ada Varn" })).toBeVisible();
+
+  const press = (button: number) => page.evaluate((b) => window.dispatchEvent(new MouseEvent("mouseup", { button: b, cancelable: true })), button);
+  await press(3);
+  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeVisible();
+  await press(4);
+  await expect(page.getByRole("heading", { level: 1, name: "Ada Varn" })).toBeVisible();
+});

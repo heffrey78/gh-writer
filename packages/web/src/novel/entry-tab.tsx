@@ -90,10 +90,10 @@ export function EntryTab({
   return (
     <section ref={ref} tabIndex={-1} aria-labelledby={headingId} className="grid content-start gap-3 p-4 text-sm outline-none">
       <div className="flex items-center gap-1">
-        <button type="button" disabled={at <= 0} onClick={() => step(-1)} aria-label="Back" title="Back" className="rounded p-1 text-muted hover:bg-paper hover:text-ink disabled:opacity-40">
+        <button type="button" disabled={at <= 0} onClick={() => step(-1)} aria-label="Previous entry" title="Previous entry" className="rounded p-1 text-muted hover:bg-paper hover:text-ink disabled:opacity-40">
           <ChevronLeft className="size-4" aria-hidden />
         </button>
-        <button type="button" disabled={at >= history.length - 1} onClick={() => step(1)} aria-label="Forward" title="Forward" className="rounded p-1 text-muted hover:bg-paper hover:text-ink disabled:opacity-40">
+        <button type="button" disabled={at >= history.length - 1} onClick={() => step(1)} aria-label="Next entry" title="Next entry" className="rounded p-1 text-muted hover:bg-paper hover:text-ink disabled:opacity-40">
           <ChevronRight className="size-4" aria-hidden />
         </button>
         <span className="flex-1 text-xs text-muted">{event ? "Off the page" : (type?.label ?? "Entry")}</span>

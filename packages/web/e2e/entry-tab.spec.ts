@@ -32,10 +32,10 @@ test("the Entry tab: a sheet to read, Back and Forward through names opened, a p
   await station.getByRole("button", { name: "Varn Station" }).click();
   const place = sidebar.getByRole("region", { name: "Varn Station" });
   await expect(place).toBeFocused();
-  await place.getByRole("button", { name: "Back" }).click();
+  await place.getByRole("button", { name: "Previous entry" }).click();
   await expect(ada).toBeVisible();
-  await expect(ada.getByRole("button", { name: "Back" })).toBeDisabled();
-  await ada.getByRole("button", { name: "Forward" }).click();
+  await expect(ada.getByRole("button", { name: "Previous entry" })).toBeDisabled();
+  await ada.getByRole("button", { name: "Next entry" }).click();
   await expect(place).toBeVisible();
 
   // Nothing holds the tab (#222): a name opened elsewhere replaces what's there, and there's no pin.

@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import { UpdateButton, useAbout } from "./about.tsx";
 import { desktop, useShowLibrary } from "./desktop.ts";
 import { AccountItems, useGitHubAttention } from "./github/connect.tsx";
+import { HistoryButtons } from "./history.tsx";
 import { useIdentityDialog } from "./identity.tsx";
 import { useOverlay } from "./palette.tsx";
 import { useTheme, type ThemeChoice } from "./theme.ts";
@@ -61,6 +62,7 @@ export function Shell({
           <Logo />
           {!heading && "gh-writer"}
         </Link>
+        <HistoryButtons />
         {heading && <div className="flex min-w-0 items-center gap-1">{heading}</div>}
         <div className="flex flex-1 items-center justify-end gap-2">
           {actions}

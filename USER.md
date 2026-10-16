@@ -218,7 +218,7 @@ A scene's headings, lists, tables and pictures come out as themselves in all thr
 
 ## Keyboard
 
-Everything is reachable from the keyboard. **Ctrl+K** opens the command palette, which can do anything in the app: go to a chapter or scene, open a view, make a checkpoint, sync, change the theme. **Ctrl+/** lists the keyboard shortcuts, **Ctrl+\\** collapses or expands the sidebar, and **Ctrl+Shift+\\** hides or shows the right sidebar; **F6** moves between it and the text.
+Everything is reachable from the keyboard. **Ctrl+K** opens the command palette, which can do anything in the app: go to a chapter or scene, open a view, make a checkpoint, sync, change the theme. **Back** and **Forward** in the top bar, or **Alt+←** and **Alt+→** (outside text, where those keys move the caret), go back and forward through the pages you've visited, as do the mouse's back and forward buttons. **Ctrl+/** lists the keyboard shortcuts, **Ctrl+\\** collapses or expands the sidebar, and **Ctrl+Shift+\\** hides or shows the right sidebar; **F6** moves between it and the text.
 
 ![The command palette](docs/screenshots/palette.png)
 

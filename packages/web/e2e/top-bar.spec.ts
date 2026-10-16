@@ -9,7 +9,7 @@ test("the top bar is the title, the open version, save and sync, and a ⋯ menu 
 
   await expect(bar).toContainText("The Bridge at Varn");
   await expect(bar.getByRole("link")).toHaveCount(1);
-  await expect(bar.getByRole("button")).toHaveText(["Main version", /Local only/, ""]);
+  await expect(bar.getByRole("button")).toHaveText(["", "", "Main version", /Local only/, ""]); // Back and Forward (#224) first
   await expect(bar.getByRole("button", { name: "More" })).toBeVisible();
   await expect(bar.getByRole("status")).toHaveText("Saved");
   // Nothing spills over on a 13-inch laptop.

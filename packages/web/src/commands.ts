@@ -64,6 +64,8 @@ export function keyCaps(keys: string): string[] {
     if (k === "Shift") return MAC ? "⇧" : "Shift";
     if (k === "Alt") return MAC ? "⌥" : "Alt";
     if (k === "Ctrl") return MAC ? "⌃" : "Ctrl";
+    const arrow = { ArrowLeft: "←", ArrowRight: "→", ArrowUp: "↑", ArrowDown: "↓" }[k];
+    if (arrow) return arrow;
     return k.length === 1 ? k.toUpperCase() : k;
   });
 }

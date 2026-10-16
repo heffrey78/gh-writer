@@ -2,6 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router";
+import { HistoryKeeper } from "./history.tsx";
 import { AboutDialog } from "./about.tsx";
 import { queryClient } from "./api.ts";
 import { DesktopBridge } from "./desktop-bridge.tsx";
@@ -26,6 +27,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <HistoryKeeper />
         <GlobalCommands />
         <CommandPalette />
         <ConnectDialog />
