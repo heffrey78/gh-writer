@@ -95,38 +95,13 @@ test("notes are made from the palette, made into an event or a scene, and delete
   await expect.poll(() => app.git(dir, "log", "-1", "--format=%s").trim()).toBe("Notes: remove “What if Ben never sold the plans?”");
 });
 
-test("the book pane's Notes: newest first, found by tag or words; a new note opens on its page, ready to write", async ({ page, app }) => {
+test("a new note, from the palette while writing, opens on its page ready to write", async ({ page, app }) => {
   await openNovel(page, app);
-  const pane = page.getByRole("region", { name: /^Notes\s*\d+$/ });
-  await expect(pane.getByRole("list").getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
-
-  // + New note while writing: made, on its own page, the caret in its prose (#222).
-  await pane.getByRole("button", { name: "New note" }).click();
+  await palette(page, "new note");
   await page.getByRole("dialog", { name: "New note" }).getByRole("textbox", { name: "Title" }).fill("A toll on the bridge");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { level: 1, name: "A toll on the bridge" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Note: A toll on the bridge" })).toBeFocused();
-  // Newest first: made today, after the sample's.
-  await expect(pane.getByRole("list").getByRole("link")).toHaveText(["A toll on the bridge", "What if Ben never sold the plans?"]);
-  for (const colorScheme of ["light", "dark"] as const) {
-    await page.emulateMedia({ colorScheme });
-    await axe(page);
-  }
-
-  // By tag, by words.
-  await pane.getByRole("combobox", { name: "Notes tagged" }).selectOption("ending");
-  await expect(pane.getByRole("list").getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
-  await pane.getByRole("combobox", { name: "Notes tagged" }).selectOption("");
-  await pane.getByRole("searchbox", { name: "Find in notes" }).fill("flood");
-  await expect(pane.getByRole("list").getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
-  await pane.getByRole("searchbox", { name: "Find in notes" }).fill("nothing like this");
-  await expect(pane.getByRole("status")).toHaveText("No note matches.");
-  await pane.getByRole("searchbox", { name: "Find in notes" }).fill("");
-
-  // Elsewhere, a note opens on its page.
-  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Outline" }).click();
-  await pane.getByRole("link", { name: "What if Ben never sold the plans?" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "What if Ben never sold the plans?" })).toBeVisible();
 });
 
 test("an entry's and an event's profiles list the notes that mention them", async ({ page, app }) => {
@@ -146,28 +121,26 @@ test("an entry's and an event's profiles list the notes that mention them", asyn
   await expect(page.getByRole("heading", { level: 1, name: "What if Ben never sold the plans?" })).toBeVisible();
 });
 
-test("the note being written is found by its words at once, and its mentions list it on the profile once saved", async ({ page, app }) => {
+test("the note just written is found by its words in the gallery, and its mentions list it on the profile", async ({ page, app }) => {
   await openNovel(page, app);
-  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Outline" }).click();
-  const pane = page.getByRole("region", { name: /^Notes\s*\d+$/ });
-  await pane.getByRole("button", { name: "New note" }).click();
+  await palette(page, "new note");
   await page.getByRole("dialog", { name: "New note" }).getByRole("textbox", { name: "Title" }).fill("A toll on the bridge");
   await page.keyboard.press("Enter");
-  const prose = page.getByRole("textbox", { name: "Note: A toll on the bridge" });
-  await caretAtEnd(page, prose);
+  await expect(page.getByRole("textbox", { name: "Note: A toll on the bridge" })).toBeFocused();
   await page.keyboard.type("Who collects it? Maybe @mirela");
   await page.keyboard.press("Enter");
 
-  // At once, saved or not.
-  await pane.getByRole("searchbox", { name: "Find in notes" }).fill("collects");
-  await expect(pane.getByRole("list").getByRole("link")).toHaveText(["A toll on the bridge"]);
-  // And the previous note is still found by its own words.
-  await pane.getByRole("searchbox", { name: "Find in notes" }).fill("flood");
-  await expect(pane.getByRole("list").getByRole("link")).toHaveText(["What if Ben never sold the plans?"]);
+  // Once saved, found in the gallery by its words; the previous note by its own.
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Notes" }).click();
+  const cards = page.getByRole("list", { name: "Notes" }).getByRole("listitem");
+  await page.getByRole("searchbox", { name: "Search the notes" }).fill("collects");
+  await expect(cards.locator("span.font-semibold")).toHaveText(["A toll on the bridge"], { timeout: 10_000 });
+  await page.getByRole("searchbox", { name: "Search the notes" }).fill("flood");
+  await expect(cards.locator("span.font-semibold")).toHaveText(["What if Ben never sold the plans?"]);
 
-  // Once saved, Mirela's profile lists it.
+  // Mirela's profile lists it.
   await palette(page, "character: mirela");
-  await expect(page.getByRole("region", { name: "In your notes" }).getByRole("link")).toHaveText(["A toll on the bridge"], { timeout: 10_000 });
+  await expect(page.getByRole("region", { name: "In your notes" }).getByRole("link")).toHaveText(["A toll on the bridge"]);
 });
 
 test("the Notes gallery: every note as a card, by tag and words, newest or by title", async ({ page, app }) => {
@@ -197,7 +170,4 @@ test("the Notes gallery: every note as a card, by tag and words, newest or by ti
   await cards.getByRole("link").click();
   await expect(page.getByRole("heading", { level: 1, name: "What if Ben never sold the plans?" })).toBeVisible();
 
-  // From the book pane too.
-  await page.getByRole("region", { name: /^Notes\s*\d+$/ }).getByRole("link", { name: "Every note, as cards" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: /^Notes/ })).toBeVisible();
 });

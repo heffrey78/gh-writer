@@ -133,52 +133,11 @@ test("in a novel in format v1, the first change asks to move it to the new forma
   await expect(page.getByRole("button", { name: /^Add to characters/ })).toBeVisible();
 });
 
-test("the book pane lists events in story time under Off the page: beside the text while writing, on their page otherwise", async ({ page, app }) => {
-  await openNovel(page, app);
-  const pane = page.getByRole("region", { name: "Off the page" });
-  await expect(pane.getByRole("list").getByRole("link")).toHaveText(["The flood of '09", "Ada leaves for the polytechnic", "The plans are stolen"]);
-  for (const colorScheme of ["light", "dark"] as const) {
-    await page.emulateMedia({ colorScheme });
-    await axe(page);
-  }
-
-  // While writing: on the Entry tab, the chapter still open.
-  const url = page.url();
-  await pane.getByRole("link", { name: "Ada leaves for the polytechnic" }).click();
-  await expect(page.getByRole("heading", { level: 2, name: "Ada leaves for the polytechnic" })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Chapter text" })).toBeVisible();
-  expect(page.url()).toBe(url);
-  await expect(page.getByRole("link", { name: "Open the full event" })).toBeVisible();
-
-  // Elsewhere: its page.
-  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Outline" }).click();
-  await pane.getByRole("link", { name: "The plans are stolen" }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "The plans are stolen" })).toBeVisible();
-
-  // + New event, then from the palette; each opens.
-  await pane.getByRole("button", { name: "New off-page event" }).click();
-  await page.getByRole("dialog", { name: "New off-page event" }).getByRole("textbox", { name: "Title" }).fill("The toll is raised");
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("heading", { level: 1, name: "The toll is raised" })).toBeVisible();
-  await expect(pane.getByRole("list").getByRole("link")).toHaveText(["The flood of '09", "Ada leaves for the polytechnic", "The plans are stolen", "The toll is raised"]);
-  await page.keyboard.press("ControlOrMeta+k");
-  await page.keyboard.type("new off-page event");
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("dialog", { name: "New off-page event" })).toBeVisible();
-  await page.keyboard.press("Escape");
-
-  // Folded away, and remembered.
-  await pane.getByRole("button", { name: /^Off the page/ }).click();
-  await expect(pane.getByRole("list").getByRole("link")).toHaveCount(0);
-  await page.reload();
-  await expect(page.getByRole("region", { name: "Off the page" }).getByRole("button", { name: /^Off the page/ })).toHaveAttribute("aria-expanded", "false");
-});
-
 test("the outline in story time places the off-page events among the scenes; reading order shows none", async ({ page, app }) => {
   await openNovel(page, app);
   await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Outline" }).click();
   await expect(page.getByRole("table", { name: "Every scene in reading order, by chapter" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "The flood of '09" })).toHaveCount(1); // the book pane's only
+  await expect(page.getByRole("link", { name: "The flood of '09" })).toHaveCount(0);
 
   await page.getByRole("radiogroup", { name: "Order" }).getByText("Story time", { exact: true }).click();
   const table = page.getByRole("table", { name: "Every scene and off-page event in story-time order" });
@@ -314,8 +273,9 @@ test("events where the story's facts show: @ mentions and their cards, profiles'
 
 test("the Story bible shows off-page events as cards, searched and sorted with the entries", async ({ page, app }) => {
   await openNovel(page, app);
-  await page.getByRole("region", { name: "Off the page" }).getByRole("link", { name: "Every off-page event, as cards" }).click();
+  await page.getByRole("navigation", { name: "Views" }).getByRole("link", { name: "Story bible" }).click();
   const group = page.locator("section#off-the-page");
+  await group.scrollIntoViewIfNeeded();
   await expect(group).toHaveAccessibleName(/^Off the page\s*3$/);
   await expect(group).toBeInViewport();
   const cards = group.getByRole("listitem");

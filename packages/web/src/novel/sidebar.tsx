@@ -6,14 +6,12 @@ import { create } from "zustand";
 import { plural } from "../bible/types.ts";
 import { useCommands } from "../commands.ts";
 import { cn } from "../ui/cn.ts";
-import { OffThePage } from "../events/off-the-page.tsx";
-import { NotesSection } from "../notes/notes-section.tsx";
 import { ManuscriptSidebar } from "./manuscript-tree.tsx";
 import type { Workspace } from "./workspace.ts";
 
 /*
  * The novel's sidebar (#136): Write (the manuscript), then the views grouped by what the author is
- * doing: Plan, World, Revise. It collapses to a strip of icons (Ctrl+\), remembered in this browser.
+ * doing: Plan (every view of the book and its world, #232) and Revise. It collapses to a strip of icons (Ctrl+\), remembered in this browser.
  */
 
 const KEY = "ghw.sidebar";
@@ -53,15 +51,10 @@ function groups(onGitHub: boolean): { label: string; places: Place[] }[] {
       places: [
         { path: "outline", label: "Outline", icon: ListTree },
         { path: "story-map", label: "Story map", icon: MapIcon },
-        { path: "progress", label: "Progress", icon: Goal },
-        { path: "notes", label: "Notes", icon: StickyNote },
-      ],
-    },
-    {
-      label: "World",
-      places: [
-        { path: "bible", label: "Story bible", icon: BookOpen },
         { path: "relationships", label: "Relationships", icon: Network },
+        { path: "notes", label: "Notes", icon: StickyNote },
+        { path: "progress", label: "Progress", icon: Goal },
+        { path: "bible", label: "Story bible", icon: BookOpen },
       ],
     },
     {
@@ -121,8 +114,6 @@ function Expanded({ novelId, novel, workspace, current, onGitHub, toggle }: { no
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
           <ManuscriptSidebar novelId={novelId} novel={novel} workspace={workspace} current={current} />
-          <OffThePage novelId={novelId} novel={novel} writing={current !== undefined} />
-          <NotesSection novelId={novelId} novel={novel} workspace={workspace} />
         </div>
       </section>
       <nav aria-label="Views" className="grid shrink-0 gap-3 border-t border-rule px-3 py-3 text-sm">
