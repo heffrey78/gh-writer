@@ -97,6 +97,8 @@ export function ItemModal({ title, onClose, children }: { title: string; onClose
 export function NewItem({ label, placeholder, make, children, heading }: { label: string; placeholder?: string; heading: string; make: (title: string) => Promise<unknown>; children?: ReactNode }) {
   const [title, setTitle] = useState("");
   const [problem, setProblem] = useState<string>();
+  // "New location": what it is, for the hint.
+  const noun = heading.replace(/^New /, "");
   const latest = useRef({ title, make });
   latest.current = { title, make };
   const making = useRef<Promise<boolean>>(undefined);
@@ -145,7 +147,7 @@ export function NewItem({ label, placeholder, make, children, heading }: { label
         aria-invalid={problem ? true : undefined}
         className="w-full border-b border-rule bg-transparent pb-1 text-2xl font-semibold outline-none placeholder:font-normal placeholder:text-muted focus:border-accent"
       />
-      <p className="text-xs text-muted">Enter makes it · Closed without a {label.toLowerCase()}, nothing is made</p>
+      <p className="text-xs text-muted">{label === "Name" ? `Name the ${noun} and press Enter` : `Give the ${noun} a title and press Enter`}</p>
       {problem && <ErrorAlert title="Couldn't add it">{problem}</ErrorAlert>}
     </form>
   );
