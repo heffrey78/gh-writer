@@ -3,7 +3,7 @@ import { createServer as createHttpServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { axe, expect, launch, test } from "./fixtures.ts";
+import { axe, expect, git, launch, test } from "./fixtures.ts";
 
 /** The books on the shelf (not the + tile). */
 const novels = (page: Page) => page.getByRole("list", { name: "Novels" }).getByRole("listitem").filter({ has: page.getByRole("link") });
@@ -60,6 +60,22 @@ test("opens a folder by keyboard alone, then shelves it", async ({ page, app }) 
   // The cover opens the novel.
   await novels(page).getByRole("link").click();
   await expect(page).toHaveTitle("The Bridge at Varn · gh-writer");
+});
+
+test("the shelf catches up when its window comes forward: a novel opened elsewhere and put on GitHub since", async ({ page, app }) => {
+  // In the desktop app the library stays visible behind a novel's window, so only focus says it's back.
+  await page.clock.install();
+  await launch(page, app);
+  const r = await page.request.post(`${app.url}/api/library`, { data: { path: app.novelRepo("the-bridge") }, headers: { origin: app.url } });
+  const { novel } = (await r.json()) as { novel: { id: string; path: string } };
+  await page.reload();
+  await expect(novels(page)).toContainText("Not on GitHub yet");
+
+  git(novel.path, "remote", "add", "origin", "https://github.com/writer/the-bridge.git");
+  expect((await page.request.get(`${app.url}/api/novels/${novel.id}`)).ok()).toBe(true);
+  await page.clock.fastForward(10_000);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(novels(page)).toContainText("writer/the-bridge");
 });
 
 test("a novel keeps its cover, and different novels get different ones", async ({ page, app }) => {
