@@ -121,6 +121,18 @@ describe("persistence", () => {
     expect(library.get(novel.id)).toMatchObject({ title: "Varn", author: "Ada Writer" });
   });
 
+  it("picks up a remote added after the novel joined the library when it is opened", async () => {
+    const library = await openLibrary();
+    const novel = await library.add(novelRepo());
+    expect(novel.remote).toBeUndefined();
+    gitIn(novel.path, "remote", "add", "origin", "https://writer:ghp_secret@github.com/writer/the-bridge.git");
+    await library.touch(novel.id);
+    expect(library.get(novel.id)?.remote).toBe("https://github.com/writer/the-bridge.git");
+    gitIn(novel.path, "remote", "remove", "origin");
+    await library.touch(novel.id);
+    expect(library.get(novel.id)?.remote).toBeUndefined();
+  });
+
   it("orders novels by when they were last opened", async () => {
     const library = await openLibrary();
     const a = await library.add(novelRepo());

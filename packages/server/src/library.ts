@@ -130,10 +130,7 @@ export class Library {
 
     const cover = await coverOf(path);
     if (!cover) throw new LibraryError("NOT_A_NOVEL", `${path} has no novel.yaml, so it isn't a gh-writer novel.`);
-    const remote = await git(path)
-      .remote(["get-url", "origin"])
-      .then((url) => (url ? withoutCredentials(url.trim()) : undefined))
-      .catch(() => undefined);
+    const remote = await remoteOf(path);
 
     const lastOpened = new Date().toISOString();
     const existing = this.#novels.find((n) => n.path === path);
@@ -160,11 +157,16 @@ export class Library {
     await this.refresh(id);
   }
 
-  /** Read a novel's title, author and cover from its novel.yaml again: the shelf shows them. */
+  /**
+   * Read a novel's title, author and cover from its novel.yaml, and its origin remote, again: the
+   * shelf shows them, and the remote may have been added since the novel joined the library.
+   */
   async refresh(id: string): Promise<void> {
     const entry = this.get(id);
     if (!entry) throw new LibraryError("UNKNOWN_NOVEL", `No novel ${id} in the library.`);
-    const cover = await coverOf(entry.path);
+    const [cover, remote] = await Promise.all([coverOf(entry.path), remoteOf(entry.path)]);
+    if (remote) entry.remote = remote;
+    else delete entry.remote;
     if (cover) {
       entry.title = cover.title;
       for (const key of ["author", "cover"] as const) {
@@ -276,6 +278,14 @@ async function coverOf(path: string): Promise<{ title: string; author?: string; 
 }
 
 /** https://user:token@host/… → https://host/… (an ssh URL's user is not a secret, and stays). */
+/** The novel's origin remote, without any credentials embedded in it. */
+async function remoteOf(path: string): Promise<string | undefined> {
+  return git(path)
+    .remote(["get-url", "origin"])
+    .then((url) => (url ? withoutCredentials(url.trim()) : undefined))
+    .catch(() => undefined);
+}
+
 function withoutCredentials(url: string): string {
   return url.replace(/^(https?:\/\/)[^@/]*@/i, "$1");
 }
