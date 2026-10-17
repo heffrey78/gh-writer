@@ -30,6 +30,20 @@ test("runs a writing command from the palette and returns to the text", async ({
   await expect(page.getByRole("tree", { name: "Manuscript" })).toBeVisible();
 });
 
+test("leaves focus mode behind on a page that isn't for writing, and picks it up again in a scene", async ({ page, app }) => {
+  await open(page, app);
+  await run(page, "focus mode");
+  await expect(page.getByRole("banner")).toBeHidden();
+  // Only the editor turns focus mode off, so the Outline keeps its chrome.
+  await run(page, "outline");
+  await expect(page.getByRole("heading", { level: 1, name: "Outline" })).toBeVisible();
+  await expect(page.getByRole("banner")).toBeVisible();
+  await expect(page.getByRole("tree", { name: "Manuscript" })).toBeVisible();
+  await run(page, "ledger");
+  await expect(page.getByRole("textbox", { name: "Scene text" })).toBeFocused();
+  await expect(page.getByRole("tree", { name: "Manuscript" })).toBeHidden();
+});
+
 test("opens a scene by its title, and lists recent commands first", async ({ page, app }) => {
   await open(page, app);
   await run(page, "ledger");

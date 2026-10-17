@@ -67,7 +67,9 @@ export function NovelPage() {
   const [compiling, setCompiling] = useState(false);
   const newEvent = useNewEvent((s) => s.open);
   const newNote = useNewNote((s) => s.open);
-  const focus = useWritingModes((m) => m.focus);
+  // Focus mode is for writing: elsewhere (the Outline, say) the chrome stays, or there'd be no way
+  // out, since only the editor turns it off. Back in a chapter or scene, it's on again.
+  const focus = useWritingModes((m) => m.focus) && current !== undefined;
   const collapsed = useSidebar((s) => s.collapsed);
   const spell = useSpell(api, novelId, novel.data?.novel);
 
