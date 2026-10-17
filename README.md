@@ -8,7 +8,7 @@
 
 ### Write
 
-- **A distraction-free editor** for scenes, or a whole chapter as one continuous text while each scene stays its own file. Focus mode, typewriter scrolling, word counts for the scene, chapter and session, and a session goal.
+- **A distraction-free editor** for scenes, or a whole chapter as one continuous text while each scene stays its own file. Focus mode, typewriter scrolling, word counts for the scene, chapter and session, and today's words against a daily goal.
 - **Mentions.** Type `@` and a few letters to mention a character, place or anything else in the story bible. Hover over a mention (or press Alt+Enter) for a card showing who they are and how they relate to everyone else *at that point in the story*.
 - **A sidebar beside the text**: the scene the caret is in as a readable card, each detail edited in place, with what the rest of the book says about it ("8 h after “The Station”", "First appearance of Ben Varn"); details pinned under every scene's title; and any story bible entry as its profile, with Back and Forward. Ctrl+Shift+\\ hides and shows it.
 - **Quick entry.** Create a new character, location or entry of your own type straight from the `@` menu or the Scene card, without leaving the scene.

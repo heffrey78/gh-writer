@@ -120,8 +120,7 @@ test("headings, lists, tables and pictures show as themselves; raw Markdown is s
 test("the editor is reachable and usable by keyboard alone", async ({ page }) => {
   await openScene(page, STATION);
   await page.getByRole("combobox", { name: "Open" }).focus();
-  // Past the word count's goal button, the editor is next.
-  for (let i = 0; i < 2; i++) await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
   await expect(textbox(page)).toBeFocused();
   await move(page, "ControlOrMeta+End");
   await page.keyboard.type(" The end.");

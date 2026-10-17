@@ -2,7 +2,7 @@ import type { Content } from "@tiptap/core";
 import type { Fragment, Node } from "@tiptap/pm/model";
 import { Dropcursor, Gapcursor, Placeholder, UndoRedo } from "@tiptap/extensions";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef } from "react";
 import { useStore } from "zustand";
 import { chapterContent, loadChapter, parseChapter, replaceScene, type SceneMarkdown, type SceneSource } from "./chapter.ts";
 import { loadMarkdown, setInitialMarkdown } from "./editor.ts";
@@ -432,7 +432,7 @@ function setSceneTitle(editor: Editor, id: string, title: string) {
 export interface WordCountProps {
   /** Words in the whole chapter, when the editor shows a single scene and the app knows the rest. */
   chapterWords?: number;
-  /** Which counts to show (all by default): the session's comes with its goal. */
+  /** Which counts to show (all by default). */
   show?: readonly ("scene" | "chapter" | "session")[];
   /** Its name for screen readers ("Word count"). */
   label?: string;
@@ -443,37 +443,15 @@ const format = new Intl.NumberFormat();
 const signed = (n: number) => (n > 0 ? `+${format.format(n)}` : n < 0 ? `−${format.format(-n)}` : "0");
 
 /**
- * Scene, chapter and session word counts, with an optional session goal. It follows the editor
- * the writer last used, and hides in focus mode unless the count is pinned.
+ * Scene, chapter and session word counts. It follows the editor the writer last used, and hides in
+ * focus mode unless the count is pinned.
  */
 export function WordCount({ chapterWords, show = ["scene", "chapter", "session"], label = "Word count", className }: WordCountProps) {
   const counts = useStore(liveCounts);
   const session = useStore(writingSession);
   const hidden = useWritingModes((m) => m.focus && !m.pinCount);
-  const [editing, setEditing] = useState(false);
-  const inputId = useId();
-  // After the goal form closes, focus goes back to its button rather than to the page.
-  const goalButton = useRef<HTMLButtonElement>(null);
-  const closing = useRef(false);
-  useEffect(() => {
-    if (!editing && closing.current) goalButton.current?.focus();
-    closing.current = false;
-  }, [editing]);
-  const close = () => {
-    closing.current = true;
-    setEditing(false);
-  };
   const words = sessionWords(session);
-  const { goal } = session;
-  const reached = goal !== null && words >= goal;
   const chapter = counts.view === "chapter" ? counts.chapter : chapterWords;
-
-  const save = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const value = Number(new FormData(e.currentTarget).get("goal"));
-    writingSession.getState().setGoal(Number.isFinite(value) && value > 0 ? value : null);
-    close();
-  };
 
   return (
     <div className={["ghw-wordcount", className].filter(Boolean).join(" ")} role="group" aria-label={label} hidden={hidden}>
@@ -488,33 +466,9 @@ export function WordCount({ chapterWords, show = ["scene", "chapter", "session"]
         </span>
       )}
       {show.includes("session") && (
-        <>
-          <span className="ghw-session">
-            Session <strong>{signed(words)}</strong>
-            {goal !== null && (
-              <>
-                {" "}
-                of {format.format(goal)}
-                <progress max={goal} value={Math.max(0, Math.min(words, goal))} aria-label="Session goal progress" />
-              </>
-            )}
-          </span>
-          {editing ? (
-            <form onSubmit={save} onKeyDown={(e) => e.key === "Escape" && close()}>
-              <label htmlFor={inputId}>Session goal</label>
-              <input id={inputId} name="goal" type="number" min={0} defaultValue={goal ?? ""} autoFocus />
-              <button type="submit">Save</button>
-            </form>
-          ) : (
-            <button type="button" ref={goalButton} onClick={() => setEditing(true)}>
-              {goal === null ? "Set goal" : "Change goal"}
-            </button>
-          )}
-          {/* A quiet notice: shown in the bar and announced once, never a pop-up. */}
-          <span role="status" className="ghw-goal-reached">
-            {reached ? "Goal reached" : ""}
-          </span>
-        </>
+        <span className="ghw-session">
+          Session <strong>{signed(words)}</strong>
+        </span>
       )}
     </div>
   );

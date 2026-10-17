@@ -75,15 +75,12 @@ export interface SessionScene {
 
 export interface WritingSession {
   startedAt: number;
-  /** Net words to write this session, or null for no goal. */
-  goal: number | null;
   scenes: Record<string, SessionScene>;
 }
 
 interface WritingSessionStore extends WritingSession {
   /** Record a scene's current count; the first count seen in a session is its baseline. */
   record(sceneId: string, words: number): void;
-  setGoal(goal: number | null): void;
   /** Start a new session from the counts as they are now. */
   restart(): void;
 }
@@ -110,14 +107,6 @@ function safe(storage: () => Storage): StateStorage {
   };
 }
 
-// The goal is a habit, so new sessions start with the last one set.
-const GOAL_KEY = "gh-writer:session-goal";
-const goalStorage = safe(() => localStorage);
-const lastGoal = (): number | null => {
-  const goal = Number(goalStorage.getItem(GOAL_KEY));
-  return Number.isFinite(goal) && goal > 0 ? goal : null;
-};
-
 /**
  * The writing session: a browser tab's session (it survives reloads, not closing the tab), so
  * session words are the net words added in this sitting, across every scene opened.
@@ -126,7 +115,6 @@ export const writingSession = createStore<WritingSessionStore>()(
   persist(
     (set) => ({
       startedAt: Date.now(),
-      goal: lastGoal(),
       scenes: {},
       record: (sceneId, words) =>
         set((s) => {
@@ -134,12 +122,6 @@ export const writingSession = createStore<WritingSessionStore>()(
           if (known?.current === words) return s;
           return { scenes: { ...s.scenes, [sceneId]: { baseline: known?.baseline ?? words, current: words } } };
         }),
-      setGoal: (goal) => {
-        const value = goal && goal > 0 ? Math.round(goal) : null;
-        if (value) goalStorage.setItem(GOAL_KEY, String(value));
-        else goalStorage.removeItem(GOAL_KEY);
-        set({ goal: value });
-      },
       restart: () =>
         set((s) => ({
           startedAt: Date.now(),
@@ -149,7 +131,7 @@ export const writingSession = createStore<WritingSessionStore>()(
     {
       name: "gh-writer:writing-session",
       storage: createJSONStorage(() => safe(() => sessionStorage)),
-      partialize: ({ startedAt, goal, scenes }) => ({ startedAt, goal, scenes }),
+      partialize: ({ startedAt, scenes }) => ({ startedAt, scenes }),
     },
   ),
 );

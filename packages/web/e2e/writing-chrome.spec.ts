@@ -14,7 +14,6 @@ test("the chapter's length by its title, the scene's on its card, the session's 
   await expect(card).toContainText("Arrival · scene 1 of 2 · 113 words");
   const bar = page.getByRole("group", { name: "This session" });
   await expect(bar).toContainText("Session 0");
-  await expect(bar.getByRole("button", { name: "Set goal" })).toBeVisible();
   await expect(page.getByRole("link", { name: /^Today: / })).toBeVisible();
 
   // Written at the end of the chapter (its last scene, on the card now), the counts follow.

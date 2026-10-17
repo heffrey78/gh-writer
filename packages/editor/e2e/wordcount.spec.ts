@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { AxeBuilder } from "@axe-core/playwright";
 import { countWords } from "@gh-writer/core";
 import { expect, test, type Page } from "@playwright/test";
 import { splitSceneFile } from "../src/index.ts";
@@ -52,24 +51,6 @@ test("the session count survives a reload", async ({ page }) => {
   await expectCounts(page, "Session +3");
   await page.getByRole("button", { name: "Start a new writing session" }).click();
   await expectCounts(page, "Session 0");
-});
-
-test("a session goal shows progress and a quiet notice when reached", async ({ page }) => {
-  await open(page, `scene=${STATION}`);
-  await page.getByRole("button", { name: "Set goal" }).click();
-  await page.getByLabel("Session goal").fill("5");
-  await page.getByRole("button", { name: "Save" }).click();
-  await expect(page.getByRole("button", { name: "Change goal" })).toBeFocused();
-  await expectCounts(page, "Session 0 of 5");
-  await expect(bar(page).getByRole("status")).toHaveText("");
-  await caretAfter(page, "counted them twice");
-  await page.keyboard.type(" one two three");
-  await expectCounts(page, "Session +3 of 5");
-  await expect(bar(page).getByRole("progressbar")).toHaveAttribute("value", "3");
-  await page.keyboard.type(" four five");
-  await expect(bar(page).getByRole("status")).toHaveText("Goal reached");
-  const { violations } = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
-  expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
 });
 
 test("the count hides in focus mode unless pinned", async ({ page }) => {

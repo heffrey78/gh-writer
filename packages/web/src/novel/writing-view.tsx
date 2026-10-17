@@ -584,8 +584,8 @@ function EmptyChapter({ autofocus, onAdd }: { autofocus: boolean; onAdd: (title:
 }
 
 /**
- * Under the text, quietly: the writing session's words and its goal, and today's against the daily
- * goal. In focus mode, only while the count is pinned there.
+ * Under the text, quietly: the writing session's words, and today's against the daily goal. In
+ * focus mode, only while the count is pinned there.
  */
 function StatusBar({ novelId, workspace }: { novelId: string; workspace: Workspace }) {
   const hidden = useWritingModes((m) => m.focus && !m.pinCount);

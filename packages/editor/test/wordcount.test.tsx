@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { countWords } from "@gh-writer/core";
 import { Editor } from "@tiptap/core";
 import { Transform } from "@tiptap/pm/transform";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import fc from "fast-check";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
@@ -35,7 +35,7 @@ const bodies = readdirSync(join(root, "examples/sample-novel/manuscript"), { rec
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
-  writingSession.setState({ startedAt: Date.now(), goal: null, scenes: {} });
+  writingSession.setState({ startedAt: Date.now(), scenes: {} });
   writingModes.setState({ focus: false, dim: false, typewriter: false, pinCount: false, spellcheck: true, linkSuggestions: false });
   liveCounts.setState({ view: null, sceneId: null, scene: 0, chapter: 0 });
 });
@@ -117,16 +117,11 @@ describe("writing session", () => {
     expect(sessionWords(writingSession.getState())).toBe(5);
   });
 
-  test("the session survives a reload in sessionStorage; the goal is remembered in localStorage", () => {
+  test("the session survives a reload in sessionStorage", () => {
     writingSession.getState().record("a", 10);
     writingSession.getState().record("a", 25);
-    writingSession.getState().setGoal(500);
     const stored = JSON.parse(sessionStorage.getItem("gh-writer:writing-session")!).state;
     expect(stored.scenes).toEqual({ a: { baseline: 10, current: 25 } });
-    expect(stored.goal).toBe(500);
-    expect(localStorage.getItem("gh-writer:session-goal")).toBe("500");
-    writingSession.getState().setGoal(null);
-    expect(localStorage.getItem("gh-writer:session-goal")).toBeNull();
   });
 });
 
@@ -191,22 +186,6 @@ describe("WordCount", () => {
     );
     await act(() => new Promise<void>((done) => requestAnimationFrame(() => done())));
     expect(screen.getByRole("group", { name: "Word count" }).textContent).toMatch(/Scene 2.*Chapter 1,234/);
-  });
-
-  test("sets a goal, shows progress and quietly notes when it's reached", () => {
-    writingSession.getState().record("a", 100);
-    render(<WordCount />);
-    fireEvent.click(screen.getByRole("button", { name: "Set goal" }));
-    fireEvent.change(screen.getByLabelText("Session goal"), { target: { value: "50" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(writingSession.getState().goal).toBe(50);
-    const progress = screen.getByRole("progressbar", { name: "Session goal progress" });
-    expect(screen.getByRole("status").textContent).toBe("");
-    act(() => writingSession.getState().record("a", 130));
-    expect(progress.getAttribute("value")).toBe("30");
-    expect(screen.getByRole("status").textContent).toBe("");
-    act(() => writingSession.getState().record("a", 160));
-    expect(screen.getByRole("status").textContent).toBe("Goal reached");
   });
 
   test("hides in focus mode unless pinned", () => {
