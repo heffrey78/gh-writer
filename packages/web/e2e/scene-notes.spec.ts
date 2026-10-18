@@ -109,12 +109,18 @@ test("a note's page puts it on scenes; deleting its only scene asks what becomes
   await page.getByRole("button", { name: /^Add to scenes/ }).click();
   await page.keyboard.type("walking the span");
   await page.keyboard.press("Enter");
+  // Picking closes the list, which hands the focus back to its button a moment later. Escape before
+  // then reaches the modal and closes the note, so wait for it, as a person would.
+  await expect(page.getByRole("button", { name: /^Add to scenes/ })).toBeFocused();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("link", { name: "Walking the Span" }).first()).toBeVisible();
+  // The note's own link to the scene: the Notes gallery's card behind the modal is a link whose name
+  // ends "On Walking the Span".
+  const toScene = page.getByRole("dialog").getByRole("link", { name: "Walking the Span", exact: true });
+  await expect(toScene).toBeVisible();
   await expect.poll(() => readFileSync(join(dir, "notes/what-if-ben-never-sold.md"), "utf8")).toContain("scenes:\n  - sc_br1dg3\n");
 
   // On that scene's Notes tab.
-  await page.getByRole("link", { name: "Walking the Span" }).click();
+  await toScene.click();
   await sidebar(page).getByRole("tab", { name: "Notes" }).click();
   await expect(sidebar(page).getByRole("list", { name: "Notes on “Walking the Span”" }).getByRole("listitem")).toHaveCount(1);
 
