@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use tauri::webview::cookie::{Cookie, SameSite};
 use tauri::menu::{CheckMenuItem, CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, Submenu, SubmenuBuilder};
 use tauri::{AppHandle, DragDropEvent, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry};
+use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
 
@@ -174,6 +175,56 @@ fn set_recent(app: AppHandle, novels: Vec<RecentNovel>) {
             let _ = menu.append(&item);
         }
     }
+}
+
+/// Run the webview's own editing command (cut, copy, paste or select_all) on what has the focus in the
+/// window, as its Edit menu does: the app's right-click menu. Answers false where the shell can't (on
+/// macOS and Windows for now), and the page does it itself, pasting the clipboard's text.
+#[tauri::command]
+fn edit(window: WebviewWindow, action: String) -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        let command = match action.as_str() {
+            "cut" => "Cut",
+            "copy" => "Copy",
+            "paste" => "Paste",
+            "select_all" => "SelectAll",
+            _ => return false,
+        };
+        window
+            .with_webview(move |webview| {
+                use webkit2gtk::WebViewExt;
+                webview.inner().execute_editing_command(command);
+            })
+            .is_ok()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (window, action);
+        false
+    }
+}
+
+/// The clipboard's text, if it holds any: whether the right-click menu's Paste can paste, and what it
+/// pastes where the shell can't paste itself. The page can't read the clipboard on its own.
+#[tauri::command]
+fn clipboard_text(app: AppHandle) -> Option<String> {
+    app.clipboard().read_text().ok().filter(|text| !text.is_empty())
+}
+
+/// Whether the inspector can be opened: in a debug build only.
+#[tauri::command]
+fn can_inspect() -> bool {
+    cfg!(debug_assertions)
+}
+
+/// Open the inspector on the window's page (a debug build; nothing otherwise).
+#[tauri::command]
+fn inspect(window: WebviewWindow) {
+    #[cfg(debug_assertions)]
+    window.open_devtools();
+    #[cfg(not(debug_assertions))]
+    let _ = window;
 }
 
 /// Run `command` in a window's page now if it's ready, or once it is.
@@ -515,10 +566,11 @@ pub fn run() {
         // First: a second copy hands its arguments to this one and exits, before anything starts.
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| handle_args(app, args.get(1..).unwrap_or_default(), Path::new(&cwd))))
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(Shell::default())
-        .invoke_handler(tauri::generate_handler![flushed, page_ready, pick_folder, open_novel, show_library, set_recent])
+        .invoke_handler(tauri::generate_handler![flushed, page_ready, pick_folder, open_novel, show_library, set_recent, edit, clipboard_text, can_inspect, inspect])
         .on_menu_event(|app, event| on_menu(app, event.id().as_ref()))
         .setup(|app| {
             let handle = app.handle();

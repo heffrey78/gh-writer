@@ -23,6 +23,7 @@ In the desktop app, the library has a window of its own, and each novel opens in
 - **Choose…** beside a folder field opens your system's folder dialog, so you needn't type a path.
 - **Drop a novel's folder** on the library window to open it, or open one from a terminal with `gh-writer path/to/novel`. If it isn't a novel, the library says why.
 - **File › Open Recent** lists the novels you've opened most recently.
+- **Right-click** (or **Shift+F10**, or the Menu key) anywhere for the app's own menu: **Back** and **Forward** everywhere, with **Cut**, **Copy**, **Paste** and **Select all** above them in text and in fields (and **Copy** elsewhere when text is selected). On a misspelled word the suggestions come first, and on selected text in a novel on GitHub, **Raise an issue…**; the manuscript tree keeps its own menu.
 - **File › Use This Computer's git** switches from the git that comes with gh-writer to the one installed on your computer, if you'd rather use your own setup. Your open windows come back where they were.
 - Quitting, or closing a window, saves what you've typed first.
 

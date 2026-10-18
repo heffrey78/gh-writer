@@ -1,8 +1,10 @@
 import { readAnchor, readFrontMatter, type Chapter, type Novel, type Scene } from "@gh-writer/core";
 import { countWords } from "@gh-writer/core";
 import {
+  appContextMenu,
   caretBlock,
   caretScene,
+  contributeMenuItems,
   findCommands,
   getMarkdown,
   insertPicture,
@@ -394,6 +396,8 @@ export function WritingView({ novelId, novel, workspace, view, spell, entries }:
           // On selected text in the editor, unless something there (the spelling menu) took the click.
           if (!repo || !editor || editor.isDestroyed || e.defaultPrevented || !editor.view.dom.contains(e.target as Node)) return;
           if (!selectedPassage(editor, novel)) return;
+          // The desktop app's menu shows it with its own items.
+          if (appContextMenu()) return contributeMenuItems(e.nativeEvent, { items: [{ label: "Raise an issue…", run: raiseFromSelection }] });
           e.preventDefault();
           setMenu({ x: e.clientX, y: e.clientY });
         }}

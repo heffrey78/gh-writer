@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-clipboard-text"
+description = "Enables the clipboard_text command without any pre-configured scope."
+commands.allow = ["clipboard_text"]
+
+[[permission]]
+identifier = "deny-clipboard-text"
+description = "Denies the clipboard_text command without any pre-configured scope."
+commands.deny = ["clipboard_text"]

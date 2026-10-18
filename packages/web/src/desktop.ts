@@ -73,6 +73,31 @@ export function chooseFolder(title: string): Promise<string | null> {
   return shell ? shell.invoke<string | null>("pick_folder", { title }) : Promise.resolve(null);
 }
 
+export type EditAction = "cut" | "copy" | "paste" | "select_all";
+
+/**
+ * Have the shell run the webview's own editing command on what has the focus. False where it can't
+ * (in a browser, and in the desktop app on macOS and Windows for now): the page does it itself.
+ */
+export function shellEdit(action: EditAction): Promise<boolean> {
+  return shell ? shell.invoke<boolean>("edit", { action }).catch(() => false) : Promise.resolve(false);
+}
+
+/** The clipboard's text, which a page can't read on its own: from the shell, or null. */
+export function clipboardText(): Promise<string | null> {
+  return shell ? shell.invoke<string | null>("clipboard_text").catch(() => null) : Promise.resolve(null);
+}
+
+/** Whether the shell can open the inspector on this page (a debug build). */
+export function canInspect(): Promise<boolean> {
+  return shell ? shell.invoke<boolean>("can_inspect").catch(() => false) : Promise.resolve(false);
+}
+
+/** Open the inspector on this page. */
+export function inspect(): void {
+  void shell?.invoke("inspect");
+}
+
 /** Tell the shell the novels most recently opened, for its Open Recent menu. */
 export function reportRecent(novels: { id: string; title: string }[]): void {
   void shell?.invoke("set_recent", { novels });

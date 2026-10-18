@@ -5,6 +5,7 @@ import { BrowserRouter, Route, Routes } from "react-router";
 import { HistoryKeeper } from "./history.tsx";
 import { AboutDialog } from "./about.tsx";
 import { queryClient } from "./api.ts";
+import { AppContextMenu } from "./context-menu.tsx";
 import { DesktopBridge } from "./desktop-bridge.tsx";
 import { FirstRunIdentity, IdentityDialog } from "./identity.tsx";
 import { ConnectDialog } from "./github/connect.tsx";
@@ -27,30 +28,32 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <HistoryKeeper />
-        <GlobalCommands />
-        <CommandPalette />
-        <ConnectDialog />
-        <PublishDialog />
-        <AboutDialog />
-        <IdentityDialog />
-        <FirstRunIdentity />
-        <DesktopBridge />
-        <ErrorBoundary what="this page">
-          <Routes>
-            <Route path="/" element={<LibraryPage />} />
-            <Route
-              path="/bench/graph"
-              element={
-                <Suspense>
-                  <GraphBench />
-                </Suspense>
-              }
-            />
-            <Route path="/novels/:novelId/*" element={<NovelPage />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </ErrorBoundary>
+        <AppContextMenu>
+          <HistoryKeeper />
+          <GlobalCommands />
+          <CommandPalette />
+          <ConnectDialog />
+          <PublishDialog />
+          <AboutDialog />
+          <IdentityDialog />
+          <FirstRunIdentity />
+          <DesktopBridge />
+          <ErrorBoundary what="this page">
+            <Routes>
+              <Route path="/" element={<LibraryPage />} />
+              <Route
+                path="/bench/graph"
+                element={
+                  <Suspense>
+                    <GraphBench />
+                  </Suspense>
+                }
+              />
+              <Route path="/novels/:novelId/*" element={<NovelPage />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </ErrorBoundary>
+        </AppContextMenu>
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,

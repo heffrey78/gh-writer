@@ -2,6 +2,7 @@ import { Extension, type Editor } from "@tiptap/core";
 import type { Node } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
+import { appContextMenu, contributeMenuItems } from "./context-menu.ts";
 import { writingModes, type EditorCommand } from "./modes.ts";
 import { SpellEngine, type Misspellings, type SpellDictionary } from "./spell-engine.ts";
 import type { SpellRequest } from "./spell.worker.ts";
@@ -139,6 +140,20 @@ export const SpellCheckExtension = Extension.create<SpellCheckOptions>({
             contextmenu: (view, event) => {
               const at = view.posAtCoords({ left: event.clientX, top: event.clientY });
               if (!at || !misspellingAt(view, at.pos)) return false;
+              // The app's menu shows the suggestions, with its own items.
+              if (appContextMenu()) {
+                const spelling = spellingAt(editor, at.pos);
+                if (spelling) {
+                  contributeMenuItems(event, {
+                    pending: "Finding suggestions…",
+                    items: spelling.suggest().then((s) => (s.length ? s.map((word) => ({ label: word, run: () => spelling.replace(word) })) : [{ label: "No suggestions" }])),
+                  });
+                  contributeMenuItems(event, {
+                    items: [...(spelling.canAdd ? [{ label: `Add “${spelling.word}” to dictionary`, run: () => spelling.accept(true) }] : []), { label: "Ignore", run: () => spelling.accept(false) }],
+                  });
+                }
+                return false;
+              }
               event.preventDefault();
               openSpellingMenu(editor, at.pos);
               return true;
@@ -229,20 +244,53 @@ export function closeSpellingMenu(): void {
   openMenu?.close(false);
 }
 
+/** The misspelling at `pos`, and what can be done about it: for a menu to offer. */
+interface Spelling {
+  word: string;
+  suggest(): Promise<string[]>;
+  /** Put `text` in its place, if the word is still there. */
+  replace(text: string): void;
+  /** Stop flagging it: in the novel's dictionary (`persist`), or for now. */
+  accept(persist: boolean): void;
+  /** Whether it can go in the novel's dictionary. */
+  canAdd: boolean;
+}
+
+function spellingAt(editor: Editor, pos: number): Spelling | undefined {
+  const ext = editor.extensionManager.extensions.find((e) => e.name === "spellCheck");
+  const options = ext?.options as SpellCheckOptions | undefined;
+  const view = editor.view;
+  const range = misspellingAt(view, pos);
+  if (!options?.service || !range) return undefined;
+  const { service } = options;
+  const word = view.state.doc.textBetween(range.from, range.to);
+  const still = () => !view.isDestroyed && view.state.doc.textBetween(range.from, range.to) === word;
+  return {
+    word,
+    suggest: () => service.suggest(word),
+    replace: (text) => {
+      if (still()) view.dispatch(view.state.tr.insertText(text, range.from, range.to).scrollIntoView());
+    },
+    accept: (persist) => {
+      service.add([word]);
+      if (persist) options.onAddWord?.(word);
+    },
+    canAdd: !!options.onAddWord,
+  };
+}
+
 /**
  * Open the suggestions menu for the misspelling at `pos` (default: the caret). Keyboard:
  * arrows move, Enter chooses, Escape returns to the text. Returns false if there's no
  * misspelling there.
  */
 export function openSpellingMenu(editor: Editor, pos = editor.state.selection.head): boolean {
-  const ext = editor.extensionManager.extensions.find((e) => e.name === "spellCheck");
-  const options = ext?.options as SpellCheckOptions | undefined;
   const view = editor.view;
   const range = misspellingAt(view, pos);
-  if (!options?.service || !range) return false;
-  const { service } = options;
+  const spelling = spellingAt(editor, pos);
+  if (!range || !spelling) return false;
   closeSpellingMenu();
-  const word = view.state.doc.textBetween(range.from, range.to);
+  const { word } = spelling;
 
   const menu = document.createElement("div");
   menu.className = "ghw-spell-menu";
@@ -271,14 +319,12 @@ export function openSpellingMenu(editor: Editor, pos = editor.state.selection.he
   };
   const items = () => [...menu.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not([aria-disabled="true"])')];
 
-  const still = () => !view.isDestroyed && view.state.doc.textBetween(range.from, range.to) === word;
   const replace = (text: string) => () => {
-    if (still()) view.dispatch(view.state.tr.insertText(text, range.from, range.to).scrollIntoView());
+    spelling.replace(text);
     close(true);
   };
   const accept = (persist: boolean) => () => {
-    service.add([word]);
-    if (persist) options.onAddWord?.(word);
+    spelling.accept(persist);
     close(true);
   };
 
@@ -310,7 +356,7 @@ export function openSpellingMenu(editor: Editor, pos = editor.state.selection.he
   const separator = document.createElement("div");
   separator.setAttribute("role", "separator");
   menu.append(separator);
-  if (options.onAddWord) item(`Add “${word}” to dictionary`, accept(true));
+  if (spelling.canAdd) item(`Add “${word}” to dictionary`, accept(true));
   item("Ignore", accept(false));
 
   document.body.append(menu);
@@ -320,7 +366,7 @@ export function openSpellingMenu(editor: Editor, pos = editor.state.selection.he
   const first = items()[0];
   first?.focus();
 
-  void service.suggest(word).then((suggestions) => {
+  void spelling.suggest().then((suggestions) => {
     if (openMenu?.element !== menu) return;
     pendingItem.replaceWith(...(suggestions.length ? suggestions.map((s) => item(s, replace(s))) : [item("No suggestions")]));
     place();

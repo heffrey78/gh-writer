@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "The app's pages, served by its own server on 127.0.0.1, may ask the shell for what a browser page can't do: say they've saved, take its commands, choose a folder, open a novel's window, bring the library forward, list recent novels. Nothing else of Tauri's is open to them.",
+  "description": "The app's pages, served by its own server on 127.0.0.1, may ask the shell for what a browser page can't do: say they've saved, take its commands, choose a folder, open a novel's window, bring the library forward, list recent novels, run the webview's own Cut, Copy, Paste and Select all, read the clipboard's text (for the app's right-click menu), and open the inspector in a debug build. Nothing else of Tauri's is open to them.",
   "windows": [
     "*"
   ],
@@ -16,6 +16,10 @@
     "allow-pick-folder",
     "allow-open-novel",
     "allow-show-library",
-    "allow-set-recent"
+    "allow-set-recent",
+    "allow-edit",
+    "allow-clipboard-text",
+    "allow-can-inspect",
+    "allow-inspect"
   ]
 }

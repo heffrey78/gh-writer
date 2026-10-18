@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-can-inspect"
+description = "Enables the can_inspect command without any pre-configured scope."
+commands.allow = ["can_inspect"]
+
+[[permission]]
+identifier = "deny-can-inspect"
+description = "Denies the can_inspect command without any pre-configured scope."
+commands.deny = ["can_inspect"]

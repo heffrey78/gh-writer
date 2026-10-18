@@ -66,6 +66,7 @@ export {
   type SearchResults,
   type SearchScope,
 } from "./search.ts";
+export { appContextMenu, contributedMenuItems, contributeMenuItems, setAppContextMenu, type ContextMenuGroup, type ContextMenuItem } from "./context-menu.ts";
 export { closeFind, FindExtension, findCommands, findPanel, openFind, type FindPanelState } from "./find.ts";
 export {
   closeSpellingMenu,

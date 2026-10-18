@@ -44,6 +44,47 @@ export interface App {
   git: (dir: string, ...args: string[]) => string;
 }
 
+/** What the stand-in for the desktop app's shell answers. */
+export interface Shell {
+  /** What page_ready answers: commands kept for the page. */
+  pending?: { name: string; arg?: string }[];
+  /** What pick_folder answers. */
+  folder?: string | null;
+  /** What clipboard_text answers: the clipboard's text. */
+  clipboard?: string | null;
+  /** What can_inspect answers. */
+  inspect?: boolean;
+}
+
+/**
+ * Stand in for the desktop app's shell before the page loads; its calls are kept in window.__calls.
+ * Its `edit` answers false (as on macOS and Windows), so the page cuts, copies and pastes itself.
+ */
+export async function asDesktop(page: Page, shell: Shell = {}) {
+  await page.addInitScript((s: Shell) => {
+    const calls: [string, unknown][] = [];
+    (window as unknown as { __calls: typeof calls }).__calls = calls;
+    (window as unknown as { __TAURI__: unknown }).__TAURI__ = {
+      core: {
+        invoke: (command: string, args?: unknown) => {
+          calls.push([command, args]);
+          if (command === "page_ready") return Promise.resolve(s.pending ?? []);
+          if (command === "pick_folder") return Promise.resolve(s.folder ?? null);
+          if (command === "show_library") return Promise.resolve(true);
+          if (command === "edit") return Promise.resolve(false);
+          if (command === "clipboard_text") return Promise.resolve(s.clipboard ?? null);
+          if (command === "can_inspect") return Promise.resolve(s.inspect ?? false);
+          return Promise.resolve(null);
+        },
+      },
+    };
+  }, shell);
+}
+
+/** The arguments of each call the page made to the stand-in shell's `command`. */
+export const calls = (page: Page, command: string) =>
+  page.evaluate((c) => (window as unknown as { __calls: [string, unknown][] }).__calls.filter(([name]) => name === c).map(([, args]) => args), command);
+
 export const git = (dir: string, ...args: string[]) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 
 /**
