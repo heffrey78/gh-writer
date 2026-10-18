@@ -79,11 +79,14 @@ test("a note: made in its modal over Notes by a title, written, closed by clicki
   // Closed without a title, nothing is made.
   const before = novel.files("notes");
   await page.getByRole("button", { name: "New note" }).click();
+  await expect(modal.getByRole("textbox", { name: "Title" })).toBeFocused(); // Escape before then reaches nothing
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(novel.files("notes")).toEqual(before);
 
-  // Its address opens it over the gallery, from anywhere.
+  // Its address opens it over the gallery, from anywhere. The modal is gone before the address is
+  // back from /note/new, so wait for the gallery's before building the note's from it.
+  await expect(page).toHaveURL(/\/notes$/);
   const url = new URL(page.url());
   await page.goto(`${url.origin}${url.pathname.replace(/\/notes$/, "/note/note_w1fben")}`);
   await expect(page.getByRole("dialog", { name: "What if Ben never sold the plans?" })).toBeVisible();
